@@ -1,7 +1,8 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { Graph, type GraphOptions, type NodeData, type EdgeData } from '@antv/g6';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { getNodeColor } from '@/types/graph';
+import { NodeDetailCard } from './node-detail-card';
 
 interface GraphContainerProps {
   className?: string;
@@ -11,7 +12,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
 
-  const { visibleData, selectedNodeId, highlightedNodeId, selectNode } = useGraphStore();
+  const { fullData, visibleData, selectedNodeId, highlightedNodeId, selectNode } = useGraphStore();
 
   // 初始化图谱
   useEffect(() => {
@@ -27,34 +28,46 @@ export function GraphContainer({ className }: GraphContainerProps) {
       layout: {
         type: 'force',
         preventOverlap: true,
-        nodeStrength: -300,
-        linkDistance: 150,
+        nodeSize: 50,
+        nodeStrength: -600,
+        linkDistance: 160,
+        edgeStrength: 0.3,
+        collideStrength: 1,
+        animated: false,
+        maxIterations: 500,
+        maxSpeed: 200,
+        alphaDecay: 0.05,
+        alphaMin: 0.001,
       },
       node: {
+        type: 'circle',
         style: {
           size: 40,
           labelText: (d: NodeData) => (d.data?.label as string) || d.id,
           labelPlacement: 'bottom',
           labelFontSize: 12,
-          labelFill: 'var(--foreground)',
+          labelFill: '#0f172a',
           labelBackground: true,
-          labelBackgroundFill: 'var(--background)',
-          labelBackgroundOpacity: 0.8,
+          labelBackgroundFill: '#ffffff',
+          labelBackgroundOpacity: 0.9,
           labelBackgroundRadius: 4,
           labelPadding: [2, 6],
           fill: (d: NodeData) => getNodeColor(d.data?.type as string),
-          stroke: 'var(--border)',
+          stroke: '#334155',
           lineWidth: 2,
+          lineDash: [],
+          lineCap: 'butt',
+          lineJoin: 'miter',
         },
         state: {
           selected: {
-            stroke: 'var(--primary)',
+            stroke: '#6366f1',
             lineWidth: 4,
-            shadowColor: 'var(--primary)',
+            shadowColor: '#6366f1',
             shadowBlur: 10,
           },
           highlighted: {
-            stroke: 'var(--primary)',
+            stroke: '#6366f1',
             lineWidth: 3,
           },
           inactive: {
@@ -63,31 +76,34 @@ export function GraphContainer({ className }: GraphContainerProps) {
         },
       },
       edge: {
+        type: 'line',
         style: {
-          stroke: 'var(--muted-foreground)',
-          lineWidth: 1,
+          stroke: '#94a3b8',
+          lineWidth: 1.5,
+          lineDash: [],
+          lineCap: 'butt',
+          lineJoin: 'miter',
           endArrow: true,
           endArrowSize: 8,
+          endArrowFill: '#94a3b8',
           labelText: (d: EdgeData) => (d.data?.label as string) || '',
           labelFontSize: 10,
-          labelFill: 'var(--muted-foreground)',
+          labelFill: '#64748b',
           labelBackground: true,
-          labelBackgroundFill: 'var(--background)',
-          labelBackgroundOpacity: 0.8,
+          labelBackgroundFill: '#ffffff',
+          labelBackgroundOpacity: 0.9,
         },
         state: {
           active: {
-            stroke: 'var(--primary)',
-            lineWidth: 2,
+            stroke: '#6366f1',
+            lineWidth: 2.5,
           },
           inactive: {
             opacity: 0.2,
           },
         },
       },
-      animation: {
-        duration: 300,
-      },
+      animation: false,
     };
 
     const graph = new Graph(options);
@@ -95,7 +111,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     // 节点点击事件
     graph.on('node:click', (event) => {
-      const nodeId = event.target.id as string;
+      const nodeId = (event as unknown as { target: { id: string } }).target.id;
       selectNode(nodeId);
     });
 
@@ -104,23 +120,19 @@ export function GraphContainer({ className }: GraphContainerProps) {
       selectNode(null);
     });
 
-    // 初始渲染
-    graph.render();
-
     return () => {
       graphRef.current?.destroy();
       graphRef.current = null;
     };
   }, [selectNode]);
 
-  // 数据更新
+  // 数据更新：始终使用 fullData 渲染全部节点
   useEffect(() => {
     const graph = graphRef.current;
-    if (!graph || !visibleData) return;
+    if (!graph || !fullData) return;
 
-    // 转换数据格式为 G6 格式
     const g6Data = {
-      nodes: visibleData.nodes.map((node) => ({
+      nodes: fullData.nodes.map((node) => ({
         id: node.id,
         data: {
           label: node.label,
@@ -129,7 +141,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
           ...node.data,
         },
       })),
-      edges: visibleData.edges.map((edge) => ({
+      edges: fullData.edges.map((edge) => ({
         id: edge.id,
         source: edge.source,
         target: edge.target,
@@ -142,14 +154,16 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     graph.setData(g6Data);
     graph.render();
-  }, [visibleData]);
+  }, [fullData]);
 
-  // 更新节点状态
-  const updateNodeStates = useCallback(() => {
+  // 更新节点状态（选中/高亮/非活跃）
+  useEffect(() => {
     const graph = graphRef.current;
     if (!graph || !visibleData) return;
 
-    visibleData.nodes.forEach((node) => {
+    const visibleNodeIds = new Set(visibleData.nodes.map((n) => n.id));
+
+    fullData?.nodes.forEach((node) => {
       const states: string[] = [];
 
       if (node.id === selectedNodeId) {
@@ -157,13 +171,8 @@ export function GraphContainer({ className }: GraphContainerProps) {
       } else if (node.id === highlightedNodeId) {
         states.push('highlighted');
       } else if (selectedNodeId && node.id !== selectedNodeId) {
-        // 检查是否是选中节点的直接关联
-        const isRelated = visibleData.edges.some(
-          (e) =>
-            (e.source === selectedNodeId && e.target === node.id) ||
-            (e.target === selectedNodeId && e.source === node.id)
-        );
-        if (!isRelated) {
+        // 不在当前 visibleData 中的节点标记为 inactive
+        if (!visibleNodeIds.has(node.id)) {
           states.push('inactive');
         }
       }
@@ -172,16 +181,12 @@ export function GraphContainer({ className }: GraphContainerProps) {
     });
 
     // 更新边状态
-    visibleData.edges.forEach((edge) => {
+    fullData?.edges.forEach((edge) => {
       const isActive =
         selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
       graph.setElementState(edge.id, isActive ? ['active'] : []);
     });
-  }, [visibleData, selectedNodeId, highlightedNodeId]);
-
-  useEffect(() => {
-    updateNodeStates();
-  }, [updateNodeStates]);
+  }, [selectedNodeId, highlightedNodeId, visibleData, fullData]);
 
   // 窗口大小变化时调整图谱
   useEffect(() => {
@@ -199,10 +204,9 @@ export function GraphContainer({ className }: GraphContainerProps) {
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className={className}
-      style={{ width: '100%', height: '100%', minHeight: 400 }}
-    />
+    <div className="relative w-full h-full" style={{ minHeight: 400 }}>
+      <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
+      <NodeDetailCard />
+    </div>
   );
 }

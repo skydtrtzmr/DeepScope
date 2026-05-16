@@ -58,7 +58,7 @@ function AppContent() {
 
     window.addEventListener('message', handleMessage);
 
-    // 如果没有外部数据，加载示例数据
+    // 加载全部示例数据
     if (!initializedRef.current) {
       setGraphData(DEMO_GRAPH_DATA);
       initializedRef.current = true;
