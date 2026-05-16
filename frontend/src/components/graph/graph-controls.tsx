@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import type { ViewMode } from '@/lib/stores/graph-store';
-import { ChevronLeft, Maximize2, Layers, RotateCcw, Globe, GitBranch } from 'lucide-react';
+import { ChevronLeft, Maximize2, Layers, RotateCcw, Globe, GitBranch, Loader2 } from 'lucide-react';
 
 const MODE_OPTIONS: { value: ViewMode; label: string; icon: typeof Globe }[] = [
   { value: 'global', label: '全局总览', icon: Globe },
@@ -11,7 +11,7 @@ const MODE_OPTIONS: { value: ViewMode; label: string; icon: typeof Globe }[] = [
 ];
 
 export function GraphControls() {
-  const { config, updateConfig, expandMore, expandDeeper, goBack, reset, nodeHistory, selectedNodeId, viewMode, setViewMode } =
+  const { config, updateConfig, expandMore, expandDeeper, goBack, reset, nodeHistory, selectedNodeId, viewMode, setViewMode, isLoading } =
     useGraphStore();
 
   return (
@@ -98,6 +98,14 @@ export function GraphControls() {
           <span className="ml-1 text-xs text-muted-foreground">({nodeHistory.length})</span>
         )}
       </Button>
+
+      {/* 展开中提示 */}
+      {isLoading && viewMode === 'local' && (
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-1">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          正在加载邻居节点...
+        </div>
+      )}
 
       {/* 当前选中提示 */}
       {selectedNodeId && (

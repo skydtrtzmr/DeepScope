@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { GraphData, GraphNode, GraphConfig, RelatedNodeDetail } from '@/types/graph';
+import { expandGraph } from '@/lib/api';
 
 export type ViewMode = 'global' | 'local';
 
@@ -34,6 +35,7 @@ interface GraphState {
   // Actions
   setGraphData: (data: GraphData) => void;
   appendGraphData: (nodeId: string, data: GraphData, totalNeighbors: number) => void;
+  expandNode: (nodeId: string) => Promise<void>;
   selectNode: (nodeId: string | null) => void;
   highlightNode: (nodeId: string | null) => void;
   updateConfig: (config: Partial<GraphConfig>) => void;
@@ -309,6 +311,81 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       config: DEFAULT_CONFIG,
       nodeHistory: [],
     });
+  },
+
+  // 展开节点（local 模式：加载未加载的邻居节点并追加到图谱）
+  expandNode: async (nodeId) => {
+    const { fullData, expansionStates } = get();
+    if (!fullData) return;
+
+    const existingNodeIds = new Set(fullData.nodes.map((n) => n.id));
+    const state = expansionStates.get(nodeId);
+    const alreadyLoadedCount = state?.loadedNeighborIds.length || 0;
+
+    // 计算当前已加载的邻居 ID（fullData 中与 nodeId 直接相连的节点）
+    const loadedNeighborIds = new Set<string>();
+    fullData.edges.forEach((e) => {
+      if (e.source === nodeId) loadedNeighborIds.add(e.target);
+      if (e.target === nodeId) loadedNeighborIds.add(e.source);
+    });
+    // 排除节点自身
+    loadedNeighborIds.delete(nodeId);
+
+    const excludeIds = [...loadedNeighborIds];
+
+    // 如果已加载的邻居数量等于总邻居数，说明没有更多邻居了
+    if (state && alreadyLoadedCount > 0 && loadedNeighborIds.size >= state.totalNeighbors) {
+      return;
+    }
+
+    set({ isLoading: true });
+
+    try {
+      const result = await expandGraph({
+        nodeId,
+        m: 50, // 一次加载所有未加载的邻居
+        n: 1,
+        offset: 0,
+        excludeExistingIds: excludeIds,
+      });
+
+      if (result.nodes.length === 0) {
+        set({ isLoading: false });
+        return;
+      }
+
+      // 合并新数据
+      const newNodes = result.nodes.filter((n) => !existingNodeIds.has(n.id));
+      const newNodeIds = new Set(newNodes.map((n) => n.id));
+      const existingEdgeIds = new Set(fullData.edges.map((e) => e.id));
+      const allNodeIds = new Set([...existingNodeIds, ...newNodeIds]);
+      const newEdges = result.edges.filter(
+        (e) => !existingEdgeIds.has(e.id) && allNodeIds.has(e.source) && allNodeIds.has(e.target)
+      );
+
+      const mergedData: GraphData = {
+        nodes: [...fullData.nodes, ...newNodes],
+        edges: [...fullData.edges, ...newEdges],
+      };
+
+      // 更新展开状态
+      const newExpansionStates = new Map(expansionStates);
+      const mergedNeighborIds = new Set([...loadedNeighborIds, ...newNodes.map((n) => n.id)]);
+      newExpansionStates.set(nodeId, {
+        loadedNeighborIds: [...mergedNeighborIds],
+        totalNeighbors: result.totalNeighbors,
+      });
+
+      set({
+        fullData: mergedData,
+        visibleData: mergedData,
+        expansionStates: newExpansionStates,
+        isLoading: false,
+      });
+    } catch (err) {
+      console.error('展开节点失败:', err);
+      set({ isLoading: false });
+    }
   },
 
   // 切换视图模式

@@ -15,6 +15,8 @@ function createGraph(
   isDraggingRef: React.MutableRefObject<boolean>,
   applyNodeStatesRef: React.MutableRefObject<() => void>,
   selectNode: (nodeId: string | null) => void,
+  expandNode: (nodeId: string) => Promise<void>,
+  viewModeRef: React.MutableRefObject<string>,
   g6Data: Record<string, unknown>,
 ) {
   const options: GraphOptions = {
@@ -91,9 +93,15 @@ function createGraph(
 
   const graph = new Graph(options);
 
-  graph.on('node:click', (event) => {
+  graph.on('node:click', async (event) => {
     const nodeId = (event as unknown as { target: { id: string } }).target.id;
-    selectNode(nodeId);
+    // local 模式下：先展开邻居，再选中
+    if (viewModeRef.current === 'local') {
+      await expandNode(nodeId);
+      selectNode(nodeId);
+    } else {
+      selectNode(nodeId);
+    }
   });
 
   graph.on('node:dragstart', () => {
@@ -131,7 +139,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const graphRef = useRef<Graph | null>(null);
   const isDraggingRef = useRef(false);
 
-  const { fullData, visibleData, selectedNodeId, highlightedNodeId, selectNode } = useGraphStore();
+  const { fullData, visibleData, selectedNodeId, highlightedNodeId, selectNode, viewMode, expandNode } = useGraphStore();
 
   // 应用节点/边的选中高亮状态
   const applyNodeStates = useCallback(() => {
@@ -171,6 +179,12 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const selectNodeRef = useRef(selectNode);
   selectNodeRef.current = selectNode;
 
+  const expandNodeRef = useRef(expandNode);
+  expandNodeRef.current = expandNode;
+
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
+
   // fullData 变化时：销毁旧图并重建（彻底解决 d3-force 旧模拟残留问题）
   useEffect(() => {
     if (!containerRef.current || !fullData) return;
@@ -208,6 +222,8 @@ export function GraphContainer({ className }: GraphContainerProps) {
       isDraggingRef,
       applyNodeStatesRef,
       selectNodeRef.current,
+      expandNodeRef.current,
+      viewModeRef,
       g6Data,
     );
     graphRef.current = graph;
