@@ -321,7 +321,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   // 展开节点（local 模式：加载未加载的邻居节点，设置 pendingAddition 供组件增量渲染）
   expandNode: async (nodeId) => {
-    const { fullData, expansionStates } = get();
+    const { fullData, expansionStates, config } = get();
     if (!fullData) return;
 
     const existingNodeIds = new Set(fullData.nodes.map((n) => n.id));
@@ -345,8 +345,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     try {
       const result = await expandGraph({
         nodeId,
-        m: 50,
-        n: 1,
+        m: config.maxDirectRelations,
+        n: config.maxDepth,
         offset: 0,
         excludeExistingIds: [...loadedNeighborIds],
       });

@@ -1,10 +1,11 @@
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { getNodeColor } from '@/types/graph';
 import { Badge } from '@/components/ui/badge';
-import { X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { X, Compass } from 'lucide-react';
 
 export function NodeDetailCard() {
-  const { fullData, selectedNodeId, selectNode } = useGraphStore();
+  const { fullData, selectedNodeId, selectNode, viewMode, expandNode, isLoading } = useGraphStore();
 
   if (!selectedNodeId || !fullData) return null;
 
@@ -72,6 +73,21 @@ export function NodeDetailCard() {
           </a>
         )}
       </div>
+
+      {/* 探索此节点按钮（仅 local 模式） */}
+      {viewMode === 'local' && (
+        <div className="mt-3 pt-3 border-t">
+          <Button
+            size="sm"
+            className="w-full gap-1.5 text-xs"
+            onClick={() => expandNode(selectedNodeId)}
+            disabled={isLoading}
+          >
+            <Compass className="h-3.5 w-3.5" />
+            {isLoading ? '加载中...' : '探索此节点'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -22,7 +22,6 @@ function createGraph(
 ) {
   const options: GraphOptions = {
     container,
-    autoFit: 'view',
     padding: 40,
     behaviors: [
       'drag-canvas',
@@ -94,13 +93,15 @@ function createGraph(
 
   const graph = new Graph(options);
 
-  graph.on('node:click', async (event) => {
+  graph.on('node:click', (event) => {
     const nodeId = (event as unknown as { target: { id: string } }).target.id;
-    // local 模式下：先展开邻居，再选中
+    selectNode(nodeId);
+  });
+
+  graph.on('node:dblclick', async (event) => {
+    const nodeId = (event as unknown as { target: { id: string } }).target.id;
     if (viewModeRef.current === 'local') {
       await expandNode(nodeId);
-      selectNode(nodeId);
-    } else {
       selectNode(nodeId);
     }
   });
