@@ -32,6 +32,13 @@ interface GraphState {
   // 每个节点的展开状态（用于累积增长）
   expansionStates: Map<string, NodeExpansionState>;
 
+  // 当前正在展开的节点 ID（防并发重入）
+  expandingNodeId: string | null;
+
+  // G6 实例重建版本号：仅 setGraphData 时递增，commitAddition 不递增
+  // 组件据此决定是否销毁重建 G6，彻底消除 effect 时序依赖
+  rebuildTrigger: number;
+
   // 待增量添加到 G6 的数据（非 null 时组件应调用 G6 addData + render）
   pendingAddition: { nodes: GraphNode[]; edges: GraphEdge[] } | null;
 
@@ -155,9 +162,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   viewMode: 'global',
   expansionStates: new Map(),
   pendingAddition: null,
+  expandingNodeId: null,
+  rebuildTrigger: 0,
 
   // 设置图谱数据（初始加载）
   setGraphData: (data) => {
+    console.log('[store] setGraphData → 递增 rebuildTrigger，触发 G6 全量重建');
     set({
       fullData: data,
       visibleData: data,
@@ -167,6 +177,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       nodeHistory: [],
       expansionStates: new Map(),
       pendingAddition: null,
+      expandingNodeId: null,
+      rebuildTrigger: get().rebuildTrigger + 1,
     });
   },
 
@@ -208,7 +220,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   // 选择节点
   selectNode: (nodeId) => {
-    const { fullData, config, selectedNodeId, nodeHistory } = get();
+    const { fullData, config, selectedNodeId, nodeHistory, viewMode } = get();
 
     if (!nodeId || !fullData) {
       set({
@@ -228,6 +240,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       return;
     }
 
+    // local 模式：仅切换选中节点，不重算 visibleData（G6 画布保持全量）
+    if (viewMode === 'local') {
+      const newHistory = selectedNodeId ? [...nodeHistory, selectedNodeId] : nodeHistory;
+      set({ selectedNodeId: nodeId, nodeHistory: newHistory });
+      return;
+    }
+
+    // global 模式：BFS 过滤生成 visibleData
     const newHistory = selectedNodeId ? [...nodeHistory, selectedNodeId] : nodeHistory;
 
     const { visibleData, relatedNodes } = getRelatedNodes(
@@ -321,8 +341,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   // 展开节点（local 模式：加载未加载的邻居节点，设置 pendingAddition 供组件增量渲染）
   expandNode: async (nodeId) => {
-    const { fullData, expansionStates, config } = get();
+    const { fullData, expansionStates, config, expandingNodeId } = get();
     if (!fullData) return;
+
+    // 防并发：同一节点正在展开时不重复请求
+    if (expandingNodeId === nodeId) return;
 
     const existingNodeIds = new Set(fullData.nodes.map((n) => n.id));
 
@@ -340,7 +363,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       return;
     }
 
-    set({ isLoading: true });
+    set({ isLoading: true, expandingNodeId: nodeId });
 
     try {
       const result = await expandGraph({
@@ -352,7 +375,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       });
 
       if (result.nodes.length === 0) {
-        set({ isLoading: false });
+        set({ isLoading: false, expandingNodeId: null });
         return;
       }
 
@@ -366,7 +389,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       );
 
       if (newNodes.length === 0 && newEdges.length === 0) {
-        set({ isLoading: false });
+        set({ isLoading: false, expandingNodeId: null });
         return;
       }
 
@@ -385,13 +408,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       });
     } catch (err) {
       console.error('展开节点失败:', err);
-      set({ isLoading: false });
+      set({ isLoading: false, expandingNodeId: null });
     }
   },
 
   // 组件完成 G6 增量渲染后调用，更新 fullData
   commitAddition: (nodes, edges) => {
-    const { fullData } = get();
+    const { fullData, rebuildTrigger } = get();
     if (!fullData) return;
 
     const mergedData: GraphData = {
@@ -399,11 +422,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       edges: [...fullData.edges, ...edges],
     };
 
+    console.log(
+      `[store] commitAddition → 追加 ${nodes.length} 节点, ${edges.length} 边, rebuildTrigger 保持 ${rebuildTrigger}（不递增，不触发重建）`
+    );
+
     set({
       fullData: mergedData,
       visibleData: mergedData,
       pendingAddition: null,
       isLoading: false,
+      expandingNodeId: null,
     });
   },
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Graph, type GraphOptions, type NodeData, type EdgeData } from '@antv/g6';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { getNodeColor } from '@/types/graph';
@@ -16,8 +16,6 @@ function createGraph(
   isDraggingRef: React.MutableRefObject<boolean>,
   applyNodeStatesRef: React.MutableRefObject<() => void>,
   selectNode: (nodeId: string | null) => void,
-  expandNode: (nodeId: string) => Promise<void>,
-  viewModeRef: React.MutableRefObject<string>,
   g6Data: Record<string, unknown>,
 ) {
   const options: GraphOptions = {
@@ -98,14 +96,6 @@ function createGraph(
     selectNode(nodeId);
   });
 
-  graph.on('node:dblclick', async (event) => {
-    const nodeId = (event as unknown as { target: { id: string } }).target.id;
-    if (viewModeRef.current === 'local') {
-      await expandNode(nodeId);
-      selectNode(nodeId);
-    }
-  });
-
   graph.on('node:dragstart', () => {
     isDraggingRef.current = true;
     const data = fullDataRef.current as { nodes: { id: string }[]; edges: { id: string }[] } | null;
@@ -165,13 +155,10 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
   const isDraggingRef = useRef(false);
-  // 递增计数器，仅变化时才真正销毁重建 G6 实例
-  const [rebuildTrigger, setRebuildTrigger] = useState(0);
-  const skipFullDataEffectRef = useRef(false);
 
   const {
     fullData, visibleData, selectedNodeId, highlightedNodeId,
-    selectNode, viewMode, expandNode, pendingAddition, commitAddition,
+    selectNode, pendingAddition, commitAddition, rebuildTrigger,
   } = useGraphStore();
 
   // 应用节点/边的选中高亮状态
@@ -212,13 +199,8 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const selectNodeRef = useRef(selectNode);
   selectNodeRef.current = selectNode;
 
-  const expandNodeRef = useRef(expandNode);
-  expandNodeRef.current = expandNode;
-
-  const viewModeRef = useRef(viewMode);
-  viewModeRef.current = viewMode;
-
   // 增量渲染：pendingAddition 变化时，用 G6 addData + render 追加节点
+  // 注意：commitAddition 会更新 fullData 但不递增 rebuildTrigger，因此不会触发重建
   useEffect(() => {
     const graph = graphRef.current;
     if (!graph || !pendingAddition) return;
@@ -228,30 +210,25 @@ export function GraphContainer({ className }: GraphContainerProps) {
       edges: toG6Edges(pendingAddition.edges),
     };
 
+    console.log(
+      `[graph] 增量渲染 → addData ${pendingAddition.nodes.length} 节点, ${pendingAddition.edges.length} 边（rebuildTrigger=${rebuildTrigger}）`
+    );
+
     graph.addData(g6Data);
     graph.render().then(() => {
       if (!isDraggingRef.current) applyNodeStatesRef.current();
     });
 
-    // 标记下次 fullData 变化不触发重建
-    skipFullDataEffectRef.current = true;
-    // 提交增量数据到 store（更新 fullData，但不递增 rebuildTrigger）
     commitAddition(pendingAddition.nodes, pendingAddition.edges);
-  }, [pendingAddition, commitAddition]);
+  }, [pendingAddition, commitAddition, rebuildTrigger]);
 
-  // fullData 变化时：决定是否需要重建图谱
-  // 增量更新（commitAddition 触发）时跳过，仅模式切换/初始加载时才重建
-  useEffect(() => {
-    if (skipFullDataEffectRef.current) {
-      skipFullDataEffectRef.current = false;
-      return;
-    }
-    setRebuildTrigger((v) => v + 1);
-  }, [fullData]);
-
-  // rebuildTrigger 变化时：真正销毁旧图并重建
+  // rebuildTrigger 变化时：真正销毁旧图并重建（仅 setGraphData 递增此值）
   useEffect(() => {
     if (!containerRef.current || !fullData) return;
+
+    console.log(
+      `[graph] 全量重建 → rebuildTrigger=${rebuildTrigger}, 节点数=${fullData.nodes.length}, 边数=${fullData.edges.length}`
+    );
 
     // 销毁旧图
     if (graphRef.current) {
@@ -270,8 +247,6 @@ export function GraphContainer({ className }: GraphContainerProps) {
       isDraggingRef,
       applyNodeStatesRef,
       selectNodeRef.current,
-      expandNodeRef.current,
-      viewModeRef,
       g6Data,
     );
     graphRef.current = graph;
