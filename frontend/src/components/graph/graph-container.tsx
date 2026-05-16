@@ -1,8 +1,9 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { Graph, type GraphOptions, type NodeData, type EdgeData } from '@antv/g6';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { getNodeColor } from '@/types/graph';
 import { NodeDetailCard } from './node-detail-card';
+import type { GraphNode, GraphEdge } from '@/types/graph';
 
 interface GraphContainerProps {
   className?: string;
@@ -134,12 +135,43 @@ function createGraph(
   return graph;
 }
 
+// 将业务节点/边数据转换为 G6 格式
+function toG6Nodes(nodes: GraphNode[]) {
+  return nodes.map((node) => ({
+    id: node.id,
+    data: {
+      label: node.label,
+      type: node.type,
+      description: node.description,
+      ...node.data,
+    },
+  }));
+}
+
+function toG6Edges(edges: GraphEdge[]) {
+  return edges.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    data: {
+      label: edge.label,
+      ...edge.data,
+    },
+  }));
+}
+
 export function GraphContainer({ className }: GraphContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
   const isDraggingRef = useRef(false);
+  // 递增计数器，仅变化时才真正销毁重建 G6 实例
+  const [rebuildTrigger, setRebuildTrigger] = useState(0);
+  const skipFullDataEffectRef = useRef(false);
 
-  const { fullData, visibleData, selectedNodeId, highlightedNodeId, selectNode, viewMode, expandNode } = useGraphStore();
+  const {
+    fullData, visibleData, selectedNodeId, highlightedNodeId,
+    selectNode, viewMode, expandNode, pendingAddition, commitAddition,
+  } = useGraphStore();
 
   // 应用节点/边的选中高亮状态
   const applyNodeStates = useCallback(() => {
@@ -185,7 +217,38 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
 
-  // fullData 变化时：销毁旧图并重建（彻底解决 d3-force 旧模拟残留问题）
+  // 增量渲染：pendingAddition 变化时，用 G6 addData + render 追加节点
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph || !pendingAddition) return;
+
+    const g6Data = {
+      nodes: toG6Nodes(pendingAddition.nodes),
+      edges: toG6Edges(pendingAddition.edges),
+    };
+
+    graph.addData(g6Data);
+    graph.render().then(() => {
+      if (!isDraggingRef.current) applyNodeStatesRef.current();
+    });
+
+    // 标记下次 fullData 变化不触发重建
+    skipFullDataEffectRef.current = true;
+    // 提交增量数据到 store（更新 fullData，但不递增 rebuildTrigger）
+    commitAddition(pendingAddition.nodes, pendingAddition.edges);
+  }, [pendingAddition, commitAddition]);
+
+  // fullData 变化时：决定是否需要重建图谱
+  // 增量更新（commitAddition 触发）时跳过，仅模式切换/初始加载时才重建
+  useEffect(() => {
+    if (skipFullDataEffectRef.current) {
+      skipFullDataEffectRef.current = false;
+      return;
+    }
+    setRebuildTrigger((v) => v + 1);
+  }, [fullData]);
+
+  // rebuildTrigger 变化时：真正销毁旧图并重建
   useEffect(() => {
     if (!containerRef.current || !fullData) return;
 
@@ -196,24 +259,8 @@ export function GraphContainer({ className }: GraphContainerProps) {
     }
 
     const g6Data = {
-      nodes: fullData.nodes.map((node) => ({
-        id: node.id,
-        data: {
-          label: node.label,
-          type: node.type,
-          description: node.description,
-          ...node.data,
-        },
-      })),
-      edges: fullData.edges.map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        data: {
-          label: edge.label,
-          ...edge.data,
-        },
-      })),
+      nodes: toG6Nodes(fullData.nodes),
+      edges: toG6Edges(fullData.edges),
     };
 
     const graph = createGraph(
@@ -232,7 +279,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       graph.destroy();
       graphRef.current = null;
     };
-  }, [fullData]);
+  }, [rebuildTrigger]);
 
   // React 状态变化时更新节点状态（拖拽期间跳过，由 dragend 处理）
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GraphData, GraphNode, GraphConfig, RelatedNodeDetail } from '@/types/graph';
+import type { GraphData, GraphNode, GraphEdge, GraphConfig, RelatedNodeDetail } from '@/types/graph';
 import { expandGraph } from '@/lib/api';
 
 export type ViewMode = 'global' | 'local';
@@ -32,10 +32,14 @@ interface GraphState {
   // 每个节点的展开状态（用于累积增长）
   expansionStates: Map<string, NodeExpansionState>;
 
+  // 待增量添加到 G6 的数据（非 null 时组件应调用 G6 addData + render）
+  pendingAddition: { nodes: GraphNode[]; edges: GraphEdge[] } | null;
+
   // Actions
   setGraphData: (data: GraphData) => void;
   appendGraphData: (nodeId: string, data: GraphData, totalNeighbors: number) => void;
   expandNode: (nodeId: string) => Promise<void>;
+  commitAddition: (nodes: GraphNode[], edges: GraphEdge[]) => void;
   selectNode: (nodeId: string | null) => void;
   highlightNode: (nodeId: string | null) => void;
   updateConfig: (config: Partial<GraphConfig>) => void;
@@ -150,6 +154,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   isLoading: false,
   viewMode: 'global',
   expansionStates: new Map(),
+  pendingAddition: null,
 
   // 设置图谱数据（初始加载）
   setGraphData: (data) => {
@@ -161,6 +166,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       relatedNodes: [],
       nodeHistory: [],
       expansionStates: new Map(),
+      pendingAddition: null,
     });
   },
 
@@ -313,14 +319,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     });
   },
 
-  // 展开节点（local 模式：加载未加载的邻居节点并追加到图谱）
+  // 展开节点（local 模式：加载未加载的邻居节点，设置 pendingAddition 供组件增量渲染）
   expandNode: async (nodeId) => {
     const { fullData, expansionStates } = get();
     if (!fullData) return;
 
     const existingNodeIds = new Set(fullData.nodes.map((n) => n.id));
-    const state = expansionStates.get(nodeId);
-    const alreadyLoadedCount = state?.loadedNeighborIds.length || 0;
 
     // 计算当前已加载的邻居 ID（fullData 中与 nodeId 直接相连的节点）
     const loadedNeighborIds = new Set<string>();
@@ -328,13 +332,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       if (e.source === nodeId) loadedNeighborIds.add(e.target);
       if (e.target === nodeId) loadedNeighborIds.add(e.source);
     });
-    // 排除节点自身
     loadedNeighborIds.delete(nodeId);
 
-    const excludeIds = [...loadedNeighborIds];
-
+    const state = expansionStates.get(nodeId);
     // 如果已加载的邻居数量等于总邻居数，说明没有更多邻居了
-    if (state && alreadyLoadedCount > 0 && loadedNeighborIds.size >= state.totalNeighbors) {
+    if (state && loadedNeighborIds.size >= state.totalNeighbors) {
       return;
     }
 
@@ -343,10 +345,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     try {
       const result = await expandGraph({
         nodeId,
-        m: 50, // 一次加载所有未加载的邻居
+        m: 50,
         n: 1,
         offset: 0,
-        excludeExistingIds: excludeIds,
+        excludeExistingIds: [...loadedNeighborIds],
       });
 
       if (result.nodes.length === 0) {
@@ -354,7 +356,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         return;
       }
 
-      // 合并新数据
+      // 过滤出真正新的节点和边
       const newNodes = result.nodes.filter((n) => !existingNodeIds.has(n.id));
       const newNodeIds = new Set(newNodes.map((n) => n.id));
       const existingEdgeIds = new Set(fullData.edges.map((e) => e.id));
@@ -363,10 +365,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         (e) => !existingEdgeIds.has(e.id) && allNodeIds.has(e.source) && allNodeIds.has(e.target)
       );
 
-      const mergedData: GraphData = {
-        nodes: [...fullData.nodes, ...newNodes],
-        edges: [...fullData.edges, ...newEdges],
-      };
+      if (newNodes.length === 0 && newEdges.length === 0) {
+        set({ isLoading: false });
+        return;
+      }
 
       // 更新展开状态
       const newExpansionStates = new Map(expansionStates);
@@ -376,16 +378,33 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         totalNeighbors: result.totalNeighbors,
       });
 
+      // 设置待增量渲染数据，通知组件调用 G6 addData
       set({
-        fullData: mergedData,
-        visibleData: mergedData,
+        pendingAddition: { nodes: newNodes, edges: newEdges },
         expansionStates: newExpansionStates,
-        isLoading: false,
       });
     } catch (err) {
       console.error('展开节点失败:', err);
       set({ isLoading: false });
     }
+  },
+
+  // 组件完成 G6 增量渲染后调用，更新 fullData
+  commitAddition: (nodes, edges) => {
+    const { fullData } = get();
+    if (!fullData) return;
+
+    const mergedData: GraphData = {
+      nodes: [...fullData.nodes, ...nodes],
+      edges: [...fullData.edges, ...edges],
+    };
+
+    set({
+      fullData: mergedData,
+      visibleData: mergedData,
+      pendingAddition: null,
+      isLoading: false,
+    });
   },
 
   // 切换视图模式
