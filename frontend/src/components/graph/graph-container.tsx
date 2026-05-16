@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Graph, type GraphOptions, type NodeData, type EdgeData } from '@antv/g6';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { getNodeColor } from '@/types/graph';
@@ -11,8 +11,42 @@ interface GraphContainerProps {
 export function GraphContainer({ className }: GraphContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
+  const isDraggingRef = useRef(false);
 
   const { fullData, visibleData, selectedNodeId, highlightedNodeId, selectNode } = useGraphStore();
+
+  // 应用节点/边的选中高亮状态
+  const applyNodeStates = useCallback(() => {
+    const graph = graphRef.current;
+    if (!graph || !fullData || !visibleData) return;
+
+    const visibleNodeIds = new Set(visibleData.nodes.map((n) => n.id));
+
+    fullData.nodes.forEach((node) => {
+      const states: string[] = [];
+      if (node.id === selectedNodeId) {
+        states.push('selected');
+      } else if (node.id === highlightedNodeId) {
+        states.push('highlighted');
+      } else if (selectedNodeId && !visibleNodeIds.has(node.id)) {
+        states.push('inactive');
+      }
+      graph.setElementState(node.id, states);
+    });
+
+    fullData.edges.forEach((edge) => {
+      const isActive =
+        selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
+      graph.setElementState(edge.id, isActive ? ['active'] : []);
+    });
+  }, [fullData, visibleData, selectedNodeId, highlightedNodeId]);
+
+    // 保持最新引用，供事件回调使用
+  const applyNodeStatesRef = useRef(applyNodeStates);
+  applyNodeStatesRef.current = applyNodeStates;
+
+  const fullDataRef = useRef(fullData);
+  fullDataRef.current = fullData;
 
   // 初始化图谱
   useEffect(() => {
@@ -126,6 +160,22 @@ export function GraphContainer({ className }: GraphContainerProps) {
       selectNode(nodeId);
     });
 
+    // 拖拽开始：清除所有 G6 元素状态，防止 inactive 与力导向冲突 + 防止多选拖拽
+    graph.on('node:dragstart', () => {
+      isDraggingRef.current = true;
+      const data = fullDataRef.current;
+      if (data) {
+        data.nodes.forEach((n) => graph.setElementState(n.id, []));
+        data.edges.forEach((e) => graph.setElementState(e.id, []));
+      }
+    });
+
+    // 拖拽结束：恢复选中高亮状态
+    graph.on('node:dragend', () => {
+      isDraggingRef.current = false;
+      applyNodeStatesRef.current();
+    });
+
     // 画布点击事件（取消选中）
     graph.on('canvas:click', () => {
       selectNode(null);
@@ -167,37 +217,11 @@ export function GraphContainer({ className }: GraphContainerProps) {
     graph.render();
   }, [fullData]);
 
-  // 更新节点状态（选中/高亮/非活跃）
+  // React 状态变化时更新节点状态（拖拽期间跳过，由 dragend 处理）
   useEffect(() => {
-    const graph = graphRef.current;
-    if (!graph || !visibleData) return;
-
-    const visibleNodeIds = new Set(visibleData.nodes.map((n) => n.id));
-
-    fullData?.nodes.forEach((node) => {
-      const states: string[] = [];
-
-      if (node.id === selectedNodeId) {
-        states.push('selected');
-      } else if (node.id === highlightedNodeId) {
-        states.push('highlighted');
-      } else if (selectedNodeId && node.id !== selectedNodeId) {
-        // 不在当前 visibleData 中的节点标记为 inactive
-        if (!visibleNodeIds.has(node.id)) {
-          states.push('inactive');
-        }
-      }
-
-      graph.setElementState(node.id, states);
-    });
-
-    // 更新边状态
-    fullData?.edges.forEach((edge) => {
-      const isActive =
-        selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
-      graph.setElementState(edge.id, isActive ? ['active'] : []);
-    });
-  }, [selectedNodeId, highlightedNodeId, visibleData, fullData]);
+    if (isDraggingRef.current) return;
+    applyNodeStates();
+  }, [applyNodeStates]);
 
   // 窗口大小变化时调整图谱
   useEffect(() => {
