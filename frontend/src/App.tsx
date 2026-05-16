@@ -17,20 +17,40 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 
 function AppContent() {
-  const { setGraphData, fullData } = useGraphStore();
+  const { setGraphData, fullData, viewMode } = useGraphStore();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [importError, setImportError] = useState('');
   const initializedRef = useRef(false);
 
-  // 初始加载
-  useEffect(() => {
-    if (initializedRef.current) return;
+  // 获取局部增长模式的初始子图（包含各类型节点的核心子图）
+  const getLocalInitialData = useCallback((): GraphData => {
+    const ids = new Set([
+      // person
+      'person-1', 'person-2', 'person-5',
+      // organization
+      'org-1',
+      // event
+      'event-1',
+      // concept
+      'concept-1', 'concept-3',
+      // document
+      'doc-1',
+      // location
+      'loc-1',
+    ]);
+    return {
+      nodes: DEMO_GRAPH_DATA.nodes.filter((n) => ids.has(n.id)),
+      edges: DEMO_GRAPH_DATA.edges.filter((e) => ids.has(e.source) && ids.has(e.target)),
+    };
+  }, []);
 
-    // 尝试从 URL 参数获取数据
+  // 初始加载 / 模式切换时重新加载数据
+  useEffect(() => {
+    // 尝试从 URL 参数获取数据（仅首次）
     const params = new URLSearchParams(window.location.search);
     const dataParam = params.get('data');
-    if (dataParam) {
+    if (dataParam && !initializedRef.current) {
       try {
         const data = JSON.parse(decodeURIComponent(dataParam)) as GraphData;
         setGraphData(data);
@@ -41,31 +61,14 @@ function AppContent() {
       }
     }
 
-    // 监听 postMessage
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'GRAPH_DATA' && event.data.payload) {
-        try {
-          const data = event.data.payload as GraphData;
-          if (data.nodes && data.edges) {
-            setGraphData(data);
-            initializedRef.current = true;
-          }
-        } catch (e) {
-          console.error('处理 postMessage 数据失败:', e);
-        }
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-
-    // 加载全部示例数据
-    if (!initializedRef.current) {
+    // 根据模式加载数据
+    if (viewMode === 'local') {
+      setGraphData(getLocalInitialData());
+    } else {
       setGraphData(DEMO_GRAPH_DATA);
-      initializedRef.current = true;
     }
-
-    return () => window.removeEventListener('message', handleMessage);
-  }, [setGraphData]);
+    initializedRef.current = true;
+  }, [viewMode, setGraphData, getLocalInitialData]);
 
   // 导入数据
   const handleImport = useCallback(() => {
@@ -165,7 +168,7 @@ function LoadingFallback() {
   return (
     <div className="flex items-center justify-center h-screen bg-background">
       <div className="flex flex-col items-center gap-4">
-        <Spinner size="lg" />
+        <Spinner className="size-8" />
         <p className="text-muted-foreground">正在加载图谱...</p>
       </div>
     </div>

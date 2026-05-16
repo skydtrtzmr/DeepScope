@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { GraphData, GraphNode, GraphConfig, RelatedNodeDetail } from '@/types/graph';
 
+export type ViewMode = 'global' | 'local';
+
 interface NodeExpansionState {
   loadedNeighborIds: string[];
   totalNeighbors: number;
@@ -23,6 +25,9 @@ interface GraphState {
   // 加载状态
   isLoading: boolean;
 
+  // 视图模式：global 全局总览 | local 局部增长
+  viewMode: ViewMode;
+
   // 每个节点的展开状态（用于累积增长）
   expansionStates: Map<string, NodeExpansionState>;
 
@@ -36,6 +41,7 @@ interface GraphState {
   expandDeeper: () => void;
   goBack: () => void;
   reset: () => void;
+  setViewMode: (mode: ViewMode) => void;
 }
 
 const DEFAULT_CONFIG: GraphConfig = {
@@ -140,6 +146,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   config: DEFAULT_CONFIG,
   nodeHistory: [],
   isLoading: false,
+  viewMode: 'global',
   expansionStates: new Map(),
 
   // 设置图谱数据（初始加载）
@@ -302,5 +309,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       config: DEFAULT_CONFIG,
       nodeHistory: [],
     });
+  },
+
+  // 切换视图模式
+  setViewMode: (mode) => {
+    set({ viewMode: mode });
   },
 }));
