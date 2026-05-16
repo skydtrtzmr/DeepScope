@@ -12,12 +12,19 @@
 
 **文件**：`graph-container.tsx`、`graph-store.ts`
 
-**修复方案**：将 `rebuildTrigger` 从组件 `useState` 提升到 store，`setGraphData` 递增它，`commitAddition` 不递增。删除 `skipFullDataEffectRef` 和 `fullData` effect，组件仅监听 store 的 `rebuildTrigger`。彻底消除 React effect 执行顺序依赖。
+**根因**：两个问题叠加：
+1. `graph.render()` 返回 `Promise<void>`（异步），但 `applyNodeStates` React effect 在 render 完成前就同步调用 `graph.setElementState()`，此时 G6 内部 canvas context 尚未就绪 → `Cannot read properties of undefined (reading 'draw')`
+2. 旧 graph 的 `render().then()` 回调在 graph 被 `destroy()` 后仍 resolve，对已销毁的图调用 `setElementState`
 
-**验证方式**：打开浏览器控制台，在 local 模式下操作：
-- 初始加载 → 应看到 `[store] setGraphData → 递增 rebuildTrigger` + `[graph] 全量重建`
-- 点击"探索此节点" → 应看到 `[graph] 增量渲染 → addData` + `[store] commitAddition → rebuildTrigger 保持`，**不应出现** `[graph] 全量重建`
-- 反复多次展开不同节点 → `rebuildTrigger` 应始终等于初始加载时的值（通常为 1），全量重建日志只出现一次
+**修复方案**：
+- 新增 `graphReadyRef`：标记当前 graph 是否已完成首次 `render()`。`applyNodeStates` 入口处检查，未就绪则跳过
+- 新增 `graphGenerationRef`：每次销毁重建 graph 时递增。所有 `render().then()` 回调在执行前校验 generation，过期则丢弃
+- cleanup 中递增 generation + 重置 `graphReadyRef`，确保旧回调全部失效
+
+**验证方式**：打开浏览器控制台：
+- 初始加载 → `[graph] 全量重建` → `[graph] render 完成，标记 graphReady=true`，**不应出现** `Cannot read properties of undefined` 错误
+- 点击"探索此节点" → `[graph] 增量渲染` → `[graph] render 完成`，不应出现错误
+- 快速连续点击不同节点的"探索"按钮 → 不应出现错误，控制台可能出现"过期回调（generation 不匹配），跳过"日志
 
 ---
 

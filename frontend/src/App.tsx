@@ -27,13 +27,13 @@ function AppContent() {
   const getLocalInitialData = useCallback((): GraphData => {
     const ids = new Set([
       // person
-      'person-1', 'person-2', 'person-5',
+      'person-1',
       // organization
       'org-1',
       // event
       'event-1',
       // concept
-      'concept-1', 'concept-3',
+      'concept-1',
       // document
       'doc-1',
       // location

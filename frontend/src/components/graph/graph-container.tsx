@@ -15,6 +15,7 @@ function createGraph(
   fullDataRef: React.MutableRefObject<unknown>,
   isDraggingRef: React.MutableRefObject<boolean>,
   applyNodeStatesRef: React.MutableRefObject<() => void>,
+  graphReadyRef: React.MutableRefObject<boolean>,
   selectNode: (nodeId: string | null) => void,
   g6Data: Record<string, unknown>,
 ) {
@@ -111,7 +112,7 @@ function createGraph(
 
   graph.on('node:dragend', () => {
     isDraggingRef.current = false;
-    applyNodeStatesRef.current();
+    if (graphReadyRef.current) applyNodeStatesRef.current();
   });
 
   graph.on('canvas:click', () => {
@@ -119,7 +120,10 @@ function createGraph(
   });
 
   graph.setData(g6Data);
+  // render 是异步的，完成后才标记 ready 并应用节点状态
   graph.render().then(() => {
+    graphReadyRef.current = true;
+    console.log('[graph] render 完成，标记 graphReady=true');
     if (!isDraggingRef.current) applyNodeStatesRef.current();
   });
 
@@ -155,6 +159,10 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
   const isDraggingRef = useRef(false);
+  // 标记当前 graph 实例是否已完成首次 render（render 是异步的）
+  const graphReadyRef = useRef(false);
+  // 图谱代数，每次销毁重建时递增，用于丢弃过期 render().then() 回调
+  const graphGenerationRef = useRef(0);
 
   const {
     fullData, visibleData, selectedNodeId, highlightedNodeId,
@@ -162,9 +170,11 @@ export function GraphContainer({ className }: GraphContainerProps) {
   } = useGraphStore();
 
   // 应用节点/边的选中高亮状态
+  // 仅在 graph render 完成后才可调用 setElementState，否则内部 canvas context 未就绪
   const applyNodeStates = useCallback(() => {
     const graph = graphRef.current;
     if (!graph || !fullData || !visibleData) return;
+    if (!graphReadyRef.current) return;
 
     const visibleNodeIds = new Set(visibleData.nodes.map((n) => n.id));
 
@@ -215,7 +225,14 @@ export function GraphContainer({ className }: GraphContainerProps) {
     );
 
     graph.addData(g6Data);
+    const gen = graphGenerationRef.current;
     graph.render().then(() => {
+      // 丢弃过期回调（graph 已被销毁重建）
+      if (graphGenerationRef.current !== gen) {
+        console.log('[graph] 增量 render().then() → 过期回调（generation 不匹配），跳过');
+        return;
+      }
+      graphReadyRef.current = true;
       if (!isDraggingRef.current) applyNodeStatesRef.current();
     });
 
@@ -235,6 +252,9 @@ export function GraphContainer({ className }: GraphContainerProps) {
       graphRef.current.destroy();
       graphRef.current = null;
     }
+    graphReadyRef.current = false;
+
+    const gen = ++graphGenerationRef.current;
 
     const g6Data = {
       nodes: toG6Nodes(fullData.nodes),
@@ -246,12 +266,15 @@ export function GraphContainer({ className }: GraphContainerProps) {
       fullDataRef,
       isDraggingRef,
       applyNodeStatesRef,
+      graphReadyRef,
       selectNodeRef.current,
       g6Data,
     );
     graphRef.current = graph;
 
     return () => {
+      graphGenerationRef.current = gen + 1; // 使所有进行中的 .then() 回调失效
+      graphReadyRef.current = false;
       graph.destroy();
       graphRef.current = null;
     };
