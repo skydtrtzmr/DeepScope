@@ -240,10 +240,17 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       return;
     }
 
-    // local 模式：仅切换选中节点，不重算 visibleData（G6 画布保持全量）
+    // local 模式：计算关联节点供右侧面板展示，但不改变 visibleData（画布保持全量）
     if (viewMode === 'local') {
       const newHistory = selectedNodeId ? [...nodeHistory, selectedNodeId] : nodeHistory;
-      set({ selectedNodeId: nodeId, nodeHistory: newHistory });
+      const { relatedNodes } = getRelatedNodes(
+        fullData,
+        nodeId,
+        config.maxDirectRelations,
+        config.maxDepth
+      );
+      console.log(`[store] selectNode (local) → ${nodeId}, 关联节点数=${relatedNodes.length}`);
+      set({ selectedNodeId: nodeId, relatedNodes, nodeHistory: newHistory });
       return;
     }
 

@@ -21,11 +21,6 @@
 - 新增 `graphGenerationRef`：每次销毁重建 graph 时递增。所有 `render().then()` 回调在执行前校验 generation，过期则丢弃
 - cleanup 中递增 generation + 重置 `graphReadyRef`，确保旧回调全部失效
 
-**验证方式**：打开浏览器控制台：
-- 初始加载 → `[graph] 全量重建` → `[graph] render 完成，标记 graphReady=true`，**不应出现** `Cannot read properties of undefined` 错误
-- 点击"探索此节点" → `[graph] 增量渲染` → `[graph] render 完成`，不应出现错误
-- 快速连续点击不同节点的"探索"按钮 → 不应出现错误，控制台可能出现"过期回调（generation 不匹配），跳过"日志
-
 ---
 
 ### 5. `appendGraphData` 与 `commitAddition` 功能重复
@@ -111,6 +106,8 @@
 | ~~P0~~ | ~~#3~~ | ~~click/dblclick 事件冲突~~ | ✅ 已修复（删除 dblclick） |
 | ~~P1~~ | ~~#2~~ | ~~selectNode 覆盖 visibleData~~ | ✅ 已修复 |
 | ~~P1~~ | ~~#4~~ | ~~rebuildTrigger 时序脆弱~~ | ✅ 已修复 |
+| ~~P1~~ | ~~#11~~ | ~~local 模式 selectNode 未填充 relatedNodes~~ | ✅ 已修复 |
+| ~~P2~~ | ~~#12~~ | ~~F12 开启后无法拖动节点~~ | ✅ 已修复 |
 | P2 | #5 | appendGraphData 冗余 | 待处理 |
 | P2 | #6 | 模式逻辑混用 | 待处理 |
 | P3 | #7 | event.target.id 不准确 | 待处理 |

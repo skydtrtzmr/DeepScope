@@ -286,19 +286,36 @@ export function GraphContainer({ className }: GraphContainerProps) {
     applyNodeStates();
   }, [applyNodeStates]);
 
-  // 窗口大小变化时调整图谱
+  // 容器大小变化时调整图谱（使用 ResizeObserver 替代 window.resize）
+  // window.resize 无法感知 flex 容器尺寸变化（如 F12 开启 dock 时），且需要 debounce 避免频繁调用打断拖拽
   useEffect(() => {
-    const handleResize = () => {
-      const graph = graphRef.current;
-      const container = containerRef.current;
-      if (!graph || !container) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-      const { width, height } = container.getBoundingClientRect();
-      graph.resize(width, height);
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width === 0 || height === 0) continue;
+        // 拖拽期间跳过 resize，避免打断 drag-element-force 状态
+        if (isDraggingRef.current) continue;
+        // debounce 150ms，避免 F12 开启时连续触发
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          const graph = graphRef.current;
+          if (!graph) return;
+          graph.resize(width, height);
+          console.log(`[graph] ResizeObserver → resize(${Math.round(width)}, ${Math.round(height)})`);
+        }, 150);
+      }
+    });
+
+    observer.observe(container);
+    return () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      observer.disconnect();
     };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   return (
