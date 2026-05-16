@@ -66,18 +66,18 @@ export function GraphContainer({ className }: GraphContainerProps) {
       layout: {
         type: 'd3-force',
         link: {
-          distance: 120,
-          strength: 0.8,
+          distance: 180,
+          strength: 0.6,
         },
         manyBody: {
-          strength: -50,
+          strength: -80,
         },
         collide: {
-          radius: 30,
-          strength: 0.9,
+          radius: 40,
+          strength: 1,
         },
         center: {
-          strength: 0.1,
+          strength: 0.05,
         },
         alphaDecay: 0.02,
         velocityDecay: 0.3,
@@ -92,7 +92,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
           labelFill: '#0f172a',
           labelBackground: true,
           labelBackgroundFill: '#ffffff',
-          labelBackgroundOpacity: 0.9,
+          labelBackgroundOpacity: 0.6,
           labelBackgroundRadius: 4,
           labelPadding: [2, 6],
           fill: (d: NodeData) => getNodeColor(d.data?.type as string),
@@ -137,7 +137,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
           labelFill: '#64748b',
           labelBackground: true,
           labelBackgroundFill: '#ffffff',
-          labelBackgroundOpacity: 0.9,
+          labelBackgroundOpacity: 0.6,
         },
         state: {
           active: {
