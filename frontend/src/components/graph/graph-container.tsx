@@ -24,28 +24,37 @@ export function GraphContainer({ className }: GraphContainerProps) {
       container,
       autoFit: 'view',
       padding: 40,
-      behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
+      behaviors: [
+        'drag-canvas',
+        'zoom-canvas',
+        { type: 'drag-element-force', fixed: false },
+      ],
       layout: {
-        type: 'force',
-        preventOverlap: true,
-        nodeSize: 50,
-        nodeStrength: -600,
-        linkDistance: 160,
-        edgeStrength: 0.3,
-        collideStrength: 1,
-        animated: false,
-        maxIterations: 500,
-        maxSpeed: 200,
-        alphaDecay: 0.05,
-        alphaMin: 0.001,
+        type: 'd3-force',
+        link: {
+          distance: 120,
+          strength: 0.8,
+        },
+        manyBody: {
+          strength: -50,
+        },
+        collide: {
+          radius: 30,
+          strength: 0.9,
+        },
+        center: {
+          strength: 0.1,
+        },
+        alphaDecay: 0.02,
+        velocityDecay: 0.3,
       },
       node: {
         type: 'circle',
         style: {
-          size: 40,
+          size: 28,
           labelText: (d: NodeData) => (d.data?.label as string) || d.id,
           labelPlacement: 'bottom',
-          labelFontSize: 12,
+          labelFontSize: 11,
           labelFill: '#0f172a',
           labelBackground: true,
           labelBackgroundFill: '#ffffff',
@@ -58,6 +67,9 @@ export function GraphContainer({ className }: GraphContainerProps) {
           lineDash: [],
           lineCap: 'butt',
           lineJoin: 'miter',
+          shadowColor: 'rgba(0,0,0,0.08)',
+          shadowBlur: 4,
+          cursor: 'grab',
         },
         state: {
           selected: {
@@ -79,15 +91,15 @@ export function GraphContainer({ className }: GraphContainerProps) {
         type: 'line',
         style: {
           stroke: '#94a3b8',
-          lineWidth: 1.5,
+          lineWidth: 1,
           lineDash: [],
           lineCap: 'butt',
           lineJoin: 'miter',
           endArrow: true,
-          endArrowSize: 8,
+          endArrowSize: 6,
           endArrowFill: '#94a3b8',
           labelText: (d: EdgeData) => (d.data?.label as string) || '',
-          labelFontSize: 10,
+          labelFontSize: 9,
           labelFill: '#64748b',
           labelBackground: true,
           labelBackgroundFill: '#ffffff',
@@ -96,14 +108,13 @@ export function GraphContainer({ className }: GraphContainerProps) {
         state: {
           active: {
             stroke: '#6366f1',
-            lineWidth: 2.5,
+            lineWidth: 2,
           },
           inactive: {
             opacity: 0.2,
           },
         },
       },
-      animation: false,
     };
 
     const graph = new Graph(options);
