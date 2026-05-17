@@ -117,7 +117,6 @@ class ExpandRequest(BaseModel):
     m: int = 5
     n: int = 2
     offset: int = 0
-    excludeIds: list[str] = []
     domain: str = DEFAULT_DOMAIN
 
 
@@ -135,34 +134,12 @@ class DomainItem(BaseModel):
 
 # ── 行转前端模型 ─────────────────────────────────────────
 
-def _parse_frontmatter(fm_str: Optional[str]) -> dict:
-    if not fm_str:
-        return {}
-    try:
-        return json.loads(fm_str)
-    except (json.JSONDecodeError, TypeError):
-        return {}
-
-
-def _build_description(fm: dict) -> str:
-    """从 frontmatter 提取关键信息拼成 description。"""
-    parts = []
-    if fm.get("type"):
-        parts.append(fm["type"])
-    if fm.get("status"):
-        parts.append(fm["status"])
-    if fm.get("tags") and isinstance(fm["tags"], list):
-        parts.append(", ".join(fm["tags"][:3]))
-    return " | ".join(parts) if parts else ""
-
-
 def row_to_node(row: sqlite3.Row, domain: str = "") -> GraphNode:
-    fm = _parse_frontmatter(row["frontmatter"])
     return GraphNode(
         id=row["id"],
         label=row["label"] or row["id"],
         category=row["category"],
-        description=_build_description(fm),
+        description=row["description"] or "",
         data={
             "rank": row["rank"],
             "domain": domain,
@@ -258,15 +235,14 @@ async def expand_graph(req: ExpandRequest):
     节点展开（POST）：
     - offset == 0: 多层 BFS 展开，每节点每层最多 m 个新邻居，最大深度 n
     - offset > 0:  分页加载直接邻居（n 强制为 1）
-    - excludeIds: 已在画布上的节点 ID 列表，后端排除返回
+    - 后端全量返回邻居节点和边，去重由前端负责
     """
-    exclude_set: set[str] = set(req.excludeIds)
     domain = req.domain or DEFAULT_DOMAIN
 
     with get_db(domain) as conn:
         if req.offset > 0:
-            return _paginate_direct_neighbors(conn, req.nodeId, req.m, req.offset, exclude_set, domain)
-        return _bfs_expand(conn, req.nodeId, req.m, req.n, exclude_set, domain)
+            return _paginate_direct_neighbors(conn, req.nodeId, req.m, req.offset, domain)
+        return _bfs_expand(conn, req.nodeId, req.m, req.n, domain)
 
 
 # ── 内部函数 ────────────────────────────────────────────
@@ -277,7 +253,7 @@ def _get_neighbor_ids_sorted(
     exclude: set[str],
     _domain: str,
 ) -> list[str]:
-    """获取某节点的邻居 ID 列表，按邻居的 rank 排序。"""
+    """获取某节点的邻居 ID 列表，按邻居的 rank 排序。exclude 仅用于 BFS 防止回溯。"""
     rows = conn.execute(
         """
         SELECT CASE WHEN source = ? THEN target ELSE source END AS neighbor_id
@@ -306,13 +282,11 @@ def _paginate_direct_neighbors(
     node_id: str,
     m: int,
     offset: int,
-    exclude: set[str],
     domain: str,
 ) -> ExpandResponse:
     all_neighbors = _get_neighbor_ids_sorted(conn, node_id, set(), domain)
     total_neighbors = len(all_neighbors)
     page_ids = all_neighbors[offset : offset + m]
-    page_ids = [nid for nid in page_ids if nid not in exclude]
 
     if not page_ids:
         return ExpandResponse(nodes=[], edges=[], totalNeighbors=total_neighbors)
@@ -325,10 +299,9 @@ def _bfs_expand(
     node_id: str,
     m: int,
     max_depth: int,
-    exclude: set[str],
     domain: str,
 ) -> ExpandResponse:
-    visited: set[str] = set([node_id, *exclude])
+    visited: set[str] = set([node_id])
     result_nodes: list[GraphNode] = []
     result_edges: list[GraphEdge] = []
     result_edge_keys: set[str] = set()

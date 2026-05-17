@@ -71,6 +71,13 @@ export interface RelatedNodeDetail {
   data?: Record<string, unknown>;
 }
 
+// Domain 信息
+export interface DomainItem {
+  name: string;
+  nodeCount: number;
+  edgeCount: number;
+}
+
 // 节点类别颜色映射（中文 key，与后端 category 对齐）
 export const NODE_TYPE_COLORS: Record<string, string> = {
   '默认': '#94a3b8',

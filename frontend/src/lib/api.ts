@@ -1,16 +1,12 @@
 import axios from 'axios';
-import type { GraphData, GraphNode, GraphEdge } from '@/types/graph';
+import type { GraphData, GraphNode, GraphEdge, DomainItem } from '@/types/graph';
 
 const api = axios.create({
   timeout: 10000,
 });
 
 // 获取可用 domain 列表
-export interface DomainItem {
-  name: string;
-  nodeCount: number;
-  edgeCount: number;
-}
+export type { DomainItem };
 
 export async function fetchDomains(): Promise<DomainItem[]> {
   const { data } = await api.get('/api/domains');
@@ -29,7 +25,6 @@ export interface ExpandGraphParams {
   m: number;
   n: number;
   offset?: number;
-  excludeIds: string[];
   domain: string;
 }
 
@@ -47,7 +42,6 @@ export async function expandGraph(params: ExpandGraphParams): Promise<ExpandGrap
     m: params.m,
     n: params.n,
     offset: params.offset ?? 0,
-    excludeIds: params.excludeIds,
     domain: params.domain,
   });
   return data;

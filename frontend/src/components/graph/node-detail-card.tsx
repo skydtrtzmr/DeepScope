@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { X, Compass, Minus, Plus, Loader2 } from 'lucide-react';
+import Markdown from 'react-markdown';
 
 export function NodeDetailCard() {
   const {
@@ -66,7 +67,9 @@ export function NodeDetailCard() {
         {node.description && (
           <div className="pt-2 border-t">
             <span className="text-xs text-muted-foreground">描述:</span>
-            <p className="text-xs mt-1 leading-relaxed">{node.description}</p>
+            <div className="text-xs mt-1 leading-relaxed [&_h2]:text-xs [&_h2]:font-semibold [&_h2]:mt-2 [&_h2]:mb-1 [&_ul]:list-disc [&_ul]:ml-3 [&_li]:mt-0.5">
+              <Markdown>{node.description}</Markdown>
+            </div>
           </div>
         )}
       </div>
