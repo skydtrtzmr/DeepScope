@@ -147,7 +147,7 @@ function AppContent() {
               value={importJson}
               onChange={(e) => setImportJson(e.target.value)}
               rows={12}
-              className="font-mono text-sm"
+              className="font-mono text-sm max-h-[60vh] overflow-y-auto resize-y"
             />
             {importError && <div className="text-sm text-destructive">{importError}</div>}
             <div className="flex justify-end gap-2">
