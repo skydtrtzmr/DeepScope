@@ -102,10 +102,10 @@ function createGraph(
     const data = fullDataRef.current as { nodes: { id: string }[]; edges: { id: string }[] } | null;
     if (data) {
       data.nodes.forEach((n) => {
-        if (graph.getNodeData(n.id)) graph.setElementState(n.id, []);
+        if (graph.getNodeData(n.id)) try { graph.setElementState(n.id, []); } catch { /* ignore */ }
       });
       data.edges.forEach((e) => {
-        if (graph.getEdgeData(e.id)) graph.setElementState(e.id, []);
+        if (graph.getEdgeData(e.id)) try { graph.setElementState(e.id, []); } catch { /* ignore */ }
       });
     }
   });
@@ -120,10 +120,12 @@ function createGraph(
   });
 
   graph.setData(g6Data);
-  // render 是异步的，完成后才标记 ready 并应用节点状态
-  graph.render().then(() => {
+  // render 是异步的（d3-force 布局模拟可能数秒），但 canvas 上下文在 render 开始后很快初始化
+  // 用 requestAnimationFrame 提前标记 ready，不等 render 完全结束，让高亮/暗化尽早可用
+  graph.render();
+  requestAnimationFrame(() => {
     graphReadyRef.current = true;
-    console.log('[graph] render 完成，标记 graphReady=true');
+    console.log('[graph] render 首帧后标记 graphReady=true');
     if (!isDraggingRef.current) applyNodeStatesRef.current();
   });
 
@@ -170,7 +172,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
   } = useGraphStore();
 
   // 应用节点/边的选中高亮状态
-  // 仅在 graph render 完成后才可调用 setElementState，否则内部 canvas context 未就绪
+  // graphReadyRef 在 render 首帧后标记（不等布局收敛），setElementState 加 try/catch 防护
   const applyNodeStates = useCallback(() => {
     const graph = graphRef.current;
     if (!graph || !fullData || !visibleData) return;
@@ -188,14 +190,14 @@ export function GraphContainer({ className }: GraphContainerProps) {
       } else if (selectedNodeId && !visibleNodeIds.has(node.id)) {
         states.push('inactive');
       }
-      graph.setElementState(node.id, states);
+      try { graph.setElementState(node.id, states); } catch { /* canvas 尚未就绪，下次重试 */ }
     });
 
     fullData.edges.forEach((edge) => {
       if (!graph.getEdgeData(edge.id)) return;
       const isActive =
         selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
-      graph.setElementState(edge.id, isActive ? ['active'] : []);
+      try { graph.setElementState(edge.id, isActive ? ['active'] : []); } catch { /* canvas 尚未就绪，下次重试 */ }
     });
   }, [fullData, visibleData, selectedNodeId, highlightedNodeId]);
 
@@ -226,12 +228,10 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     graph.addData(g6Data);
     const gen = graphGenerationRef.current;
-    graph.render().then(() => {
-      // 丢弃过期回调（graph 已被销毁重建）
-      if (graphGenerationRef.current !== gen) {
-        console.log('[graph] 增量 render().then() → 过期回调（generation 不匹配），跳过');
-        return;
-      }
+    graph.render();
+    // 增量渲染同样用首帧即可，不等力导向布局完全收敛
+    requestAnimationFrame(() => {
+      if (graphGenerationRef.current !== gen) return;
       graphReadyRef.current = true;
       if (!isDraggingRef.current) applyNodeStatesRef.current();
     });

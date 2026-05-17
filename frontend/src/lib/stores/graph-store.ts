@@ -44,7 +44,6 @@ interface GraphState {
 
   // Actions
   setGraphData: (data: GraphData) => void;
-  appendGraphData: (nodeId: string, data: GraphData, totalNeighbors: number) => void;
   expandNode: (nodeId: string) => Promise<void>;
   commitAddition: (nodes: GraphNode[], edges: GraphEdge[]) => void;
   selectNode: (nodeId: string | null) => void;
@@ -182,42 +181,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     });
   },
 
-  // 追加图谱数据（累积增长）
-  appendGraphData: (nodeId, data, totalNeighbors) => {
-    const { fullData, expansionStates } = get();
-    if (!fullData) return;
-
-    // 合并新数据
-    const existingNodeIds = new Set(fullData.nodes.map((n) => n.id));
-    const existingEdgeIds = new Set(fullData.edges.map((e) => e.id));
-
-    const newNodes = data.nodes.filter((n) => !existingNodeIds.has(n.id));
-    const newEdges = data.edges.filter((e) => !existingEdgeIds.has(e.id));
-
-    const mergedData: GraphData = {
-      nodes: [...fullData.nodes, ...newNodes],
-      edges: [...fullData.edges, ...newEdges],
-    };
-
-    // 更新展开状态
-    const newExpansionStates = new Map(expansionStates);
-    const currentState = newExpansionStates.get(nodeId);
-    const newLoadedIds = [
-      ...(currentState?.loadedNeighborIds || []),
-      ...newNodes.map((n) => n.id),
-    ];
-    newExpansionStates.set(nodeId, {
-      loadedNeighborIds: newLoadedIds,
-      totalNeighbors,
-    });
-
-    set({
-      fullData: mergedData,
-      visibleData: mergedData,
-      expansionStates: newExpansionStates,
-    });
-  },
-
   // 选择节点
   selectNode: (nodeId) => {
     const { fullData, config, selectedNodeId, nodeHistory, viewMode } = get();
@@ -279,19 +242,32 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   // 更新配置
   updateConfig: (newConfig) => {
-    const { fullData, selectedNodeId, config } = get();
+    const { fullData, selectedNodeId, config, viewMode } = get();
     const updatedConfig = { ...config, ...newConfig };
 
     set({ config: updatedConfig });
 
     if (selectedNodeId && fullData) {
-      const { visibleData, relatedNodes } = getRelatedNodes(
+      const { relatedNodes } = getRelatedNodes(
         fullData,
         selectedNodeId,
         updatedConfig.maxDirectRelations,
         updatedConfig.maxDepth
       );
-      set({ visibleData, relatedNodes });
+
+      if (viewMode === 'local') {
+        // local 模式：只刷新右面板关联列表，不改变 visibleData（画布保持全量）
+        set({ relatedNodes });
+      } else {
+        // global 模式：BFS 过滤生成 visibleData
+        const { visibleData } = getRelatedNodes(
+          fullData,
+          selectedNodeId,
+          updatedConfig.maxDirectRelations,
+          updatedConfig.maxDepth
+        );
+        set({ visibleData, relatedNodes });
+      }
     }
   },
 
@@ -309,7 +285,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   // 返回上一节点
   goBack: () => {
-    const { nodeHistory } = get();
+    const { nodeHistory, viewMode } = get();
     if (nodeHistory.length === 0) return;
 
     const newHistory = [...nodeHistory];
@@ -318,19 +294,24 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const { fullData, config } = get();
     if (!fullData) return;
 
-    const { visibleData, relatedNodes } = getRelatedNodes(
+    const { relatedNodes } = getRelatedNodes(
       fullData,
       previousNodeId,
       config.maxDirectRelations,
       config.maxDepth
     );
 
-    set({
-      selectedNodeId: previousNodeId,
-      visibleData,
-      relatedNodes,
-      nodeHistory: newHistory,
-    });
+    if (viewMode === 'local') {
+      set({ selectedNodeId: previousNodeId, relatedNodes, nodeHistory: newHistory });
+    } else {
+      const { visibleData } = getRelatedNodes(
+        fullData,
+        previousNodeId,
+        config.maxDirectRelations,
+        config.maxDepth
+      );
+      set({ selectedNodeId: previousNodeId, visibleData, relatedNodes, nodeHistory: newHistory });
+    }
   },
 
   // 重置

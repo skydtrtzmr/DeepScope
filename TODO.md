@@ -23,28 +23,22 @@
 
 ---
 
-### 5. `appendGraphData` 与 `commitAddition` 功能重复
-
-**文件**：`graph-store.ts` L179 (`appendGraphData`)、L409 (`commitAddition`)
-
-**现象**：两个方法都做数据合并，`appendGraphData` 更新 `expansionStates` 但无人调用（遗留代码），`commitAddition` 不更新 `expansionStates`（更新在 `expandNode` 中完成）。逻辑分散，容易混乱。
-
-**处理方案**：
-- 删除 `appendGraphData` 及其相关类型 `NodeExpansionState`
-- 将 `expansionStates` 的更新集中到 `expandNode` 和 `commitAddition` 中
-
----
-
-### 6. global 和 local 模式混用同一套 store 逻辑
+### 5. ~~`appendGraphData` 与 `commitAddition` 功能重复~~ ✅ 已修复
 
 **文件**：`graph-store.ts`
 
-**现象**：`selectNode`、`updateConfig`、`goBack`、`reset` 在两种模式下行为应不同，但目前完全共用。例如 `updateConfig` 在 global 模式下重新 BFS 有意义，local 模式下则不需要。
+**修复**：删除 `appendGraphData`（死代码），数据合并由 `expandNode` + `commitAddition` 统一负责，`expansionStates` 更新集中在 `expandNode` 中。
 
-**处理方案**：
-- 在需要区分模式的方法中加 `viewMode` 分支判断
-- local 模式下 `selectNode` 仅设 `selectedNodeId`；`updateConfig` 不重新计算 `visibleData`
-- 或将两种模式的核心逻辑拆分为两个独立 store slice
+---
+
+### 6. ~~global 和 local 模式混用同一套 store 逻辑~~ ✅ 已修复
+
+**文件**：`graph-store.ts`
+
+**修复**：在 `selectNode`、`updateConfig`、`goBack` 中区分 `viewMode`。local 模式下：
+- `selectNode`：计算 `relatedNodes` 供右面板展示，不改变 `visibleData`
+- `updateConfig`：只刷新 `relatedNodes`，不覆盖 `visibleData`
+- `goBack`：同上
 
 ---
 
@@ -108,8 +102,8 @@
 | ~~P1~~ | ~~#4~~ | ~~rebuildTrigger 时序脆弱~~ | ✅ 已修复 |
 | ~~P1~~ | ~~#11~~ | ~~local 模式 selectNode 未填充 relatedNodes~~ | ✅ 已修复 |
 | ~~P2~~ | ~~#12~~ | ~~F12 开启后无法拖动节点~~ | ✅ 已修复 |
-| P2 | #5 | appendGraphData 冗余 | 待处理 |
-| P2 | #6 | 模式逻辑混用 | 待处理 |
+| ~~P2~~ | ~~#5~~ | ~~appendGraphData 冗余~~ | ✅ 已修复 |
+| ~~P2~~ | ~~#6~~ | ~~模式逻辑混用~~ | ✅ 已修复 |
 | P3 | #7 | event.target.id 不准确 | 待处理 |
 | P3 | #8 | 展开后未聚焦 | 待处理 |
 | P3 | #9 | 滑块频繁重算 | 待处理 |
