@@ -1,10 +1,13 @@
 {
-  "initialNodeIds": [
-    "人员/person-00014",
-    "人员/person-00047",
-    "组织/org-00333",
-    "人员/person-00022",
-    "人员/person-00027",
-    "组织/org-00053"
-  ]
+  "demo-core": {
+    "initialNodeIds": [
+      "人员/person-00022"
+    ]
+  },
+  "demo-region": {
+    "initialNodeIds": [
+      "项目/proj-00093",
+      "项目/proj-00170"
+    ]
+  }
 }

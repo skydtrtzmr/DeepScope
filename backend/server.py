@@ -51,15 +51,18 @@ app.add_middleware(
 
 # ── 加载初始节点配置 ────────────────────────────────────
 
-def _load_initial_config() -> list[str]:
-    """从配置文件读取初始显示的节点 ID 列表。"""
+def _load_initial_config() -> dict[str, list[str]]:
+    """从配置文件读取按 domain 分组的初始节点 ID 列表。"""
     if os.path.exists(INIT_CONFIG_PATH):
         with open(INIT_CONFIG_PATH, "r", encoding="utf-8") as f:
             cfg = json.load(f)
-        return cfg.get("initialNodeIds", [])
-    return []
+        # 兼容旧格式（顶层 initialNodeIds）和新格式（按 domain 分）
+        if "initialNodeIds" in cfg:
+            return {"_default": cfg["initialNodeIds"]}
+        return {k: v["initialNodeIds"] for k, v in cfg.items() if isinstance(v, dict) and "initialNodeIds" in v}
+    return {}
 
-INITIAL_NODE_IDS = _load_initial_config()
+INITIAL_CONFIG = _load_initial_config()
 
 
 # ── 数据库连接 ──────────────────────────────────────────
@@ -218,11 +221,14 @@ async def fetch_initial_graph(
     """
     初始加载：从配置文件读取 initialNodeIds，从对应 domain 的 DB 查询节点及它们之间的边。
     """
-    if not INITIAL_NODE_IDS:
+    if not INITIAL_CONFIG:
+        return GraphData(nodes=[], edges=[])
+
+    id_list = INITIAL_CONFIG.get(domain, INITIAL_CONFIG.get("_default", []))
+    if not id_list:
         return GraphData(nodes=[], edges=[])
 
     with get_db(domain) as conn:
-        id_list = INITIAL_NODE_IDS
         ph = ",".join("?" * len(id_list))
 
         nodes = conn.execute(
