@@ -256,7 +256,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ config: updatedConfig });
 
     if (selectedNodeId && fullData) {
-      const { relatedNodes, treeEdgeIds } = getRelatedNodes(
+      const { relatedNodes, treeEdgeIds, visibleData } = getRelatedNodes(
         fullData,
         selectedNodeId,
         updatedConfig.maxDirectRelations,
@@ -264,16 +264,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       );
 
       if (viewMode === 'local') {
-        // local 模式：只刷新右面板关联列表，不改变 visibleData（画布保持全量）
         set({ relatedNodes, highlightedEdgeIds: treeEdgeIds });
       } else {
-        // global 模式：BFS 过滤生成 visibleData
-        const { visibleData } = getRelatedNodes(
-          fullData,
-          selectedNodeId,
-          updatedConfig.maxDirectRelations,
-          updatedConfig.maxDepth
-        );
         set({ visibleData, relatedNodes, highlightedEdgeIds: treeEdgeIds });
       }
     }

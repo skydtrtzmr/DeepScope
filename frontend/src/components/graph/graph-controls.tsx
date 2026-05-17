@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import type { ViewMode } from '@/lib/stores/graph-store';
-import { ChevronLeft, Maximize2, Layers, RotateCcw, Globe, GitBranch, Loader2 } from 'lucide-react';
+import { ChevronLeft, RotateCcw, Globe, GitBranch, Loader2, Minus, Plus } from 'lucide-react';
 
 const MODE_OPTIONS: { value: ViewMode; label: string; icon: typeof Globe }[] = [
   { value: 'global', label: '全局总览', icon: Globe },
@@ -11,7 +11,7 @@ const MODE_OPTIONS: { value: ViewMode; label: string; icon: typeof Globe }[] = [
 ];
 
 export function GraphControls() {
-  const { config, updateConfig, expandMore, expandDeeper, goBack, reset, nodeHistory, selectedNodeId, viewMode, setViewMode, isLoading } =
+  const { config, updateConfig, goBack, reset, nodeHistory, selectedNodeId, viewMode, setViewMode, isLoading } =
     useGraphStore();
 
   return (
@@ -48,17 +48,28 @@ export function GraphControls() {
           <Label className="text-xs text-muted-foreground">直接关联数量 (m)</Label>
           <span className="text-sm font-medium">{config.maxDirectRelations}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline" size="sm" className="size-7 p-0"
+            onClick={() => updateConfig({ maxDirectRelations: Math.max(0, config.maxDirectRelations - 1) })}
+            disabled={config.maxDirectRelations <= 0}
+          >
+            <Minus className="h-3 w-3" />
+          </Button>
           <Slider
             value={[config.maxDirectRelations]}
             onValueChange={([value]) => updateConfig({ maxDirectRelations: value })}
-            min={1}
+            min={0}
             max={20}
             step={1}
             className="flex-1"
           />
-          <Button variant="outline" size="sm" onClick={expandMore} title="增加 5 个">
-            <Maximize2 className="h-3 w-3" />
+          <Button
+            variant="outline" size="sm" className="size-7 p-0"
+            onClick={() => updateConfig({ maxDirectRelations: Math.min(20, config.maxDirectRelations + 1) })}
+            disabled={config.maxDirectRelations >= 20}
+          >
+            <Plus className="h-3 w-3" />
           </Button>
         </div>
       </div>
@@ -69,17 +80,28 @@ export function GraphControls() {
           <Label className="text-xs text-muted-foreground">关联深度 (n)</Label>
           <span className="text-sm font-medium">{config.maxDepth}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline" size="sm" className="size-7 p-0"
+            onClick={() => updateConfig({ maxDepth: Math.max(0, config.maxDepth - 1) })}
+            disabled={config.maxDepth <= 0}
+          >
+            <Minus className="h-3 w-3" />
+          </Button>
           <Slider
             value={[config.maxDepth]}
             onValueChange={([value]) => updateConfig({ maxDepth: value })}
-            min={1}
+            min={0}
             max={3}
             step={1}
             className="flex-1"
           />
-          <Button variant="outline" size="sm" onClick={expandDeeper} title="增加 1 层">
-            <Layers className="h-3 w-3" />
+          <Button
+            variant="outline" size="sm" className="size-7 p-0"
+            onClick={() => updateConfig({ maxDepth: Math.min(3, config.maxDepth + 1) })}
+            disabled={config.maxDepth >= 3}
+          >
+            <Plus className="h-3 w-3" />
           </Button>
         </div>
       </div>
