@@ -76,10 +76,10 @@ export function NodeDetailCard() {
 
       {/* 探索控件 */}
       <div className="mt-3 pt-3 border-t space-y-3">
-        {/* 每次加载数量 */}
+        {/* 每层加载数量 */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label className="text-xs text-muted-foreground">每次加载数量</Label>
+            <Label className="text-xs text-muted-foreground">每层加载数量</Label>
             <span className="text-xs font-medium tabular-nums">{exploreConfig.m}</span>
           </div>
           <div className="flex items-center gap-1">

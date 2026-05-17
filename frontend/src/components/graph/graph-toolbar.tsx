@@ -15,22 +15,25 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
 
   return (
     <div className="flex items-center justify-between px-4 py-2 border-b bg-card gap-2">
-      <div className="flex items-center gap-3 min-w-0">
-        <h2 className="font-semibold shrink-0">知识图谱</h2>
+      <div className="flex items-center gap-4 min-w-0">
+        <h2 className="font-semibold text-sm shrink-0">知识图谱</h2>
 
         {/* 域选择器 */}
         {domains.length > 0 && (
-          <select
-            value={currentDomain}
-            onChange={(e) => setCurrentDomain(e.target.value)}
-            className="text-xs border rounded px-2 py-1 bg-background text-foreground max-w-40"
-          >
-            {domains.map((d) => (
-              <option key={d.name} value={d.name}>
-                {d.name} ({d.nodeCount})
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground shrink-0">业务域</span>
+            <select
+              value={currentDomain}
+              onChange={(e) => setCurrentDomain(e.target.value)}
+              className="text-xs border rounded-md px-2 py-1 bg-background text-foreground max-w-40 focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {domains.map((d) => (
+                <option key={d.name} value={d.name}>
+                  {d.name} ({d.nodeCount})
+                </option>
+              ))}
+            </select>
+          </div>
         )}
 
         {fullData && (
