@@ -1,5 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { Graph, type GraphOptions, type NodeData, type EdgeData } from '@antv/g6';
+import { Graph, type GraphOptions, type NodeData, type EdgeData, type GraphData as G6GraphData, type BaseNodeStyleProps, type BaseEdgeStyleProps } from '@antv/g6';
+
+/** G6 spec 层的 NodeStyle/EdgeStyle 未导出，用 Base*StyleProps + 索引签名等价还原 */
+type G6NodeStyle = Partial<BaseNodeStyleProps> & { [key: string]: unknown };
+type G6EdgeStyle = Partial<BaseEdgeStyleProps> & { [key: string]: unknown };
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { NodeDetailCard } from './node-detail-card';
 import type { GraphNode, GraphEdge } from '@/types/graph';
@@ -38,7 +42,6 @@ function createGraph(
     node: {
       type: 'circle',
       style: {
-        size: 28,
         labelText: (d: NodeData) => (d.data?.label as string) || d.id,
         labelPlacement: 'bottom',
         labelFontSize: 11,
@@ -62,7 +65,6 @@ function createGraph(
       state: {
         selected: { stroke: '#6366f1', lineWidth: 4, shadowColor: '#6366f1', shadowBlur: 10 },
         highlighted: { stroke: '#6366f1', lineWidth: 3 },
-        inactive: { opacity: 0.3 },
       },
     },
     edge: {
@@ -85,7 +87,6 @@ function createGraph(
       },
       state: {
         active: { stroke: '#6366f1', lineWidth: 2 },
-        inactive: { opacity: 0.2 },
       },
     },
   };
@@ -104,10 +105,16 @@ function createGraph(
     const data = fullDataRef.current as { nodes: { id: string }[]; edges: { id: string }[] } | null;
     if (data) {
       data.nodes.forEach((n) => {
-        if (graph.getNodeData(n.id)) try { graph.setElementState(n.id, []); } catch { /* ignore */ }
+        if (graph.getNodeData(n.id)) {
+          try { graph.setElementState(n.id, []); } catch { /* ignore */ }
+          try { graph.updateNodeData([{ id: n.id, style: { opacity: 1 } }]); } catch { /* ignore */ }
+        }
       });
       data.edges.forEach((e) => {
-        if (graph.getEdgeData(e.id)) try { graph.setElementState(e.id, []); } catch { /* ignore */ }
+        if (graph.getEdgeData(e.id)) {
+          try { graph.setElementState(e.id, []); } catch { /* ignore */ }
+          try { graph.updateEdgeData([{ id: e.id, style: { opacity: 1 } }]); } catch { /* ignore */ }
+        }
       });
     }
   });
@@ -138,13 +145,13 @@ function createGraph(
 function toG6Nodes(nodes: GraphNode[]) {
   return nodes.map((node) => ({
     id: node.id,
-    style: node.style || {},
+    style: (node.style || {}) as G6NodeStyle,
     data: {
       label: node.label,
       category: node.category,
       description: node.description,
       ...node.data,
-    },
+    } as Record<string, unknown>,
   }));
 }
 
@@ -155,11 +162,11 @@ function toG6Edges(edges: GraphEdge[], nodeIdSet: Set<string>) {
       id: edge.id,
       source: edge.source,
       target: edge.target,
-      style: edge.style || {},
+      style: (edge.style || {}) as G6EdgeStyle,
       data: {
         label: edge.label,
         ...edge.data,
-      },
+      } as Record<string, unknown>,
     }));
 }
 
@@ -178,13 +185,14 @@ export function GraphContainer({ className }: GraphContainerProps) {
   } = useGraphStore();
 
   // 应用节点/边的选中高亮状态
-  // graphReadyRef 在 render 首帧后标记（不等布局收敛），setElementState 加 try/catch 防护
+  // 不使用 G6 state 的 opacity（清除后不恢复），改为直接更新 opacity 样式
   const applyNodeStates = useCallback(() => {
     const graph = graphRef.current;
     if (!graph || !fullData || !visibleData) return;
     if (!graphReadyRef.current) return;
 
     const visibleNodeIds = new Set(visibleData.nodes.map((n) => n.id));
+    const hasSelection = !!selectedNodeId;
 
     fullData.nodes.forEach((node) => {
       if (!graph.getNodeData(node.id)) return;
@@ -193,17 +201,33 @@ export function GraphContainer({ className }: GraphContainerProps) {
         states.push('selected');
       } else if (node.id === highlightedNodeId) {
         states.push('highlighted');
-      } else if (selectedNodeId && !visibleNodeIds.has(node.id)) {
-        states.push('inactive');
       }
-      try { graph.setElementState(node.id, states); } catch { /* canvas 尚未就绪，下次重试 */ }
+      try { graph.setElementState(node.id, states); } catch { /* ignore */ }
+
+      // 淡化：不在 BFS 可见范围内的节点设为低 opacity
+      const dimmed = hasSelection && !visibleNodeIds.has(node.id);
+      try {
+        graph.updateNodeData([{
+          id: node.id,
+          style: { opacity: dimmed ? 0.5 : 1 },
+        }]);
+      } catch { /* ignore */ }
     });
 
     fullData.edges.forEach((edge) => {
       if (!graph.getEdgeData(edge.id)) return;
       // 边高亮条件：必须是 BFS 树边（depth d → d+1 的最短路径边）
       const isActive = selectedNodeId && highlightedEdgeIds.has(edge.id);
-      try { graph.setElementState(edge.id, isActive ? ['active'] : []); } catch { /* canvas 尚未就绪，下次重试 */ }
+      try { graph.setElementState(edge.id, isActive ? ['active'] : []); } catch { /* ignore */ }
+
+      // 淡化：非高亮边在选中时设为低 opacity
+      const dimmed = hasSelection && !isActive;
+      try {
+        graph.updateEdgeData([{
+          id: edge.id,
+          style: { opacity: dimmed ? 0.08 : 1 },
+        }]);
+      } catch { /* ignore */ }
     });
   }, [fullData, visibleData, selectedNodeId, highlightedNodeId, highlightedEdgeIds]);
 
@@ -227,7 +251,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
     const existingNodeIds = fullData ? fullData.nodes.map((n) => n.id) : [];
     const allNodeIds = [...existingNodeIds, ...pendingAddition.nodes.map((n) => n.id)];
     const nodeIdSet = new Set(allNodeIds);
-    const g6Data = {
+    const g6Data: G6GraphData = {
       nodes: toG6Nodes(pendingAddition.nodes),
       edges: toG6Edges(pendingAddition.edges, nodeIdSet),
     };
