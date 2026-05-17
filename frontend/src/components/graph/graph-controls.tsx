@@ -54,8 +54,9 @@ function useDebouncedSlider(key: 'maxDirectRelations' | 'maxDepth', delay: numbe
 }
 
 export function GraphControls() {
-  const { goBack, reset, nodeHistory, selectedNodeId, viewMode, setViewMode, isLoading } =
-    useGraphStore();
+  const {
+    goBack, reset, nodeHistory, selectedNodeId, viewMode, setViewMode, isLoading,
+  } = useGraphStore();
 
   // 滑块拖动用 debounce 版本（本地即时值保证视觉响应）；+/- 按钮直接更新 store
   const mSlider = useDebouncedSlider('maxDirectRelations', SLIDER_DEBOUNCE_MS);
@@ -82,74 +83,77 @@ export function GraphControls() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">关联控制</h3>
-        <Button variant="ghost" size="sm" onClick={reset} title="重置">
-          <RotateCcw className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {/* 直接关联数量 */}
-      <div className="space-y-2">
+      {/* 高亮范围 */}
+      <div className="space-y-3 pt-2 border-t">
         <div className="flex items-center justify-between">
-          <Label className="text-xs text-muted-foreground">直接关联数量 (m)</Label>
-          <span className="text-sm font-medium">{mSlider.localValue}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline" size="sm" className="size-7 p-0"
-            onClick={() => mSlider.updateDirect(Math.max(0, mSlider.localValue - 1))}
-            disabled={mSlider.localValue <= 0}
-          >
-            <Minus className="h-3 w-3" />
-          </Button>
-          <Slider
-            value={[mSlider.localValue]}
-            onValueChange={([value]) => mSlider.onSliderChange(value)}
-            min={0}
-            max={20}
-            step={1}
-            className="flex-1"
-          />
-          <Button
-            variant="outline" size="sm" className="size-7 p-0"
-            onClick={() => mSlider.updateDirect(Math.min(20, mSlider.localValue + 1))}
-            disabled={mSlider.localValue >= 20}
-          >
-            <Plus className="h-3 w-3" />
+          <h3 className="font-semibold text-sm">高亮范围</h3>
+          <Button variant="ghost" size="sm" onClick={reset} title="重置">
+            <RotateCcw className="h-4 w-4" />
           </Button>
         </div>
-      </div>
 
-      {/* 关联深度 */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs text-muted-foreground">关联深度 (n)</Label>
-          <span className="text-sm font-medium">{nSlider.localValue}</span>
+        {/* 高亮：每层展开邻居上限 */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">每层邻居上限</Label>
+            <span className="text-sm font-medium">{mSlider.localValue}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline" size="sm" className="size-7 p-0"
+              onClick={() => mSlider.updateDirect(Math.max(0, mSlider.localValue - 1))}
+              disabled={mSlider.localValue <= 0}
+            >
+              <Minus className="h-3 w-3" />
+            </Button>
+            <Slider
+              value={[mSlider.localValue]}
+              onValueChange={([value]) => mSlider.onSliderChange(value)}
+              min={0}
+              max={20}
+              step={1}
+              className="flex-1"
+            />
+            <Button
+              variant="outline" size="sm" className="size-7 p-0"
+              onClick={() => mSlider.updateDirect(Math.min(20, mSlider.localValue + 1))}
+              disabled={mSlider.localValue >= 20}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline" size="sm" className="size-7 p-0"
-            onClick={() => nSlider.updateDirect(Math.max(0, nSlider.localValue - 1))}
-            disabled={nSlider.localValue <= 0}
-          >
-            <Minus className="h-3 w-3" />
-          </Button>
-          <Slider
-            value={[nSlider.localValue]}
-            onValueChange={([value]) => nSlider.onSliderChange(value)}
-            min={0}
-            max={3}
-            step={1}
-            className="flex-1"
-          />
-          <Button
-            variant="outline" size="sm" className="size-7 p-0"
-            onClick={() => nSlider.updateDirect(Math.min(3, nSlider.localValue + 1))}
-            disabled={nSlider.localValue >= 3}
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
+
+        {/* 高亮：关联深度 */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">高亮深度</Label>
+            <span className="text-sm font-medium">{nSlider.localValue}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline" size="sm" className="size-7 p-0"
+              onClick={() => nSlider.updateDirect(Math.max(0, nSlider.localValue - 1))}
+              disabled={nSlider.localValue <= 0}
+            >
+              <Minus className="h-3 w-3" />
+            </Button>
+            <Slider
+              value={[nSlider.localValue]}
+              onValueChange={([value]) => nSlider.onSliderChange(value)}
+              min={0}
+              max={3}
+              step={1}
+              className="flex-1"
+            />
+            <Button
+              variant="outline" size="sm" className="size-7 p-0"
+              onClick={() => nSlider.updateDirect(Math.min(3, nSlider.localValue + 1))}
+              disabled={nSlider.localValue >= 3}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
       </div>
 

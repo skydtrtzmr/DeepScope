@@ -42,11 +42,24 @@ export interface GraphData {
   edges: GraphEdge[];
 }
 
-// 图谱配置
+// 图谱配置（高亮范围：控制 BFS 从已加载数据中筛选可见节点）
 export interface GraphConfig {
-  maxDirectRelations: number; // 直接关联节点数量 m
-  maxDepth: number; // 间接关联层数 n
+  maxDirectRelations: number; // 每节点每层展开邻居上限 m
+  maxDepth: number; // BFS 深度 n
 }
+
+// 探索配置（控制 API 请求参数）
+export interface ExploreConfig {
+  m: number; // 每节点每层展开邻居上限
+  n: number; // 探索深度
+}
+
+// 探索按钮状态
+export type ExploreButtonState =
+  | { type: 'explore'; label: '探索此节点' }
+  | { type: 'deeper'; label: '探索更深' }
+  | { type: 'more'; label: '加载更多'; loaded: number; total: number }
+  | { type: 'done'; label: '已全部探索' };
 
 // 关联节点详情（用于列表展示）
 export interface RelatedNodeDetail {

@@ -14,11 +14,11 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
   const edgeCount = fullData?.edges.length ?? 0;
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 border-b bg-card">
-      <div className="flex items-center gap-4">
-        <h2 className="font-semibold">知识图谱</h2>
+    <div className="flex items-center justify-between px-4 py-2 border-b bg-card gap-2">
+      <div className="flex items-center gap-3 min-w-0">
+        <h2 className="font-semibold shrink-0">知识图谱</h2>
         {fullData && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
             <span>{nodeCount} 节点</span>
             <span>/</span>
             <span>{edgeCount} 边</span>

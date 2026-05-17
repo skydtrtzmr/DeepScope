@@ -2,10 +2,16 @@ import { useGraphStore } from '@/lib/stores/graph-store';
 import { getNodeColor } from '@/types/graph';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { X, Compass } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
+import { X, Compass, Minus, Plus, Loader2 } from 'lucide-react';
 
 export function NodeDetailCard() {
-  const { fullData, selectedNodeId, selectNode, viewMode, expandNode, isLoading } = useGraphStore();
+  const {
+    fullData, selectedNodeId, selectNode, viewMode,
+    expandNode, getExploreButtonState, isLoading,
+    exploreConfig, updateExploreConfig,
+  } = useGraphStore();
 
   if (!selectedNodeId || !fullData) return null;
 
@@ -16,6 +22,9 @@ export function NodeDetailCard() {
   const directNeighborCount = fullData.edges.filter(
     (e) => e.source === selectedNodeId || e.target === selectedNodeId
   ).length;
+
+  // 探索按钮状态（仅 local 模式）
+  const buttonState = viewMode === 'local' ? getExploreButtonState(selectedNodeId) : null;
 
   return (
     <div className="absolute top-4 left-4 z-10 w-64 bg-card border rounded-lg shadow-lg p-4">
@@ -74,17 +83,90 @@ export function NodeDetailCard() {
         )}
       </div>
 
-      {/* 探索此节点按钮（仅 local 模式） */}
-      {viewMode === 'local' && (
-        <div className="mt-3 pt-3 border-t">
+      {/* 探索控件（仅 local 模式） */}
+      {buttonState && (
+        <div className="mt-3 pt-3 border-t space-y-3">
+          {/* 每次加载数量 */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">每次加载数量</Label>
+              <span className="text-xs font-medium tabular-nums">{exploreConfig.m}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline" size="sm" className="size-6 p-0"
+                onClick={() => updateExploreConfig({ m: Math.max(1, exploreConfig.m - 1) })}
+                disabled={exploreConfig.m <= 1}
+              >
+                <Minus className="h-2.5 w-2.5" />
+              </Button>
+              <Slider
+                value={[exploreConfig.m]}
+                onValueChange={([value]) => updateExploreConfig({ m: value })}
+                min={1}
+                max={20}
+                step={1}
+                className="flex-1"
+              />
+              <Button
+                variant="outline" size="sm" className="size-6 p-0"
+                onClick={() => updateExploreConfig({ m: Math.min(20, exploreConfig.m + 1) })}
+                disabled={exploreConfig.m >= 20}
+              >
+                <Plus className="h-2.5 w-2.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* 探索深度 */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">探索深度</Label>
+              <span className="text-xs font-medium tabular-nums">{exploreConfig.n}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline" size="sm" className="size-6 p-0"
+                onClick={() => updateExploreConfig({ n: Math.max(1, exploreConfig.n - 1) })}
+                disabled={exploreConfig.n <= 1}
+              >
+                <Minus className="h-2.5 w-2.5" />
+              </Button>
+              <Slider
+                value={[exploreConfig.n]}
+                onValueChange={([value]) => updateExploreConfig({ n: value })}
+                min={1}
+                max={5}
+                step={1}
+                className="flex-1"
+              />
+              <Button
+                variant="outline" size="sm" className="size-6 p-0"
+                onClick={() => updateExploreConfig({ n: Math.min(5, exploreConfig.n + 1) })}
+                disabled={exploreConfig.n >= 5}
+              >
+                <Plus className="h-2.5 w-2.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* 探索按钮 */}
           <Button
             size="sm"
+            variant={buttonState.type === 'done' ? 'outline' : 'default'}
             className="w-full gap-1.5 text-xs"
             onClick={() => expandNode(selectedNodeId)}
-            disabled={isLoading}
+            disabled={buttonState.type === 'done' || isLoading}
           >
-            <Compass className="h-3.5 w-3.5" />
-            {isLoading ? '加载中...' : '探索此节点'}
+            {isLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Compass className="h-3 w-3" />
+            )}
+            {buttonState.label}
+            {buttonState.type === 'more' && (
+              <span className="opacity-70">({buttonState.loaded}/{buttonState.total})</span>
+            )}
           </Button>
         </div>
       )}
