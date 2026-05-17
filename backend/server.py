@@ -23,8 +23,8 @@ from pydantic import BaseModel
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(SCRIPT_DIR, ".quartz-cache.db")
+INIT_CONFIG_PATH = os.path.join(SCRIPT_DIR, "mock_graph.json")
 DEFAULT_DOMAIN = "demo-region"
-INITIAL_NODE_COUNT = 15  # 初始加载的核心节点数
 
 app = FastAPI(title="DeepScope Graph API", version="0.1.0")
 
@@ -34,6 +34,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── 加载初始节点配置 ────────────────────────────────────
+
+def _load_initial_config() -> list[str]:
+    """从配置文件读取初始显示的节点 ID 列表。"""
+    if os.path.exists(INIT_CONFIG_PATH):
+        with open(INIT_CONFIG_PATH, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        return cfg.get("initialNodeIds", [])
+    return []
+
+INITIAL_NODE_IDS = _load_initial_config()
 
 
 # ── 数据库连接 ──────────────────────────────────────────
@@ -183,49 +195,29 @@ async def fetch_initial_graph(
     domain: str = Query(default=DEFAULT_DOMAIN),
 ):
     """
-    初始加载：从 domain 内度数最高的实体节点出发 BFS 扩展，返回连通子图。
+    初始加载：从配置文件读取 initialNodeIds，从数据库查询对应节点及它们之间的边。
     """
+    if not INITIAL_NODE_IDS:
+        return GraphData(nodes=[], edges=[])
+
     with get_db() as conn:
-        seed_row = conn.execute(
-            """
-            SELECT n.id FROM nodes n
-            JOIN edges e ON (e.source = n.id OR e.target = n.id) AND e.domain = n.domain
-            WHERE n.domain = ? AND n.type = 'entity'
-            GROUP BY n.id ORDER BY COUNT(e.rowid) DESC LIMIT 1
-            """,
-            (domain,),
-        ).fetchone()
+        id_list = INITIAL_NODE_IDS
+        ph = ",".join("?" * len(id_list))
 
-        if not seed_row:
-            return GraphData(nodes=[], edges=[])
+        nodes = conn.execute(
+            f"SELECT * FROM nodes WHERE id IN ({ph}) AND domain=?",
+            [*id_list, domain],
+        ).fetchall()
 
-        # BFS 收集连通子图
-        visited: set[str] = set()
-        queue = [seed_row["id"]]
-        visited.add(seed_row["id"])
-        result_ids: list[str] = [seed_row["id"]]
-
-        while queue and len(result_ids) < INITIAL_NODE_COUNT:
-            current = queue.pop(0)
-            neighbors = _get_neighbor_ids_sorted(conn, current, visited, domain)
-
-            for nid in neighbors:
-                if len(result_ids) >= INITIAL_NODE_COUNT:
-                    break
-                visited.add(nid)
-                queue.append(nid)
-                result_ids.append(nid)
-
-        nodes = _fetch_nodes(conn, result_ids, domain)
-
-        ph = ",".join("?" * len(result_ids))
         edge_rows = conn.execute(
             f"SELECT * FROM edges WHERE domain=? AND source IN ({ph}) AND target IN ({ph})",
-            [domain, *result_ids, *result_ids],
+            [domain, *id_list, *id_list],
         ).fetchall()
-        edges = [row_to_edge(r) for r in edge_rows]
 
-        return GraphData(nodes=nodes, edges=edges)
+        return GraphData(
+            nodes=[row_to_node(r) for r in nodes],
+            edges=[row_to_edge(r) for r in edge_rows],
+        )
 
 
 @app.post("/api/graph/expand", response_model=ExpandResponse)
@@ -395,4 +387,5 @@ def _fetch_nodes_and_edges(
 if __name__ == "__main__":
     print(f"DeepScope Graph Server")
     print(f"DB: {DB_PATH}")
+    print(f"初始节点配置: {INIT_CONFIG_PATH}")
     uvicorn.run(app, host="0.0.0.0", port=8000)
