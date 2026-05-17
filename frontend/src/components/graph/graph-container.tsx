@@ -1,5 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { Graph, type GraphOptions, type NodeData, type EdgeData } from '@antv/g6';
+import { Graph, type GraphOptions, type NodeData, type EdgeData, type GraphData as G6GraphData, type BaseNodeStyleProps, type BaseEdgeStyleProps } from '@antv/g6';
+
+/** G6 spec 层的 NodeStyle/EdgeStyle 未导出，用 Base*StyleProps + 索引签名等价还原 */
+type G6NodeStyle = Partial<BaseNodeStyleProps> & { [key: string]: unknown };
+type G6EdgeStyle = Partial<BaseEdgeStyleProps> & { [key: string]: unknown };
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { NodeDetailCard } from './node-detail-card';
 import type { GraphNode, GraphEdge } from '@/types/graph';
@@ -38,7 +42,6 @@ function createGraph(
     node: {
       type: 'circle',
       style: {
-        size: 28,
         labelText: (d: NodeData) => (d.data?.label as string) || d.id,
         labelPlacement: 'bottom',
         labelFontSize: 11,
@@ -138,13 +141,13 @@ function createGraph(
 function toG6Nodes(nodes: GraphNode[]) {
   return nodes.map((node) => ({
     id: node.id,
-    style: node.style || {},
+    style: (node.style || {}) as G6NodeStyle,
     data: {
       label: node.label,
       category: node.category,
       description: node.description,
       ...node.data,
-    },
+    } as Record<string, unknown>,
   }));
 }
 
@@ -155,11 +158,11 @@ function toG6Edges(edges: GraphEdge[], nodeIdSet: Set<string>) {
       id: edge.id,
       source: edge.source,
       target: edge.target,
-      style: edge.style || {},
+      style: (edge.style || {}) as G6EdgeStyle,
       data: {
         label: edge.label,
         ...edge.data,
-      },
+      } as Record<string, unknown>,
     }));
 }
 
@@ -227,7 +230,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
     const existingNodeIds = fullData ? fullData.nodes.map((n) => n.id) : [];
     const allNodeIds = [...existingNodeIds, ...pendingAddition.nodes.map((n) => n.id)];
     const nodeIdSet = new Set(allNodeIds);
-    const g6Data = {
+    const g6Data: G6GraphData = {
       nodes: toG6Nodes(pendingAddition.nodes),
       edges: toG6Edges(pendingAddition.edges, nodeIdSet),
     };
