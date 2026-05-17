@@ -205,13 +205,19 @@ async def fetch_initial_graph(
         ph = ",".join("?" * len(id_list))
 
         nodes = conn.execute(
-            f"SELECT * FROM nodes WHERE id IN ({ph}) AND domain=?",
-            [*id_list, domain],
+            f"SELECT * FROM nodes WHERE id IN ({ph})",
+            id_list,
         ).fetchall()
 
+        # 用实际查到的节点 ID 去查边（过滤不存在的节点）
+        found_ids = [r["id"] for r in nodes]
+        if not found_ids:
+            return GraphData(nodes=[], edges=[])
+
+        edge_ph = ",".join("?" * len(found_ids))
         edge_rows = conn.execute(
-            f"SELECT * FROM edges WHERE domain=? AND source IN ({ph}) AND target IN ({ph})",
-            [domain, *id_list, *id_list],
+            f"SELECT * FROM edges WHERE source IN ({edge_ph}) AND target IN ({edge_ph})",
+            [*found_ids, *found_ids],
         ).fetchall()
 
         return GraphData(

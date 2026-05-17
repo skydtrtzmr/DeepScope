@@ -134,7 +134,7 @@ function createGraph(
   return graph;
 }
 
-// 将业务节点/边数据转换为 G6 格式
+// 将业务节点/边数据转换为 G6 格式（过滤掉悬空边）
 function toG6Nodes(nodes: GraphNode[]) {
   return nodes.map((node) => ({
     id: node.id,
@@ -148,17 +148,19 @@ function toG6Nodes(nodes: GraphNode[]) {
   }));
 }
 
-function toG6Edges(edges: GraphEdge[]) {
-  return edges.map((edge) => ({
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    style: edge.style || {},
-    data: {
-      label: edge.label,
-      ...edge.data,
-    },
-  }));
+function toG6Edges(edges: GraphEdge[], nodeIdSet: Set<string>) {
+  return edges
+    .filter((e) => nodeIdSet.has(e.source) && nodeIdSet.has(e.target))
+    .map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      style: edge.style || {},
+      data: {
+        label: edge.label,
+        ...edge.data,
+      },
+    }));
 }
 
 export function GraphContainer({ className }: GraphContainerProps) {
@@ -221,9 +223,13 @@ export function GraphContainer({ className }: GraphContainerProps) {
     const graph = graphRef.current;
     if (!graph || !pendingAddition) return;
 
+    // nodeIdSet 必须包含已有 + 新增节点，否则连接新旧节点的边会被过滤
+    const existingNodeIds = fullData ? fullData.nodes.map((n) => n.id) : [];
+    const allNodeIds = [...existingNodeIds, ...pendingAddition.nodes.map((n) => n.id)];
+    const nodeIdSet = new Set(allNodeIds);
     const g6Data = {
       nodes: toG6Nodes(pendingAddition.nodes),
-      edges: toG6Edges(pendingAddition.edges),
+      edges: toG6Edges(pendingAddition.edges, nodeIdSet),
     };
 
     console.log(
@@ -260,9 +266,10 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     const gen = ++graphGenerationRef.current;
 
+    const nodeIdSet = new Set(fullData.nodes.map((n) => n.id));
     const g6Data = {
       nodes: toG6Nodes(fullData.nodes),
-      edges: toG6Edges(fullData.edges),
+      edges: toG6Edges(fullData.edges, nodeIdSet),
     };
 
     const graph = createGraph(

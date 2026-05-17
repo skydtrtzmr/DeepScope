@@ -159,6 +159,15 @@ function countLoadedDirectNeighbors(fullData: GraphData, nodeId: string): number
   return ids.size;
 }
 
+/** 过滤掉 source/target 不在节点列表中的悬空边 */
+function sanitizeGraphData(data: GraphData): GraphData {
+  const nodeIdSet = new Set(data.nodes.map((n) => n.id));
+  return {
+    nodes: data.nodes,
+    edges: data.edges.filter((e) => nodeIdSet.has(e.source) && nodeIdSet.has(e.target)),
+  };
+}
+
 export const useGraphStore = create<GraphState>((set, get) => ({
   fullData: null,
   visibleData: null,
@@ -179,10 +188,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   currentDomain: '',
 
   setGraphData: (data) => {
-    console.log('[store] setGraphData → 递增 rebuildTrigger，触发 G6 全量重建');
+    const clean = sanitizeGraphData(data);
+    console.log(`[store] setGraphData → ${clean.nodes.length} 节点, ${clean.edges.length} 边（过滤前 ${data.edges.length} 边）`);
     set({
-      fullData: data,
-      visibleData: data,
+      fullData: clean,
+      visibleData: clean,
       selectedNodeId: null,
       highlightedNodeId: null,
       relatedNodes: [],
