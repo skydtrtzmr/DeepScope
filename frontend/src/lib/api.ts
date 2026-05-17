@@ -14,7 +14,7 @@ export async function fetchInitialGraph(): Promise<GraphData> {
   // return data;
 
   // 模拟 API 延迟
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await new Promise((resolve) => setTimeout(resolve, 10));
   return {
     nodes: DEMO_GRAPH_DATA.nodes.slice(0, 8),
     edges: DEMO_GRAPH_DATA.edges.filter(
@@ -46,7 +46,7 @@ export async function expandGraph(params: ExpandGraphParams): Promise<ExpandGrap
   // return data;
 
   // 模拟 API 延迟
-  await new Promise((resolve) => setTimeout(resolve, 600));
+  await new Promise((resolve) => setTimeout(resolve, 10));
 
   const { nodeId, m, offset = 0 } = params;
 
