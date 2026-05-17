@@ -32,7 +32,7 @@ export function NodeDetailCard() {
         <div className="flex items-center gap-2">
           <div
             className="w-3 h-3 rounded-full shrink-0"
-            style={{ backgroundColor: getNodeColor(node.category) }}
+            style={{ backgroundColor: (node.style?.fill as string) || getNodeColor(node.category) }}
           />
           <h3 className="font-semibold text-sm">{node.label}</h3>
         </div>

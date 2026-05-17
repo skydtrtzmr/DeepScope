@@ -125,6 +125,7 @@ function getRelatedNodes(
             label: node.label,
             category: node.category,
             description: node.description,
+            style: node.style,
             relationLabel: neighbor.label,
             depth: depth + 1,
             data: node.data,

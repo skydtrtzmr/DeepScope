@@ -93,7 +93,7 @@ export function NodeDetailList() {
                     {/* 节点颜色指示器 */}
                     <div
                       className="w-3 h-3 rounded-full mt-1 shrink-0"
-                      style={{ backgroundColor: getNodeColor(node.category) }}
+                      style={{ backgroundColor: (node.style?.fill as string) || getNodeColor(node.category) }}
                     />
 
                     <div className="flex-1 min-w-0">

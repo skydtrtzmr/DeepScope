@@ -66,6 +66,7 @@ export interface RelatedNodeDetail {
   label: string;
   category?: string;
   description?: string;
+  style?: NodeStyle;
   relationLabel?: string; // 与当前节点的关系标签
   depth: number; // 关联深度 (1 = 直接关联)
   data?: Record<string, unknown>;

@@ -68,14 +68,14 @@ function createGraph(
     edge: {
       type: 'line',
       style: {
-        stroke: '#94a3b8',
-        lineWidth: 1,
+        stroke: (d: EdgeData) => (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8',
+        lineWidth: (d: EdgeData) => ((d.style as Record<string, unknown>)?.lineWidth as number) || 1,
         lineDash: [],
         lineCap: 'butt',
         lineJoin: 'miter',
         endArrow: true,
         endArrowSize: 6,
-        endArrowFill: '#94a3b8',
+        endArrowFill: (d: EdgeData) => (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8',
         labelText: (d: EdgeData) => (d.data?.label as string) || '',
         labelFontSize: 9,
         labelFill: '#64748b',
