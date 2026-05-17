@@ -421,7 +421,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   // 组件完成 G6 增量渲染后调用，更新 fullData
   commitAddition: (nodes, edges) => {
-    const { fullData, rebuildTrigger } = get();
+    const { fullData, rebuildTrigger, selectedNodeId, config } = get();
     if (!fullData) return;
 
     const mergedData: GraphData = {
@@ -433,12 +433,18 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       `[store] commitAddition → 追加 ${nodes.length} 节点, ${edges.length} 边, rebuildTrigger 保持 ${rebuildTrigger}（不递增，不触发重建）`
     );
 
+    // 如果当前有选中节点，刷新关联节点列表（fullData 变了，BFS 结果可能变化）
+    const relatedNodes = selectedNodeId
+      ? getRelatedNodes(mergedData, selectedNodeId, config.maxDirectRelations, config.maxDepth).relatedNodes
+      : [];
+
     set({
       fullData: mergedData,
       visibleData: mergedData,
       pendingAddition: null,
       isLoading: false,
       expandingNodeId: null,
+      relatedNodes,
     });
   },
 
