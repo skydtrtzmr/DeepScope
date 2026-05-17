@@ -307,17 +307,18 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           m: exploreConfig.m,
           n: 1,
           offset: loadedDirectCount,
-          excludeIds: [...existingNodeIds],
+          excludeIds: [],
           domain: currentDomain,
         });
       } else {
-        const excludeIds = buttonState.type === 'explore' ? [...existingNodeIds] : [];
+        // explore / deeper: 不排除画布已有节点，让后端正常返回所有邻居和边
+        // 已有节点由前端去重，边由前端 nodeIdSet 过滤，保证 C→A 这类"桥接边"不会丢失
         result = await expandGraph({
           nodeId,
           m: exploreConfig.m,
           n: exploreConfig.n,
           offset: 0,
-          excludeIds,
+          excludeIds: [],
           domain: currentDomain,
         });
       }
