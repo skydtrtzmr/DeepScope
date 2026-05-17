@@ -1,10 +1,10 @@
 {
-  "demo-core": {
+  "demo-region": {
     "initialNodeIds": [
       "人员/person-00022"
     ]
   },
-  "demo-region": {
+  "demo-core": {
     "initialNodeIds": [
       "项目/proj-00093",
       "项目/proj-00170"
