@@ -3,3 +3,5 @@ backend/.quartz-cache.db-wal
 backend/.quartz-cache.db
 /backend/__pycache__
 *.db
+*.db-shm
+*.db-wal

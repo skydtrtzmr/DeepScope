@@ -12,6 +12,7 @@ import json
 import os
 import sqlite3
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Optional
 
 import uvicorn
@@ -22,9 +23,22 @@ from pydantic import BaseModel
 # ── 配置 ────────────────────────────────────────────────
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(SCRIPT_DIR, ".quartz-cache.db")
+DATA_DIR = SCRIPT_DIR
 INIT_CONFIG_PATH = os.path.join(SCRIPT_DIR, "mock_graph.json")
-DEFAULT_DOMAIN = "demo-region"
+
+
+def _discover_domains() -> dict[str, str]:
+    """扫描 DATA_DIR 下所有 *.db 文件，文件名（去 .db 后缀）作为 domain，值为 DB 路径。"""
+    domains: dict[str, str] = {}
+    for p in Path(DATA_DIR).glob("*.db"):
+        domain_name = p.stem  # e.g. "demo-core" from "demo-core.db"
+        domains[domain_name] = str(p)
+    return domains
+
+
+DOMAIN_DB_MAP = _discover_domains()
+DOMAIN_NAMES = sorted(DOMAIN_DB_MAP.keys())
+DEFAULT_DOMAIN = DOMAIN_NAMES[0] if DOMAIN_NAMES else ""
 
 app = FastAPI(title="DeepScope Graph API", version="0.1.0")
 
@@ -50,9 +64,18 @@ INITIAL_NODE_IDS = _load_initial_config()
 
 # ── 数据库连接 ──────────────────────────────────────────
 
+def _get_db_path(domain: str) -> str:
+    """根据 domain 名称返回对应的 DB 文件路径。"""
+    path = DOMAIN_DB_MAP.get(domain)
+    if not path:
+        raise ValueError(f"Unknown domain: {domain}, available: {DOMAIN_NAMES}")
+    return path
+
+
 @contextmanager
-def get_db():
-    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, check_same_thread=False)
+def get_db(domain: str = ""):
+    db_path = _get_db_path(domain or DEFAULT_DOMAIN)
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     try:
@@ -130,7 +153,7 @@ def _build_description(fm: dict) -> str:
     return " | ".join(parts) if parts else ""
 
 
-def row_to_node(row: sqlite3.Row) -> GraphNode:
+def row_to_node(row: sqlite3.Row, domain: str = "") -> GraphNode:
     fm = _parse_frontmatter(row["frontmatter"])
     return GraphNode(
         id=row["id"],
@@ -139,7 +162,7 @@ def row_to_node(row: sqlite3.Row) -> GraphNode:
         description=_build_description(fm),
         data={
             "rank": row["rank"],
-            "domain": row["domain"],
+            "domain": domain,
         },
         style={
             "fill": row["color"],
@@ -148,7 +171,7 @@ def row_to_node(row: sqlite3.Row) -> GraphNode:
     )
 
 
-def row_to_edge(row: sqlite3.Row) -> GraphEdge:
+def row_to_edge(row: sqlite3.Row, domain: str = "") -> GraphEdge:
     return GraphEdge(
         id=f"{row['source']}--{row['target']}--{row['type']}",
         source=row["source"],
@@ -156,7 +179,7 @@ def row_to_edge(row: sqlite3.Row) -> GraphEdge:
         label=row["label"],
         data={
             "category": row["category"],
-            "domain": row["domain"],
+            "domain": domain,
         },
         style={
             "stroke": row["color"],
@@ -174,20 +197,18 @@ def _edge_width(weight: float) -> float:
 
 @app.get("/api/domains", response_model=list[DomainItem])
 async def list_domains():
-    """返回所有可用的 domain 及其数据量。"""
-    with get_db() as conn:
-        rows = conn.execute(
-            "SELECT domain, COUNT(*) as cnt FROM nodes GROUP BY domain"
-        ).fetchall()
-        domains = []
-        for r in rows:
-            edge_count = conn.execute(
-                "SELECT COUNT(*) FROM edges WHERE domain=?", (r["domain"],)
-            ).fetchone()[0]
-            domains.append(DomainItem(
-                name=r["domain"], nodeCount=r["cnt"], edgeCount=edge_count,
-            ))
-        return domains
+    """扫描 backend 目录下 *.db 文件，文件名即 domain，返回各 domain 的节点/边数量。"""
+    result = []
+    for domain_name in DOMAIN_NAMES:
+        db_path = DOMAIN_DB_MAP[domain_name]
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            node_count = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+            edge_count = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+        finally:
+            conn.close()
+        result.append(DomainItem(name=domain_name, nodeCount=node_count, edgeCount=edge_count))
+    return result
 
 
 @app.get("/api/graph/initial", response_model=GraphData)
@@ -195,12 +216,12 @@ async def fetch_initial_graph(
     domain: str = Query(default=DEFAULT_DOMAIN),
 ):
     """
-    初始加载：从配置文件读取 initialNodeIds，从数据库查询对应节点及它们之间的边。
+    初始加载：从配置文件读取 initialNodeIds，从对应 domain 的 DB 查询节点及它们之间的边。
     """
     if not INITIAL_NODE_IDS:
         return GraphData(nodes=[], edges=[])
 
-    with get_db() as conn:
+    with get_db(domain) as conn:
         id_list = INITIAL_NODE_IDS
         ph = ",".join("?" * len(id_list))
 
@@ -209,7 +230,6 @@ async def fetch_initial_graph(
             id_list,
         ).fetchall()
 
-        # 用实际查到的节点 ID 去查边（过滤不存在的节点）
         found_ids = [r["id"] for r in nodes]
         if not found_ids:
             return GraphData(nodes=[], edges=[])
@@ -221,8 +241,8 @@ async def fetch_initial_graph(
         ).fetchall()
 
         return GraphData(
-            nodes=[row_to_node(r) for r in nodes],
-            edges=[row_to_edge(r) for r in edge_rows],
+            nodes=[row_to_node(r, domain) for r in nodes],
+            edges=[row_to_edge(r, domain) for r in edge_rows],
         )
 
 
@@ -235,11 +255,12 @@ async def expand_graph(req: ExpandRequest):
     - excludeIds: 已在画布上的节点 ID 列表，后端排除返回
     """
     exclude_set: set[str] = set(req.excludeIds)
+    domain = req.domain or DEFAULT_DOMAIN
 
-    with get_db() as conn:
+    with get_db(domain) as conn:
         if req.offset > 0:
-            return _paginate_direct_neighbors(conn, req.nodeId, req.m, req.offset, exclude_set, req.domain)
-        return _bfs_expand(conn, req.nodeId, req.m, req.n, exclude_set, req.domain)
+            return _paginate_direct_neighbors(conn, req.nodeId, req.m, req.offset, exclude_set, domain)
+        return _bfs_expand(conn, req.nodeId, req.m, req.n, exclude_set, domain)
 
 
 # ── 内部函数 ────────────────────────────────────────────
@@ -248,15 +269,15 @@ def _get_neighbor_ids_sorted(
     conn: sqlite3.Connection,
     node_id: str,
     exclude: set[str],
-    domain: str,
+    _domain: str,
 ) -> list[str]:
     """获取某节点的邻居 ID 列表，按邻居的 rank 排序。"""
     rows = conn.execute(
         """
         SELECT CASE WHEN source = ? THEN target ELSE source END AS neighbor_id
-        FROM edges WHERE domain = ? AND (source = ? OR target = ?)
+        FROM edges WHERE source = ? OR target = ?
         """,
-        (node_id, domain, node_id, node_id),
+        (node_id, node_id, node_id),
     ).fetchall()
     neighbor_ids = [r["neighbor_id"] for r in rows if r["neighbor_id"] not in exclude]
     neighbor_ids = list(dict.fromkeys(neighbor_ids))
@@ -349,10 +370,10 @@ def _fetch_nodes(conn: sqlite3.Connection, ids: list[str], domain: str) -> list[
         return []
     ph = ",".join("?" * len(ids))
     rows = conn.execute(
-        f"SELECT * FROM nodes WHERE id IN ({ph}) AND domain=?",
-        [*ids, domain],
+        f"SELECT * FROM nodes WHERE id IN ({ph})",
+        ids,
     ).fetchall()
-    return [row_to_node(r) for r in rows]
+    return [row_to_node(r, domain) for r in rows]
 
 
 def _fetch_edges_between_layers(
@@ -367,13 +388,13 @@ def _fetch_edges_between_layers(
     to_ph = ",".join("?" * len(to_ids))
     rows = conn.execute(
         f"""
-        SELECT * FROM edges WHERE domain=? AND source IN ({from_ph}) AND target IN ({to_ph})
+        SELECT * FROM edges WHERE source IN ({from_ph}) AND target IN ({to_ph})
         UNION
-        SELECT * FROM edges WHERE domain=? AND source IN ({to_ph}) AND target IN ({from_ph})
+        SELECT * FROM edges WHERE source IN ({to_ph}) AND target IN ({from_ph})
         """,
-        [domain, *from_ids, *to_ids, domain, *to_ids, *from_ids],
+        [*from_ids, *to_ids, *to_ids, *from_ids],
     ).fetchall()
-    return [row_to_edge(r) for r in rows]
+    return [row_to_edge(r, domain) for r in rows]
 
 
 def _fetch_nodes_and_edges(
@@ -392,6 +413,7 @@ def _fetch_nodes_and_edges(
 
 if __name__ == "__main__":
     print(f"DeepScope Graph Server")
-    print(f"DB: {DB_PATH}")
+    print(f"DB 目录: {DATA_DIR}")
+    print(f"发现 domains: {DOMAIN_NAMES}")
     print(f"初始节点配置: {INIT_CONFIG_PATH}")
     uvicorn.run(app, host="0.0.0.0", port=8000)
