@@ -18,7 +18,7 @@ export interface EdgeStyle {
 export interface GraphNode {
   id: string;
   label: string;
-  type?: string;
+  category?: string;
   url?: string;
   description?: string;
   data?: Record<string, unknown>;
@@ -31,7 +31,6 @@ export interface GraphEdge {
   source: string;
   target: string;
   label?: string;
-  type?: string;
   data?: Record<string, unknown>;
   style?: EdgeStyle;
 }
@@ -65,25 +64,24 @@ export type ExploreButtonState =
 export interface RelatedNodeDetail {
   id: string;
   label: string;
-  type?: string;
+  category?: string;
   description?: string;
   relationLabel?: string; // 与当前节点的关系标签
   depth: number; // 关联深度 (1 = 直接关联)
   data?: Record<string, unknown>;
 }
 
-// 节点类型颜色映射
+// 节点类别颜色映射（中文 key，与后端 category 对齐）
 export const NODE_TYPE_COLORS: Record<string, string> = {
-  default: '#6366f1', // indigo
-  person: '#10b981', // emerald
-  organization: '#f59e0b', // amber
-  event: '#ef4444', // red
-  location: '#3b82f6', // blue
-  concept: '#8b5cf6', // violet
-  document: '#ec4899', // pink
+  '默认': '#94a3b8',
+  '组织': '#6366f1',
+  '人员': '#f59e0b',
+  '项目': '#10b981',
+  '任务': '#ef4444',
+  '问答': '#8b5cf6',
 };
 
 // 获取节点颜色
-export function getNodeColor(type?: string): string {
-  return NODE_TYPE_COLORS[type || 'default'] || NODE_TYPE_COLORS.default;
+export function getNodeColor(category?: string): string {
+  return NODE_TYPE_COLORS[category || '默认'] || NODE_TYPE_COLORS['默认'];
 }

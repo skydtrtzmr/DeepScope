@@ -93,16 +93,16 @@ export function NodeDetailList() {
                     {/* 节点颜色指示器 */}
                     <div
                       className="w-3 h-3 rounded-full mt-1 shrink-0"
-                      style={{ backgroundColor: getNodeColor(node.type) }}
+                      style={{ backgroundColor: getNodeColor(node.category) }}
                     />
 
                     <div className="flex-1 min-w-0">
                       {/* 标题行 */}
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm truncate">{node.label}</span>
-                        {node.type && (
+                        {node.category && (
                           <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                            {node.type}
+                            {node.category}
                           </Badge>
                         )}
                         <Badge variant="outline" className="text-xs px-1.5 py-0">

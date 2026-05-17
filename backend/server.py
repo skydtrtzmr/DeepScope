@@ -8,9 +8,9 @@ DeepScope 图谱数据测试服务。
     uv pip install fastapi uvicorn
 """
 
+import json
 import os
 import sqlite3
-from collections import defaultdict
 from contextlib import contextmanager
 from typing import Optional
 
@@ -49,12 +49,13 @@ def get_db():
         conn.close()
 
 
-# ── 响应模型 ────────────────────────────────────────────
+# ── 响应模型（与前端 types/graph.ts 对齐） ─────────────
 
 class GraphNode(BaseModel):
     id: str
     label: str
-    type: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
     data: Optional[dict] = None
     style: Optional[dict] = None
 
@@ -73,6 +74,15 @@ class GraphData(BaseModel):
     edges: list[GraphEdge]
 
 
+class ExpandRequest(BaseModel):
+    nodeId: str
+    m: int = 5
+    n: int = 2
+    offset: int = 0
+    excludeIds: list[str] = []
+    domain: str = DEFAULT_DOMAIN
+
+
 class ExpandResponse(BaseModel):
     nodes: list[GraphNode]
     edges: list[GraphEdge]
@@ -87,13 +97,35 @@ class DomainItem(BaseModel):
 
 # ── 行转前端模型 ─────────────────────────────────────────
 
+def _parse_frontmatter(fm_str: Optional[str]) -> dict:
+    if not fm_str:
+        return {}
+    try:
+        return json.loads(fm_str)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
+def _build_description(fm: dict) -> str:
+    """从 frontmatter 提取关键信息拼成 description。"""
+    parts = []
+    if fm.get("type"):
+        parts.append(fm["type"])
+    if fm.get("status"):
+        parts.append(fm["status"])
+    if fm.get("tags") and isinstance(fm["tags"], list):
+        parts.append(", ".join(fm["tags"][:3]))
+    return " | ".join(parts) if parts else ""
+
+
 def row_to_node(row: sqlite3.Row) -> GraphNode:
+    fm = _parse_frontmatter(row["frontmatter"])
     return GraphNode(
         id=row["id"],
         label=row["label"] or row["id"],
-        type=row["type"],
+        category=row["category"],
+        description=_build_description(fm),
         data={
-            "category": row["category"],
             "rank": row["rank"],
             "domain": row["domain"],
         },
@@ -154,7 +186,6 @@ async def fetch_initial_graph(
     初始加载：从 domain 内度数最高的实体节点出发 BFS 扩展，返回连通子图。
     """
     with get_db() as conn:
-        # 找到该 domain 内度数最高的 entity 节点作为种子
         seed_row = conn.execute(
             """
             SELECT n.id FROM nodes n
@@ -168,7 +199,7 @@ async def fetch_initial_graph(
         if not seed_row:
             return GraphData(nodes=[], edges=[])
 
-        # 小 BFS 收集连通子图
+        # BFS 收集连通子图
         visited: set[str] = set()
         queue = [seed_row["id"]]
         visited.add(seed_row["id"])
@@ -185,10 +216,8 @@ async def fetch_initial_graph(
                 queue.append(nid)
                 result_ids.append(nid)
 
-        # 批量查节点和边
         nodes = _fetch_nodes(conn, result_ids, domain)
 
-        id_set = set(result_ids)
         ph = ",".join("?" * len(result_ids))
         edge_rows = conn.execute(
             f"SELECT * FROM edges WHERE domain=? AND source IN ({ph}) AND target IN ({ph})",
@@ -199,32 +228,23 @@ async def fetch_initial_graph(
         return GraphData(nodes=nodes, edges=edges)
 
 
-@app.get("/api/graph/expand", response_model=ExpandResponse)
-async def expand_graph(
-    nodeId: str = Query(...),
-    m: int = Query(default=5, ge=1, le=50),
-    n: int = Query(default=2, ge=1, le=5),
-    offset: int = Query(default=0, ge=0),
-    excludeIds: str = Query(default=""),
-    domain: str = Query(default=DEFAULT_DOMAIN),
-):
+@app.post("/api/graph/expand", response_model=ExpandResponse)
+async def expand_graph(req: ExpandRequest):
     """
-    节点展开：
+    节点展开（POST）：
     - offset == 0: 多层 BFS 展开，每节点每层最多 m 个新邻居，最大深度 n
     - offset > 0:  分页加载直接邻居（n 强制为 1）
+    - excludeIds: 已在画布上的节点 ID 列表，后端排除返回
     """
-    exclude_set: set[str] = set()
-    if excludeIds:
-        exclude_set = set(excludeIds.split(","))
+    exclude_set: set[str] = set(req.excludeIds)
 
     with get_db() as conn:
-        # ── 分页模式：直接邻居分页 ──
-        if offset > 0:
-            return _paginate_direct_neighbors(conn, nodeId, m, offset, exclude_set, domain)
+        if req.offset > 0:
+            return _paginate_direct_neighbors(conn, req.nodeId, req.m, req.offset, exclude_set, req.domain)
+        return _bfs_expand(conn, req.nodeId, req.m, req.n, exclude_set, req.domain)
 
-        # ── BFS 模式 ──
-        return _bfs_expand(conn, nodeId, m, n, exclude_set, domain)
 
+# ── 内部函数 ────────────────────────────────────────────
 
 def _get_neighbor_ids_sorted(
     conn: sqlite3.Connection,
@@ -232,27 +252,22 @@ def _get_neighbor_ids_sorted(
     exclude: set[str],
     domain: str,
 ) -> list[str]:
-    """获取某节点的邻居 ID 列表，按邻居的 rank 排序（rank 小=越核心=越优先）。"""
+    """获取某节点的邻居 ID 列表，按邻居的 rank 排序。"""
     rows = conn.execute(
         """
-        SELECT
-            CASE WHEN source = ? THEN target ELSE source END AS neighbor_id
-        FROM edges
-        WHERE domain = ? AND (source = ? OR target = ?)
+        SELECT CASE WHEN source = ? THEN target ELSE source END AS neighbor_id
+        FROM edges WHERE domain = ? AND (source = ? OR target = ?)
         """,
         (node_id, domain, node_id, node_id),
     ).fetchall()
     neighbor_ids = [r["neighbor_id"] for r in rows if r["neighbor_id"] not in exclude]
-
-    # 去重
     neighbor_ids = list(dict.fromkeys(neighbor_ids))
 
-    # 按 rank 排序
     if neighbor_ids:
-        placeholders = ",".join("?" * len(neighbor_ids))
+        ph = ",".join("?" * len(neighbor_ids))
         rank_map: dict[str, int] = {}
         for r in conn.execute(
-            f"SELECT id, rank FROM nodes WHERE id IN ({placeholders})",
+            f"SELECT id, rank FROM nodes WHERE id IN ({ph})",
             neighbor_ids,
         ).fetchall():
             rank_map[r["id"]] = r["rank"]
@@ -269,11 +284,8 @@ def _paginate_direct_neighbors(
     exclude: set[str],
     domain: str,
 ) -> ExpandResponse:
-    """分页加载直接邻居。"""
     all_neighbors = _get_neighbor_ids_sorted(conn, node_id, set(), domain)
     total_neighbors = len(all_neighbors)
-
-    # 排除已在画布上的节点
     page_ids = all_neighbors[offset : offset + m]
     page_ids = [nid for nid in page_ids if nid not in exclude]
 
@@ -291,25 +303,21 @@ def _bfs_expand(
     exclude: set[str],
     domain: str,
 ) -> ExpandResponse:
-    """多层 BFS 展开。"""
     visited: set[str] = set([node_id, *exclude])
     result_nodes: list[GraphNode] = []
     result_edges: list[GraphEdge] = []
     result_edge_keys: set[str] = set()
-
     current_layer = [node_id]
 
-    for depth in range(max_depth):
+    for _ in range(max_depth):
         next_layer: list[str] = []
 
         for current_id in current_layer:
             neighbors = _get_neighbor_ids_sorted(conn, current_id, visited, domain)
             added = 0
-
             for neighbor_id in neighbors:
                 if added >= m:
                     break
-
                 visited.add(neighbor_id)
                 next_layer.append(neighbor_id)
                 added += 1
@@ -317,25 +325,19 @@ def _bfs_expand(
         if not next_layer:
             break
 
-        # 批量查询本层新节点 + 连接到上一层的边
         layer_ids = list(dict.fromkeys(next_layer))
         layer_nodes = _fetch_nodes(conn, layer_ids, domain)
-        layer_edges = _fetch_edges_between_layers(
-            conn, current_layer, layer_ids, domain,
-        )
+        layer_edges = _fetch_edges_between_layers(conn, current_layer, layer_ids, domain)
 
         for node in layer_nodes:
             result_nodes.append(node)
-
         for edge in layer_edges:
-            key = edge.id
-            if key not in result_edge_keys:
-                result_edge_keys.add(key)
+            if edge.id not in result_edge_keys:
+                result_edge_keys.add(edge.id)
                 result_edges.append(edge)
 
         current_layer = next_layer
 
-    # totalNeighbors：直接邻居总数
     all_direct = _get_neighbor_ids_sorted(conn, node_id, set(), domain)
     total_neighbors = len(all_direct)
 
@@ -347,9 +349,9 @@ def _bfs_expand(
 def _fetch_nodes(conn: sqlite3.Connection, ids: list[str], domain: str) -> list[GraphNode]:
     if not ids:
         return []
-    placeholders = ",".join("?" * len(ids))
+    ph = ",".join("?" * len(ids))
     rows = conn.execute(
-        f"SELECT * FROM nodes WHERE id IN ({placeholders}) AND domain=?",
+        f"SELECT * FROM nodes WHERE id IN ({ph}) AND domain=?",
         [*ids, domain],
     ).fetchall()
     return [row_to_node(r) for r in rows]
@@ -361,19 +363,15 @@ def _fetch_edges_between_layers(
     to_ids: list[str],
     domain: str,
 ) -> list[GraphEdge]:
-    """查询 from_ids 和 to_ids 之间的所有边。"""
     if not from_ids or not to_ids:
         return []
     from_ph = ",".join("?" * len(from_ids))
     to_ph = ",".join("?" * len(to_ids))
-
     rows = conn.execute(
         f"""
-        SELECT * FROM edges WHERE domain=?
-          AND source IN ({from_ph}) AND target IN ({to_ph})
+        SELECT * FROM edges WHERE domain=? AND source IN ({from_ph}) AND target IN ({to_ph})
         UNION
-        SELECT * FROM edges WHERE domain=?
-          AND source IN ({to_ph}) AND target IN ({from_ph})
+        SELECT * FROM edges WHERE domain=? AND source IN ({to_ph}) AND target IN ({from_ph})
         """,
         [domain, *from_ids, *to_ids, domain, *to_ids, *from_ids],
     ).fetchall()
@@ -387,12 +385,9 @@ def _fetch_nodes_and_edges(
     domain: str,
     total_neighbors: int,
 ) -> ExpandResponse:
-    """获取指定节点和边。"""
     nodes = _fetch_nodes(conn, neighbor_ids, domain)
     edges = _fetch_edges_between_layers(conn, [source_id], neighbor_ids, domain)
-    return ExpandResponse(
-        nodes=nodes, edges=edges, totalNeighbors=total_neighbors,
-    )
+    return ExpandResponse(nodes=nodes, edges=edges, totalNeighbors=total_neighbors)
 
 
 # ── 启动 ────────────────────────────────────────────────

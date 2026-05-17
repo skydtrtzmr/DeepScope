@@ -1,17 +1,15 @@
 import { create } from 'zustand';
 import type {
   GraphData, GraphNode, GraphEdge, GraphConfig, ExploreConfig,
-  ExploreButtonState, RelatedNodeDetail,
+  ExploreButtonState, RelatedNodeDetail, DomainItem,
 } from '@/types/graph';
 import { expandGraph } from '@/lib/api';
 
-export type ViewMode = 'global' | 'local';
-
 /** 每个节点的探索状态 */
 interface NodeExpansionState {
-  loadedDirectCount: number; // 已加载的直接邻居数（从 fullData 中实时计算）
-  totalDirectCount: number; // 直接邻居总数（API 返回）
-  maxDepthExplored: number; // 已探索过的最大 n 值（0 = 从未探索）
+  loadedDirectCount: number;
+  totalDirectCount: number;
+  maxDepthExplored: number;
 }
 
 interface GraphState {
@@ -21,7 +19,6 @@ interface GraphState {
   selectedNodeId: string | null;
   highlightedNodeId: string | null;
   relatedNodes: RelatedNodeDetail[];
-  // BFS 树边集合，用于边高亮（仅 depth d → d+1 的最短路径边）
   highlightedEdgeIds: Set<string>;
 
   // 高亮配置（BFS 过滤已加载数据）
@@ -35,21 +32,21 @@ interface GraphState {
 
   // 加载状态
   isLoading: boolean;
+  isInitialLoading: boolean;
 
-  // 视图模式：global 全局总览 | local 局部增长
-  viewMode: ViewMode;
-
-  // 每个节点的探索状态（用于累积增长 + 按钮状态判定）
+  // 每个节点的探索状态
   expansionStates: Map<string, NodeExpansionState>;
-
-  // 当前正在展开的节点 ID（防并发重入）
   expandingNodeId: string | null;
 
-  // G6 实例重建版本号：仅 setGraphData 时递增，commitAddition 不递增
+  // G6 实例重建版本号
   rebuildTrigger: number;
 
-  // 待增量添加到 G6 的数据（非 null 时组件应调用 G6 addData + render）
+  // 待增量添加到 G6 的数据
   pendingAddition: { nodes: GraphNode[]; edges: GraphEdge[] } | null;
+
+  // Domain
+  domains: DomainItem[];
+  currentDomain: string;
 
   // Actions
   setGraphData: (data: GraphData) => void;
@@ -62,7 +59,8 @@ interface GraphState {
   getExploreButtonState: (nodeId: string) => ExploreButtonState;
   goBack: () => void;
   reset: () => void;
-  setViewMode: (mode: ViewMode) => void;
+  setDomains: (domains: DomainItem[]) => void;
+  setCurrentDomain: (domain: string) => void;
 }
 
 const DEFAULT_CONFIG: GraphConfig = {
@@ -76,7 +74,6 @@ const DEFAULT_EXPLORE_CONFIG: ExploreConfig = {
 };
 
 // BFS 算法：获取指定深度内的关联节点
-// m 为每节点每层展开邻居上限（非仅 depth 0），n 为最大深度
 function getRelatedNodes(
   data: GraphData,
   startNodeId: string,
@@ -89,7 +86,6 @@ function getRelatedNodes(
   const treeEdgeIds = new Set<string>();
   const relatedNodes: RelatedNodeDetail[] = [];
 
-  // 构建邻接表
   const adjacency = new Map<string, { nodeId: string; edgeId: string; label?: string }[]>();
   data.edges.forEach((edge) => {
     if (!adjacency.has(edge.source)) adjacency.set(edge.source, []);
@@ -104,7 +100,6 @@ function getRelatedNodes(
   visitedNodes.add(startNodeId);
   visibleNodeIds.add(startNodeId);
 
-  // BFS 遍历
   const queue: { nodeId: string; depth: number }[] = [{ nodeId: startNodeId, depth: 0 }];
 
   while (queue.length > 0) {
@@ -115,7 +110,6 @@ function getRelatedNodes(
     let addedCount = 0;
 
     for (const neighbor of neighbors) {
-      // 每个节点每层最多展开 maxDirect 个新邻居
       if (addedCount >= maxDirect) break;
 
       if (!visitedNodes.has(neighbor.nodeId)) {
@@ -129,7 +123,7 @@ function getRelatedNodes(
           relatedNodes.push({
             id: node.id,
             label: node.label,
-            type: node.type,
+            category: node.category,
             description: node.description,
             relationLabel: neighbor.label,
             depth: depth + 1,
@@ -140,7 +134,6 @@ function getRelatedNodes(
         queue.push({ nodeId: neighbor.nodeId, depth: depth + 1 });
         addedCount++;
       } else {
-        // 已访问节点的边仍然可见
         visibleEdgeIds.add(neighbor.edgeId);
       }
     }
@@ -156,7 +149,6 @@ function getRelatedNodes(
   return { visibleData, relatedNodes, treeEdgeIds };
 }
 
-// 从 fullData 中计算某节点的已加载直接邻居数
 function countLoadedDirectNeighbors(fullData: GraphData, nodeId: string): number {
   const ids = new Set<string>();
   fullData.edges.forEach((e) => {
@@ -178,11 +170,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   exploreConfig: DEFAULT_EXPLORE_CONFIG,
   nodeHistory: [],
   isLoading: false,
-  viewMode: 'global',
+  isInitialLoading: false,
   expansionStates: new Map(),
   pendingAddition: null,
   expandingNodeId: null,
   rebuildTrigger: 0,
+  domains: [],
+  currentDomain: '',
 
   setGraphData: (data) => {
     console.log('[store] setGraphData → 递增 rebuildTrigger，触发 G6 全量重建');
@@ -201,7 +195,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   selectNode: (nodeId) => {
-    const { fullData, config, selectedNodeId, nodeHistory, viewMode } = get();
+    const { fullData, config, selectedNodeId, nodeHistory } = get();
 
     if (!nodeId || !fullData) {
       set({
@@ -225,17 +219,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
     const newHistory = selectedNodeId ? [...nodeHistory, selectedNodeId] : nodeHistory;
 
-    // local 模式：BFS 高亮但不裁剪 visibleData（画布保持全量）
-    if (viewMode === 'local') {
-      const { relatedNodes, treeEdgeIds } = getRelatedNodes(
-        fullData, nodeId, config.maxDirectRelations, config.maxDepth,
-      );
-      console.log(`[store] selectNode (local) → ${nodeId}, 关联节点数=${relatedNodes.length}`);
-      set({ selectedNodeId: nodeId, relatedNodes, highlightedEdgeIds: treeEdgeIds, nodeHistory: newHistory });
-      return;
-    }
-
-    // global 模式：BFS 过滤生成 visibleData
+    // BFS 过滤生成 visibleData + 关联节点列表
     const { visibleData, relatedNodes, treeEdgeIds } = getRelatedNodes(
       fullData, nodeId, config.maxDirectRelations, config.maxDepth,
     );
@@ -252,9 +236,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ highlightedNodeId: nodeId });
   },
 
-  // 更新高亮配置（BFS 过滤参数）
   updateConfig: (newConfig) => {
-    const { fullData, selectedNodeId, config, viewMode } = get();
+    const { fullData, selectedNodeId, config } = get();
     const updatedConfig = { ...config, ...newConfig };
     set({ config: updatedConfig });
 
@@ -262,33 +245,25 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       const { relatedNodes, treeEdgeIds, visibleData } = getRelatedNodes(
         fullData, selectedNodeId, updatedConfig.maxDirectRelations, updatedConfig.maxDepth,
       );
-      if (viewMode === 'local') {
-        set({ relatedNodes, highlightedEdgeIds: treeEdgeIds });
-      } else {
-        set({ visibleData, relatedNodes, highlightedEdgeIds: treeEdgeIds });
-      }
+      set({ visibleData, relatedNodes, highlightedEdgeIds: treeEdgeIds });
     }
   },
 
-  // 更新探索配置（API 请求参数）
   updateExploreConfig: (newConfig) => {
     const { exploreConfig } = get();
     set({ exploreConfig: { ...exploreConfig, ...newConfig } });
   },
 
-  // 计算探索按钮状态
   getExploreButtonState: (nodeId) => {
     const { fullData, exploreConfig, expansionStates } = get();
     const state = expansionStates.get(nodeId);
 
-    // 从未探索过
     if (!state) {
       return { type: 'explore', label: '探索此节点' };
     }
 
     const loadedDirectCount = fullData ? countLoadedDirectNeighbors(fullData, nodeId) : 0;
 
-    // 优先级：深度 > 广度 > 完成
     if (exploreConfig.n > state.maxDepthExplored) {
       return { type: 'deeper', label: '探索更深' };
     }
@@ -300,12 +275,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     return { type: 'done', label: '已全部探索' };
   },
 
-  // 智能展开节点：根据状态自动选择"探索/加载更多/探索更深"
   expandNode: async (nodeId) => {
-    const { fullData, expansionStates, exploreConfig, expandingNodeId } = get();
+    const { fullData, expansionStates, exploreConfig, expandingNodeId, currentDomain } = get();
     if (!fullData) return;
-
-    // 防并发
     if (expandingNodeId === nodeId) return;
 
     const buttonState = get().getExploreButtonState(nodeId);
@@ -319,26 +291,24 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       let result;
 
       if (buttonState.type === 'more') {
-        // 加载更多：分页追加直接邻居，n 强制为 1
         const loadedDirectCount = countLoadedDirectNeighbors(fullData, nodeId);
         result = await expandGraph({
           nodeId,
           m: exploreConfig.m,
           n: 1,
           offset: loadedDirectCount,
-          excludeExistingIds: [...existingNodeIds],
+          excludeIds: [...existingNodeIds],
+          domain: currentDomain,
         });
       } else {
-        // 首次探索 或 探索更深：全量 BFS
-        // 首次探索：exclude 已有节点，避免重复
-        // 探索更深：不 exclude，让后端完整 BFS 以便发现经由已加载中间节点可达的更深层节点
         const excludeIds = buttonState.type === 'explore' ? [...existingNodeIds] : [];
         result = await expandGraph({
           nodeId,
           m: exploreConfig.m,
           n: exploreConfig.n,
           offset: 0,
-          excludeExistingIds: excludeIds,
+          excludeIds,
+          domain: currentDomain,
         });
       }
 
@@ -347,7 +317,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         return;
       }
 
-      // 过滤出真正新的节点和边（前端去重）
       const newNodes = result.nodes.filter((n) => !existingNodeIds.has(n.id));
       const newNodeIds = new Set(newNodes.map((n) => n.id));
       const existingEdgeIds = new Set(fullData.edges.map((e) => e.id));
@@ -361,7 +330,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         return;
       }
 
-      // 更新探索状态
       const newExpansionStates = new Map(expansionStates);
       const prevState = expansionStates.get(nodeId);
       const newLoadedDirect = fullData
@@ -378,7 +346,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           : exploreConfig.n,
       });
 
-      // 设置待增量渲染数据
       set({
         pendingAddition: { nodes: newNodes, edges: newEdges },
         expansionStates: newExpansionStates,
@@ -398,9 +365,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       edges: [...fullData.edges, ...edges],
     };
 
-    console.log(
-      `[store] commitAddition → 追加 ${nodes.length} 节点, ${edges.length} 边`,
-    );
+    console.log(`[store] commitAddition → 追加 ${nodes.length} 节点, ${edges.length} 边`);
 
     const result = selectedNodeId
       ? getRelatedNodes(mergedData, selectedNodeId, config.maxDirectRelations, config.maxDepth)
@@ -418,27 +383,23 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   goBack: () => {
-    const { nodeHistory, viewMode } = get();
+    const { nodeHistory, fullData, config } = get();
     if (nodeHistory.length === 0) return;
 
     const newHistory = [...nodeHistory];
     const previousNodeId = newHistory.pop()!;
-
-    const { fullData, config } = get();
     if (!fullData) return;
 
-    const { relatedNodes, treeEdgeIds } = getRelatedNodes(
+    const { relatedNodes, treeEdgeIds, visibleData } = getRelatedNodes(
       fullData, previousNodeId, config.maxDirectRelations, config.maxDepth,
     );
-
-    if (viewMode === 'local') {
-      set({ selectedNodeId: previousNodeId, relatedNodes, highlightedEdgeIds: treeEdgeIds, nodeHistory: newHistory });
-    } else {
-      const { visibleData } = getRelatedNodes(
-        fullData, previousNodeId, config.maxDirectRelations, config.maxDepth,
-      );
-      set({ selectedNodeId: previousNodeId, visibleData, relatedNodes, highlightedEdgeIds: treeEdgeIds, nodeHistory: newHistory });
-    }
+    set({
+      selectedNodeId: previousNodeId,
+      visibleData,
+      relatedNodes,
+      highlightedEdgeIds: treeEdgeIds,
+      nodeHistory: newHistory,
+    });
   },
 
   reset: () => {
@@ -455,7 +416,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     });
   },
 
-  setViewMode: (mode) => {
-    set({ viewMode: mode });
+  setDomains: (domains) => {
+    set({ domains });
+  },
+
+  setCurrentDomain: (domain) => {
+    set({ currentDomain: domain });
   },
 }));

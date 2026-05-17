@@ -1,7 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Graph, type GraphOptions, type NodeData, type EdgeData } from '@antv/g6';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { getNodeColor } from '@/types/graph';
 import { NodeDetailCard } from './node-detail-card';
 import type { GraphNode, GraphEdge } from '@/types/graph';
 
@@ -49,7 +48,8 @@ function createGraph(
         labelBackgroundOpacity: 0.6,
         labelBackgroundRadius: 4,
         labelPadding: [2, 6],
-        fill: (d: NodeData) => getNodeColor(d.data?.type as string),
+        fill: (d: NodeData) => (d.style as Record<string, unknown>)?.fill as string || '#94a3b8',
+        size: (d: NodeData) => ((d.style as Record<string, unknown>)?.radius as number) || 28,
         stroke: '#334155',
         lineWidth: 2,
         lineDash: [],
@@ -138,9 +138,10 @@ function createGraph(
 function toG6Nodes(nodes: GraphNode[]) {
   return nodes.map((node) => ({
     id: node.id,
+    style: node.style || {},
     data: {
       label: node.label,
-      type: node.type,
+      category: node.category,
       description: node.description,
       ...node.data,
     },
@@ -152,6 +153,7 @@ function toG6Edges(edges: GraphEdge[]) {
     id: edge.id,
     source: edge.source,
     target: edge.target,
+    style: edge.style || {},
     data: {
       label: edge.label,
       ...edge.data,

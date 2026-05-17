@@ -4,7 +4,7 @@ import { GraphControls } from '@/components/graph/graph-controls';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { NodeDetailList } from '@/components/graph/node-detail-list';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { DEMO_GRAPH_DATA } from '@/lib/demo-data';
+import { fetchDomains, fetchInitialGraph } from '@/lib/api';
 import type { GraphData } from '@/types/graph';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,36 +17,26 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 
 function AppContent() {
-  const { setGraphData, fullData, viewMode } = useGraphStore();
+  const { setGraphData, fullData, setDomains, setCurrentDomain, currentDomain } = useGraphStore();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [importError, setImportError] = useState('');
   const initializedRef = useRef(false);
 
-  // 获取局部增长模式的初始子图（包含各类型节点的核心子图）
-  const getLocalInitialData = useCallback((): GraphData => {
-    const ids = new Set([
-      // person
-      'person-1',
-      // organization
-      'org-1',
-      // event
-      'event-1',
-      // concept
-      'concept-1',
-      // document
-      'doc-1',
-      // location
-      'loc-1',
-    ]);
-    return {
-      nodes: DEMO_GRAPH_DATA.nodes.filter((n) => ids.has(n.id)),
-      edges: DEMO_GRAPH_DATA.edges.filter((e) => ids.has(e.source) && ids.has(e.target)),
-    };
-  }, []);
-
-  // 初始加载 / 模式切换时重新加载数据
+  // 加载 domain 列表
   useEffect(() => {
+    fetchDomains().then((domains) => {
+      setDomains(domains);
+      if (domains.length > 0) {
+        setCurrentDomain(domains[0].name);
+      }
+    }).catch(console.error);
+  }, [setDomains, setCurrentDomain]);
+
+  // domain 变化时加载初始图谱数据
+  useEffect(() => {
+    if (!currentDomain) return;
+
     // 尝试从 URL 参数获取数据（仅首次）
     const params = new URLSearchParams(window.location.search);
     const dataParam = params.get('data');
@@ -61,14 +51,14 @@ function AppContent() {
       }
     }
 
-    // 根据模式加载数据
-    if (viewMode === 'local') {
-      setGraphData(getLocalInitialData());
-    } else {
-      setGraphData(DEMO_GRAPH_DATA);
-    }
-    initializedRef.current = true;
-  }, [viewMode, setGraphData, getLocalInitialData]);
+    setGraphData({ nodes: [], edges: [] });
+    fetchInitialGraph(currentDomain)
+      .then((data) => {
+        setGraphData(data);
+        initializedRef.current = true;
+      })
+      .catch(console.error);
+  }, [currentDomain, setGraphData]);
 
   // 导入数据
   const handleImport = useCallback(() => {
@@ -111,7 +101,16 @@ function AppContent() {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* 图谱区域 */}
         <div className="flex-1 min-h-[50vh] lg:min-h-0 border-b lg:border-b-0 lg:border-r">
-          <GraphContainer className="w-full h-full" />
+          {fullData && fullData.nodes.length > 0 ? (
+            <GraphContainer className="w-full h-full" />
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center gap-4">
+                <Spinner className="size-8" />
+                <p className="text-muted-foreground">正在加载图谱...</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 右侧面板 */}
@@ -139,7 +138,7 @@ function AppContent() {
               placeholder={`粘贴 JSON 数据，格式如下：
 {
   "nodes": [
-    { "id": "1", "label": "节点1", "type": "person" }
+    { "id": "1", "label": "节点1", "category": "人员" }
   ],
   "edges": [
     { "id": "e1", "source": "1", "target": "2", "label": "关系" }
