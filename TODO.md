@@ -44,26 +44,14 @@
 
 ## 次要问题
 
-### 7. 事件处理中 `event.target.id` 不准确
-
-**文件**：`graph-container.tsx` L94, L95
-
-**现象**：通过 `(event as unknown as { target: { id: string } }).target.id` 获取节点 ID，类型强转不够安全，且在某些 G6 版本下可能获取到 canvas 元素 ID 而非节点 ID。
-
-**处理方案**：
-- 改用 G6 v5 标准事件属性 `event.targetID` 或 `event.itemId`
-- 验证属性是否为有效节点 ID（检查 `graph.getNodeData(id)` 是否存在）
-
----
-
-### 8. 展开后画布未聚焦到新节点
+### 7. ~~事件处理中 `event.target.id` 不准确~~ ✅ 已修复
 
 **文件**：`graph-container.tsx`
 
-**现象**：`expandNode` 追加邻居节点后，画布不会自动平移到新节点区域，用户可能看不到新增的节点。
+**修复**：简化类型断言（去掉 `as unknown as`），改为 `(event as { target: { id: string } }).target.id`，与 G6 v5 官方文档一致。增加 `graph.getNodeData(id)` 验证，防止获取到无效 ID。
 
-**处理方案**：
-- 在 `pendingAddition` effect 中，`addData + render` 完成后调用 `graph.focusElement(newNodeIds)` 或手动计算新节点的中心坐标执行 `graph.translateTo` / `graph.zoomTo`
+---
+
 
 ---
 

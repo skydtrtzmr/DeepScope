@@ -93,7 +93,9 @@ function createGraph(
   const graph = new Graph(options);
 
   graph.on('node:click', (event) => {
-    const nodeId = (event as unknown as { target: { id: string } }).target.id;
+    // G6 v5 事件对象：event.target 是触发事件的元素，.id 为节点 ID
+    const nodeId = (event as { target: { id: string } }).target.id;
+    if (!graph.getNodeData(nodeId)) return; // 防御：确保 id 是有效节点
     selectNode(nodeId);
   });
 
@@ -167,7 +169,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const graphGenerationRef = useRef(0);
 
   const {
-    fullData, visibleData, selectedNodeId, highlightedNodeId,
+    fullData, visibleData, selectedNodeId, highlightedNodeId, highlightedEdgeIds,
     selectNode, pendingAddition, commitAddition, rebuildTrigger,
   } = useGraphStore();
 
@@ -195,11 +197,11 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     fullData.edges.forEach((edge) => {
       if (!graph.getEdgeData(edge.id)) return;
-      const isActive =
-        selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
+      // 边高亮条件：必须是 BFS 树边（depth d → d+1 的最短路径边）
+      const isActive = selectedNodeId && highlightedEdgeIds.has(edge.id);
       try { graph.setElementState(edge.id, isActive ? ['active'] : []); } catch { /* canvas 尚未就绪，下次重试 */ }
     });
-  }, [fullData, visibleData, selectedNodeId, highlightedNodeId]);
+  }, [fullData, visibleData, selectedNodeId, highlightedNodeId, highlightedEdgeIds]);
 
   // 保持最新引用，供事件回调使用
   const applyNodeStatesRef = useRef(applyNodeStates);

@@ -16,6 +16,8 @@ interface GraphState {
   selectedNodeId: string | null;
   highlightedNodeId: string | null;
   relatedNodes: RelatedNodeDetail[];
+  // BFS 树边集合，用于边高亮（仅 depth d → d+1 的最短路径边）
+  highlightedEdgeIds: Set<string>;
 
   // 配置
   config: GraphConfig;
@@ -67,10 +69,11 @@ function getRelatedNodes(
   startNodeId: string,
   maxDirect: number,
   maxDepth: number
-): { visibleData: GraphData; relatedNodes: RelatedNodeDetail[] } {
+): { visibleData: GraphData; relatedNodes: RelatedNodeDetail[]; treeEdgeIds: Set<string> } {
   const visitedNodes = new Set<string>();
   const visibleNodeIds = new Set<string>();
   const visibleEdgeIds = new Set<string>();
+  const treeEdgeIds = new Set<string>(); // BFS 树边：仅 depth d → depth d+1 的边
   const relatedNodes: RelatedNodeDetail[] = [];
 
   // 构建邻接表
@@ -116,6 +119,7 @@ function getRelatedNodes(
         visitedNodes.add(neighbor.nodeId);
         visibleNodeIds.add(neighbor.nodeId);
         visibleEdgeIds.add(neighbor.edgeId);
+        treeEdgeIds.add(neighbor.edgeId); // BFS 树边
 
         const node = nodeMap.get(neighbor.nodeId);
         if (node) {
@@ -145,7 +149,7 @@ function getRelatedNodes(
 
   relatedNodes.sort((a, b) => a.depth - b.depth);
 
-  return { visibleData, relatedNodes };
+  return { visibleData, relatedNodes, treeEdgeIds };
 }
 
 export const useGraphStore = create<GraphState>((set, get) => ({
@@ -155,6 +159,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   selectedNodeId: null,
   highlightedNodeId: null,
   relatedNodes: [],
+  highlightedEdgeIds: new Set(),
   config: DEFAULT_CONFIG,
   nodeHistory: [],
   isLoading: false,
@@ -190,6 +195,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         selectedNodeId: null,
         visibleData: fullData,
         relatedNodes: [],
+        highlightedEdgeIds: new Set(),
       });
       return;
     }
@@ -199,6 +205,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         selectedNodeId: null,
         visibleData: fullData,
         relatedNodes: [],
+        highlightedEdgeIds: new Set(),
       });
       return;
     }
@@ -206,21 +213,21 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     // local 模式：计算关联节点供右侧面板展示，但不改变 visibleData（画布保持全量）
     if (viewMode === 'local') {
       const newHistory = selectedNodeId ? [...nodeHistory, selectedNodeId] : nodeHistory;
-      const { relatedNodes } = getRelatedNodes(
+      const { relatedNodes, treeEdgeIds } = getRelatedNodes(
         fullData,
         nodeId,
         config.maxDirectRelations,
         config.maxDepth
       );
       console.log(`[store] selectNode (local) → ${nodeId}, 关联节点数=${relatedNodes.length}`);
-      set({ selectedNodeId: nodeId, relatedNodes, nodeHistory: newHistory });
+      set({ selectedNodeId: nodeId, relatedNodes, highlightedEdgeIds: treeEdgeIds, nodeHistory: newHistory });
       return;
     }
 
     // global 模式：BFS 过滤生成 visibleData
     const newHistory = selectedNodeId ? [...nodeHistory, selectedNodeId] : nodeHistory;
 
-    const { visibleData, relatedNodes } = getRelatedNodes(
+    const { visibleData, relatedNodes, treeEdgeIds } = getRelatedNodes(
       fullData,
       nodeId,
       config.maxDirectRelations,
@@ -231,6 +238,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       selectedNodeId: nodeId,
       visibleData,
       relatedNodes,
+      highlightedEdgeIds: treeEdgeIds,
       nodeHistory: newHistory,
     });
   },
@@ -248,7 +256,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ config: updatedConfig });
 
     if (selectedNodeId && fullData) {
-      const { relatedNodes } = getRelatedNodes(
+      const { relatedNodes, treeEdgeIds } = getRelatedNodes(
         fullData,
         selectedNodeId,
         updatedConfig.maxDirectRelations,
@@ -257,7 +265,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
       if (viewMode === 'local') {
         // local 模式：只刷新右面板关联列表，不改变 visibleData（画布保持全量）
-        set({ relatedNodes });
+        set({ relatedNodes, highlightedEdgeIds: treeEdgeIds });
       } else {
         // global 模式：BFS 过滤生成 visibleData
         const { visibleData } = getRelatedNodes(
@@ -266,7 +274,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           updatedConfig.maxDirectRelations,
           updatedConfig.maxDepth
         );
-        set({ visibleData, relatedNodes });
+        set({ visibleData, relatedNodes, highlightedEdgeIds: treeEdgeIds });
       }
     }
   },
@@ -294,7 +302,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const { fullData, config } = get();
     if (!fullData) return;
 
-    const { relatedNodes } = getRelatedNodes(
+    const { relatedNodes, treeEdgeIds } = getRelatedNodes(
       fullData,
       previousNodeId,
       config.maxDirectRelations,
@@ -302,7 +310,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     );
 
     if (viewMode === 'local') {
-      set({ selectedNodeId: previousNodeId, relatedNodes, nodeHistory: newHistory });
+      set({ selectedNodeId: previousNodeId, relatedNodes, highlightedEdgeIds: treeEdgeIds, nodeHistory: newHistory });
     } else {
       const { visibleData } = getRelatedNodes(
         fullData,
@@ -310,7 +318,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         config.maxDirectRelations,
         config.maxDepth
       );
-      set({ selectedNodeId: previousNodeId, visibleData, relatedNodes, nodeHistory: newHistory });
+      set({ selectedNodeId: previousNodeId, visibleData, relatedNodes, highlightedEdgeIds: treeEdgeIds, nodeHistory: newHistory });
     }
   },
 
@@ -322,6 +330,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       selectedNodeId: null,
       highlightedNodeId: null,
       relatedNodes: [],
+      highlightedEdgeIds: new Set(),
       config: DEFAULT_CONFIG,
       nodeHistory: [],
     });
@@ -414,10 +423,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       `[store] commitAddition → 追加 ${nodes.length} 节点, ${edges.length} 边, rebuildTrigger 保持 ${rebuildTrigger}（不递增，不触发重建）`
     );
 
-    // 如果当前有选中节点，刷新关联节点列表（fullData 变了，BFS 结果可能变化）
-    const relatedNodes = selectedNodeId
-      ? getRelatedNodes(mergedData, selectedNodeId, config.maxDirectRelations, config.maxDepth).relatedNodes
-      : [];
+    // 如果当前有选中节点，刷新关联节点列表和树边高亮（fullData 变了，BFS 结果可能变化）
+    const result = selectedNodeId
+      ? getRelatedNodes(mergedData, selectedNodeId, config.maxDirectRelations, config.maxDepth)
+      : null;
 
     set({
       fullData: mergedData,
@@ -425,7 +434,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       pendingAddition: null,
       isLoading: false,
       expandingNodeId: null,
-      relatedNodes,
+      relatedNodes: result?.relatedNodes ?? [],
+      highlightedEdgeIds: result?.treeEdgeIds ?? new Set(),
     });
   },
 
