@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -10,9 +11,55 @@ const MODE_OPTIONS: { value: ViewMode; label: string; icon: typeof Globe }[] = [
   { value: 'local', label: '局部增长', icon: GitBranch },
 ];
 
+/** 滑块拖动时的 debounce 间隔（ms） */
+const SLIDER_DEBOUNCE_MS = 200;
+
+/**
+ * 创建一个 debounce 版本的 updateConfig，用于滑块拖动。
+ * 同时维护本地即时值，拖动时视觉立即响应，debounce 后同步到 store。
+ */
+function useDebouncedSlider(key: 'maxDirectRelations' | 'maxDepth', delay: number) {
+  const config = useGraphStore((s) => s.config);
+  const updateConfig = useGraphStore((s) => s.updateConfig);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 本地即时值，初始化为 store 值
+  const [localValue, setLocalValue] = useState(config[key]);
+
+  // 当 store 值变化时（例如 +/- 按钮或外部修改），同步本地值
+  useEffect(() => {
+    setLocalValue(config[key]);
+  }, [config[key]]);
+
+  // 滑块拖动：立即更新本地值，debounce 更新 store
+  const onSliderChange = useCallback(
+    (value: number) => {
+      setLocalValue(value);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => updateConfig({ [key]: value }), delay);
+    },
+    [updateConfig, key, delay],
+  );
+
+  // +/- 按钮或外部直接更新：同时更新 store 和本地值
+  const updateDirect = useCallback(
+    (value: number) => {
+      updateConfig({ [key]: value });
+      setLocalValue(value);
+    },
+    [updateConfig, key],
+  );
+
+  return { localValue, onSliderChange, updateDirect };
+}
+
 export function GraphControls() {
-  const { config, updateConfig, goBack, reset, nodeHistory, selectedNodeId, viewMode, setViewMode, isLoading } =
+  const { goBack, reset, nodeHistory, selectedNodeId, viewMode, setViewMode, isLoading } =
     useGraphStore();
+
+  // 滑块拖动用 debounce 版本（本地即时值保证视觉响应）；+/- 按钮直接更新 store
+  const mSlider = useDebouncedSlider('maxDirectRelations', SLIDER_DEBOUNCE_MS);
+  const nSlider = useDebouncedSlider('maxDepth', SLIDER_DEBOUNCE_MS);
 
   return (
     <div className="flex flex-col gap-4 p-4 border rounded-lg bg-card">
@@ -46,19 +93,19 @@ export function GraphControls() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-xs text-muted-foreground">直接关联数量 (m)</Label>
-          <span className="text-sm font-medium">{config.maxDirectRelations}</span>
+          <span className="text-sm font-medium">{mSlider.localValue}</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
             variant="outline" size="sm" className="size-7 p-0"
-            onClick={() => updateConfig({ maxDirectRelations: Math.max(0, config.maxDirectRelations - 1) })}
-            disabled={config.maxDirectRelations <= 0}
+            onClick={() => mSlider.updateDirect(Math.max(0, mSlider.localValue - 1))}
+            disabled={mSlider.localValue <= 0}
           >
             <Minus className="h-3 w-3" />
           </Button>
           <Slider
-            value={[config.maxDirectRelations]}
-            onValueChange={([value]) => updateConfig({ maxDirectRelations: value })}
+            value={[mSlider.localValue]}
+            onValueChange={([value]) => mSlider.onSliderChange(value)}
             min={0}
             max={20}
             step={1}
@@ -66,8 +113,8 @@ export function GraphControls() {
           />
           <Button
             variant="outline" size="sm" className="size-7 p-0"
-            onClick={() => updateConfig({ maxDirectRelations: Math.min(20, config.maxDirectRelations + 1) })}
-            disabled={config.maxDirectRelations >= 20}
+            onClick={() => mSlider.updateDirect(Math.min(20, mSlider.localValue + 1))}
+            disabled={mSlider.localValue >= 20}
           >
             <Plus className="h-3 w-3" />
           </Button>
@@ -78,19 +125,19 @@ export function GraphControls() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-xs text-muted-foreground">关联深度 (n)</Label>
-          <span className="text-sm font-medium">{config.maxDepth}</span>
+          <span className="text-sm font-medium">{nSlider.localValue}</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
             variant="outline" size="sm" className="size-7 p-0"
-            onClick={() => updateConfig({ maxDepth: Math.max(0, config.maxDepth - 1) })}
-            disabled={config.maxDepth <= 0}
+            onClick={() => nSlider.updateDirect(Math.max(0, nSlider.localValue - 1))}
+            disabled={nSlider.localValue <= 0}
           >
             <Minus className="h-3 w-3" />
           </Button>
           <Slider
-            value={[config.maxDepth]}
-            onValueChange={([value]) => updateConfig({ maxDepth: value })}
+            value={[nSlider.localValue]}
+            onValueChange={([value]) => nSlider.onSliderChange(value)}
             min={0}
             max={3}
             step={1}
@@ -98,8 +145,8 @@ export function GraphControls() {
           />
           <Button
             variant="outline" size="sm" className="size-7 p-0"
-            onClick={() => updateConfig({ maxDepth: Math.min(3, config.maxDepth + 1) })}
-            disabled={config.maxDepth >= 3}
+            onClick={() => nSlider.updateDirect(Math.min(3, nSlider.localValue + 1))}
+            disabled={nSlider.localValue >= 3}
           >
             <Plus className="h-3 w-3" />
           </Button>
