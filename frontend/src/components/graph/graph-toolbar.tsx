@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { Download, Upload, Home } from 'lucide-react';
+import { DocHelpButton } from './doc-viewer';
 
 interface GraphToolbarProps {
   onImportData?: () => void;
@@ -46,6 +47,8 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
       </div>
 
       <div className="flex items-center gap-2">
+        <DocHelpButton />
+
         {selectedNodeId && (
           <Button variant="ghost" size="sm" onClick={reset} title="显示全部">
             <Home className="h-4 w-4 mr-1" />

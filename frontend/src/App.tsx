@@ -90,7 +90,7 @@ function AppContent() {
   }, [fullData]);
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="relative flex flex-col h-screen bg-background">
       {/* 工具栏 */}
       <GraphToolbar
         onImportData={() => setImportDialogOpen(true)}
