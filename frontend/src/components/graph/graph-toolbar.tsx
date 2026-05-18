@@ -49,13 +49,6 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
       <div className="flex items-center gap-2">
         <DocHelpButton />
 
-        {selectedNodeId && (
-          <Button variant="ghost" size="sm" onClick={reset} title="显示全部">
-            <Home className="h-4 w-4 mr-1" />
-            全图
-          </Button>
-        )}
-
         {onImportData && (
           <Button variant="ghost" size="sm" onClick={onImportData} title="导入数据">
             <Upload className="h-4 w-4" />
