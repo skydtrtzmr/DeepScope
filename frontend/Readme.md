@@ -3,5 +3,7 @@
 开发模式部署到指定ip；
 
 ```
-npm run dev --host 192.168.1.4
+npm run dev
 ```
+
+在vite.config.ts里配置server。
