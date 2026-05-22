@@ -5,7 +5,7 @@ import { Graph, type GraphOptions, type NodeData, type EdgeData, type GraphData 
 type G6NodeStyle = Partial<BaseNodeStyleProps> & { [key: string]: unknown };
 type G6EdgeStyle = Partial<BaseEdgeStyleProps> & { [key: string]: unknown };
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { NodeDetailCard } from './node-detail-card';
+import { GraphControl } from './graph-control';
 import type { GraphNode, GraphEdge } from '@/types/graph';
 
 interface GraphContainerProps {
@@ -355,7 +355,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
   return (
     <div className="relative w-full h-full" style={{ minHeight: 400 }}>
       <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
-      <NodeDetailCard />
+      <GraphControl />
     </div>
   );
 }

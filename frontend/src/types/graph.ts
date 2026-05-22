@@ -20,6 +20,7 @@ export interface GraphNode {
   label: string;
   category?: string;
   url?: string;
+  type?: string;
   description?: string;
   data?: Record<string, unknown>;
   style?: NodeStyle;

@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState, useRef, Suspense } from 'react';
 import { GraphContainer } from '@/components/graph/graph-container';
-import { GraphControls } from '@/components/graph/graph-controls';
+import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
@@ -116,8 +116,8 @@ function AppContent() {
         {/* 右侧面板 */}
         <div className="w-full lg:w-80 xl:w-96 flex flex-col h-[40vh] lg:h-full overflow-hidden">
           {/* 控制面板 */}
-          <div className="shrink-0 p-3 border-b">
-            <GraphControls />
+          <div className="flex-1 shrink-0 p-3 border-b">
+            <NodeDetail />
           </div>
 
           {/* 详情列表 */}

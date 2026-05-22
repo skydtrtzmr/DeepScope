@@ -34,7 +34,7 @@ export function AssociatedNodeList() {
   if (!selectedNodeId) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        点击图谱中的节点查看关联详情
+        点击图谱中的节点查看关联节点
       </div>
     );
   }

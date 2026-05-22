@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { Download, Upload, Home } from 'lucide-react';
+import { Download, Upload} from 'lucide-react';
 import { DocHelpButton } from './doc-viewer';
 
 interface GraphToolbarProps {
@@ -9,7 +9,7 @@ interface GraphToolbarProps {
 }
 
 export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) {
-  const { fullData, selectedNodeId, reset, domains, currentDomain, setCurrentDomain } = useGraphStore();
+  const { fullData, domains, currentDomain, setCurrentDomain } = useGraphStore();
 
   const nodeCount = fullData?.nodes.length ?? 0;
   const edgeCount = fullData?.edges.length ?? 0;

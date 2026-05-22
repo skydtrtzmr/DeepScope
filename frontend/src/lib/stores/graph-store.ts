@@ -365,7 +365,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   commitAddition: (nodes, edges) => {
-    const { fullData, rebuildTrigger, selectedNodeId, config } = get();
+    const { fullData, selectedNodeId, config } = get();
     if (!fullData) return;
 
     const mergedData: GraphData = {
