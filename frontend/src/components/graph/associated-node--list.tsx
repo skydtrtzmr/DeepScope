@@ -5,7 +5,7 @@ import { getNodeColor, type RelatedNodeDetail } from '@/types/graph';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
-export function NodeDetailList() {
+export function AssociatedNodeList() {
   const parentRef = useRef<HTMLDivElement>(null);
   const { relatedNodes, selectedNodeId, highlightedNodeId, selectNode, highlightNode } =
     useGraphStore();

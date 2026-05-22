@@ -2,7 +2,7 @@ import { useEffect, useCallback, useState, useRef, Suspense } from 'react';
 import { GraphContainer } from '@/components/graph/graph-container';
 import { GraphControls } from '@/components/graph/graph-controls';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
-import { NodeDetailList } from '@/components/graph/node-detail-list';
+import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { fetchDomains, fetchInitialGraph } from '@/lib/api';
 import type { GraphData } from '@/types/graph';
@@ -122,7 +122,7 @@ function AppContent() {
 
           {/* 详情列表 */}
           <div className="flex-1 overflow-hidden">
-            <NodeDetailList />
+            <AssociatedNodeList />
           </div>
         </div>
       </div>
