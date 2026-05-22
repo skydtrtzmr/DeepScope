@@ -6,7 +6,7 @@ import { getNodeColor } from '@/types/graph';
 
 export function NodeDetail() {
   const {
-    fullData, selectNode, selectedNodeId
+    fullData, selectedNodeId
   } = useGraphStore();
 
   if (!selectedNodeId || !fullData) return null;

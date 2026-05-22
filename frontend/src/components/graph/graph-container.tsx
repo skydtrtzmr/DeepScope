@@ -12,6 +12,13 @@ interface GraphContainerProps {
   className?: string;
 }
 
+// 第 6 行之后插入
+/** hover-activate 的 enable 回调事件对象 */
+interface G6PointerEvent {
+  targetType: 'node' | 'edge' | 'canvas';
+}
+
+
 // 创建图谱实例并绑定事件
 function createGraph(
   container: HTMLElement,
@@ -28,7 +35,13 @@ function createGraph(
     behaviors: [
       'drag-canvas',
       'zoom-canvas',
-      { type: 'drag-element-force', fixed: false },
+      { type: 'drag-element-force', fixed: false }, {
+        type: 'hover-activate',
+        state: 'hovered',      // 悬浮时给元素设置 'hovered' 状态
+        inactiveState: 'dim',  // 非悬浮元素设置 'dim' 状态（可选，用于淡化其他节点）
+        degree: 0,             // 0 = 只高亮当前节点，不扩散到邻居
+        enable: (e: G6PointerEvent) => e.targetType === 'node',  // 只对节点生效
+      },
     ],
     layout: {
       type: 'd3-force',
@@ -63,8 +76,36 @@ function createGraph(
         cursor: 'grab',
       },
       state: {
-        selected: { stroke: '#6366f1', lineWidth: 4, shadowColor: '#6366f1', shadowBlur: 10 },
-        highlighted: { stroke: '#6366f1', lineWidth: 3 },
+        selected: { stroke: '#6366f1', lineWidth: 4 },
+        // 注意：在 G6 的默认主题文件 base.ts 中（第 122-131 行），selected 状态的内置主题样式定义如下：
+        // selected: {
+        //   halo: true,
+        //   haloLineWidth: 24,
+        //   haloStrokeOpacity: nodeHaloStrokeOpacitySelected,
+        //   labelFontSize: 12,
+        //   labelFontWeight: 'bold',
+        //   lineWidth: 4,
+        //   stroke: nodeStroke,
+        // },
+        // themeStateStyle 是主题内置的状态样式，它包含了 halo: true, haloLineWidth: 24。
+        // 所以如果要关掉Halo，则需要显式设置 halo: false。
+
+        highlighted: {
+          stroke: '#6366f1',
+          lineWidth: 3,
+          halo: true,
+          haloLineWidth: 16,           // 调整光晕宽度
+          haloStroke: '#6366f1',       // 光晕颜色
+          haloStrokeOpacity: 0.15,
+        },
+        hovered: {
+          stroke: '#6366f1',
+          lineWidth: 3,
+          halo: true,
+          haloLineWidth: 16,           // 调整光晕宽度
+          haloStroke: '#6366f1',       // 光晕颜色
+          haloStrokeOpacity: 0.15,
+        },
       },
     },
     edge: {
