@@ -335,8 +335,17 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         });
       }
 
+      // 即使没有新节点，也要记录该节点的探索状态（邻居可能已作为其他节点探索的副作用加载）
+      const newExpansionStates = new Map(expansionStates);
+      const loadedDirect = fullData ? countLoadedDirectNeighbors(fullData, nodeId) : 0;
+      newExpansionStates.set(nodeId, {
+        loadedDirectCount: loadedDirect,
+        totalDirectCount: result.totalNeighbors,
+        maxDepthExplored: exploreConfig.n,
+      });
+
       if (result.nodes.length === 0) {
-        set({ isLoading: false, expandingNodeId: null });
+        set({ isLoading: false, expandingNodeId: null, expansionStates: newExpansionStates });
         return;
       }
 
@@ -349,11 +358,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       );
 
       if (newNodes.length === 0 && newEdges.length === 0) {
-        set({ isLoading: false, expandingNodeId: null });
+        set({ isLoading: false, expandingNodeId: null, expansionStates: newExpansionStates });
         return;
       }
 
-      const newExpansionStates = new Map(expansionStates);
       const prevState = expansionStates.get(nodeId);
       const newLoadedDirect = fullData
         ? countLoadedDirectNeighbors(
