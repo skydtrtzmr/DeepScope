@@ -154,7 +154,7 @@ function getRelatedNodes(
     edges: data.edges.filter((e) => visibleEdgeIds.has(e.id)),
   };
 
-  relatedNodes.sort((a, b) => a.depth - b.depth);
+  relatedNodes.sort((a, b) => a.depth - b.depth || a.label.localeCompare(b.label, 'zh'));
 
   return { visibleData, relatedNodes, treeEdgeIds };
 }
