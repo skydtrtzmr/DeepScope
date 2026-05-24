@@ -86,17 +86,13 @@ export interface DomainItem {
   edgeCount: number;
 }
 
-// 节点类别颜色映射（中文 key，与后端 category 对齐）
-export const NODE_TYPE_COLORS: Record<string, string> = {
-  '默认': '#94a3b8',
-  '组织': '#6366f1',
-  '人员': '#f59e0b',
-  '项目': '#10b981',
-  '任务': '#ef4444',
-  '问答': '#8b5cf6',
-};
-
-// 获取节点颜色
+// 基于字符串哈希生成确定性 HSL 颜色（同一 category 始终同一颜色）
 export function getNodeColor(category?: string): string {
-  return NODE_TYPE_COLORS[category || '默认'] || NODE_TYPE_COLORS['默认'];
+  if (!category) return '#94a3b8';
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) {
+    hash = category.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = ((hash % 360) + 360) % 360;
+  return `hsl(${hue}, 60%, 55%)`;
 }

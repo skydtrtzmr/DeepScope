@@ -7,6 +7,7 @@ type G6EdgeStyle = Partial<BaseEdgeStyleProps> & { [key: string]: unknown };
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { GraphControl } from './graph-control';
 import type { GraphNode, GraphEdge, DisplaySettings } from '@/types/graph';
+import { getNodeColor } from '@/types/graph';
 
 interface GraphContainerProps {
   className?: string;
@@ -65,7 +66,7 @@ function createGraph(
         labelBackgroundOpacity: 0.6,
         labelBackgroundRadius: 4,
         labelPadding: [2, 6],
-        fill: (d: NodeData) => (d.style as Record<string, unknown>)?.fill as string || '#94a3b8',
+        fill: (d: NodeData) => (d.style as Record<string, unknown>)?.fill as string || getNodeColor(d.data?.category as string),
         size: (d: NodeData) => ((d.style as Record<string, unknown>)?.radius as number) || 28,
         stroke: '#334155',
         lineWidth: 2,
