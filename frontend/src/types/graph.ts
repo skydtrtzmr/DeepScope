@@ -42,6 +42,12 @@ export interface GraphData {
   edges: GraphEdge[];
 }
 
+// 显示配置（控制 G6 渲染样式，不改变数据和可见范围）
+export interface DisplaySettings {
+  showEdgeArrows: boolean;  // 是否显示边箭头
+  showEdgeLabels: boolean;   // 是否显示边标签
+}
+
 // 图谱配置（高亮范围：控制 BFS 从已加载数据中筛选可见节点）
 export interface GraphConfig {
   maxDirectRelations: number; // 每节点每层展开邻居上限 m

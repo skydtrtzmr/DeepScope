@@ -6,7 +6,7 @@ type G6NodeStyle = Partial<BaseNodeStyleProps> & { [key: string]: unknown };
 type G6EdgeStyle = Partial<BaseEdgeStyleProps> & { [key: string]: unknown };
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { GraphControl } from './graph-control';
-import type { GraphNode, GraphEdge } from '@/types/graph';
+import type { GraphNode, GraphEdge, DisplaySettings } from '@/types/graph';
 
 interface GraphContainerProps {
   className?: string;
@@ -28,6 +28,7 @@ function createGraph(
   graphReadyRef: React.MutableRefObject<boolean>,
   selectNode: (nodeId: string | null) => void,
   g6Data: Record<string, unknown>,
+  displaySettings: DisplaySettings,
 ) {
   const options: GraphOptions = {
     container,
@@ -116,10 +117,10 @@ function createGraph(
         lineDash: [],
         lineCap: 'butt',
         lineJoin: 'miter',
-        endArrow: true,
+        endArrow: displaySettings.showEdgeArrows,
         endArrowSize: 6,
         endArrowFill: (d: EdgeData) => (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8',
-        labelText: (d: EdgeData) => (d.data?.label as string) || '',
+        labelText: displaySettings.showEdgeLabels ? (d: EdgeData) => (d.data?.label as string) || '' : () => '',
         labelFontSize: 9,
         labelFill: '#64748b',
         labelBackground: true,
@@ -223,6 +224,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const {
     fullData, visibleData, selectedNodeId, highlightedNodeId, highlightedEdgeIds,
     selectNode, pendingAddition, commitAddition, rebuildTrigger,
+    displaySettings,
   } = useGraphStore();
 
   // 应用节点/边的选中高亮状态
@@ -344,6 +346,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       graphReadyRef,
       selectNodeRef.current,
       g6Data,
+      displaySettings,
     );
     graphRef.current = graph;
 
@@ -354,6 +357,39 @@ export function GraphContainer({ className }: GraphContainerProps) {
       graphRef.current = null;
     };
   }, [rebuildTrigger]);
+
+  // displaySettings 变化时动态更新所有边的箭头和标签样式（不重建图）
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph) return;
+    if (!graphReadyRef.current) return;
+
+    // 使用 setEdge 更新全局边样式映射（优先级最高），
+    // 再用 draw() 仅重绘不重排布局，让样式变更生效
+    graph.setEdge({
+      type: 'line',
+      style: {
+        stroke: (d: EdgeData) => (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8',
+        lineWidth: (d: EdgeData) => ((d.style as Record<string, unknown>)?.lineWidth as number) || 1,
+        lineDash: [],
+        lineCap: 'butt',
+        lineJoin: 'miter',
+        endArrow: displaySettings.showEdgeArrows,
+        endArrowSize: 6,
+        endArrowFill: (d: EdgeData) => (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8',
+        labelText: displaySettings.showEdgeLabels ? (d: EdgeData) => (d.data?.label as string) || '' : () => '',
+        labelFontSize: 9,
+        labelFill: '#64748b',
+        labelBackground: true,
+        labelBackgroundFill: '#ffffff',
+        labelBackgroundOpacity: 0.6,
+      },
+      state: {
+        active: { stroke: '#6366f1', lineWidth: 2 },
+      },
+    });
+    graph.draw();
+  }, [displaySettings]);
 
   // React 状态变化时更新节点状态（拖拽期间跳过，由 dragend 处理）
   useEffect(() => {

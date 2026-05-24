@@ -7,3 +7,7 @@ npm run dev
 ```
 
 在vite.config.ts里配置server。
+
+## icon
+
+https://lucide.dev/icons/

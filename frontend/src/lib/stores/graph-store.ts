@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type {
   GraphData, GraphNode, GraphEdge, GraphConfig, ExploreConfig,
-  ExploreButtonState, RelatedNodeDetail, DomainItem,
+  ExploreButtonState, RelatedNodeDetail, DomainItem, DisplaySettings,
 } from '@/types/graph';
 import { expandGraph } from '@/lib/api';
 
@@ -26,6 +26,9 @@ interface GraphState {
 
   // 探索配置（控制 API 请求参数）
   exploreConfig: ExploreConfig;
+
+  // 显示配置（控制 G6 渲染样式）
+  displaySettings: DisplaySettings;
 
   // 追溯历史
   nodeHistory: string[];
@@ -55,6 +58,7 @@ interface GraphState {
   selectNode: (nodeId: string | null) => void;
   highlightNode: (nodeId: string | null) => void;
   updateConfig: (config: Partial<GraphConfig>) => void;
+  updateDisplaySettings: (settings: Partial<DisplaySettings>) => void;
   updateExploreConfig: (config: Partial<ExploreConfig>) => void;
   getExploreButtonState: (nodeId: string) => ExploreButtonState;
   goBack: () => void;
@@ -71,6 +75,11 @@ const DEFAULT_CONFIG: GraphConfig = {
 const DEFAULT_EXPLORE_CONFIG: ExploreConfig = {
   m: 5,
   n: 2,
+};
+
+const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
+  showEdgeArrows: true,
+  showEdgeLabels: true,
 };
 
 // BFS 算法：获取指定深度内的关联节点
@@ -178,6 +187,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   highlightedEdgeIds: new Set(),
   config: DEFAULT_CONFIG,
   exploreConfig: DEFAULT_EXPLORE_CONFIG,
+  displaySettings: DEFAULT_DISPLAY_SETTINGS,
   nodeHistory: [],
   isLoading: false,
   isInitialLoading: false,
@@ -258,6 +268,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       );
       set({ visibleData, relatedNodes, highlightedEdgeIds: treeEdgeIds });
     }
+  },
+
+  updateDisplaySettings: (newSettings) => {
+    const { displaySettings } = get();
+    set({ displaySettings: { ...displaySettings, ...newSettings } });
   },
 
   updateExploreConfig: (newConfig) => {
