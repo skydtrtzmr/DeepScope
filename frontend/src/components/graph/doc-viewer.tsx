@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CircleHelp, ArrowLeft, X, FileText } from 'lucide-react';
 import Markdown from 'react-markdown';
+import { Button } from '@/components/ui/button';
 
 interface DocMeta {
   filename: string;
@@ -141,13 +142,9 @@ export function DocHelpButton() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="size-7 rounded-full border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors flex items-center justify-center"
-        title="帮助文档"
-      >
+      <Button variant="ghost" size="sm" onClick={() => setOpen(true)} title="帮助文档">
         <CircleHelp className="h-4 w-4" />
-      </button>
+      </Button>
       <DocViewer open={open} onClose={() => setOpen(false)} />
     </>
   );
