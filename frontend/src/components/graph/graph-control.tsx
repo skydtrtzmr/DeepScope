@@ -140,7 +140,7 @@ export function GraphControl() {
         <Button
           size="sm"
           variant={buttonState.type === 'done' ? 'outline' : 'default'}
-          className="w-full gap-1.5 text-xs"
+          className="w-full gap-1.5"
           onClick={() => expandNode(selectedNodeId)}
           disabled={buttonState.type === 'done' || isLoading}
         >
@@ -152,6 +152,22 @@ export function GraphControl() {
           {buttonState.label}
           {buttonState.type === 'more' && (
             <span className="opacity-70">({buttonState.loaded}/{buttonState.total})</span>
+          )}
+        </Button>
+
+
+        {/* 返回按钮 */}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={goBack}
+          disabled={nodeHistory.length === 0}
+          className="w-full"
+        >
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          返回上一节点
+          {nodeHistory.length > 0 && (
+            <span className="ml-1 text-xs text-muted-foreground">({nodeHistory.length})</span>
           )}
         </Button>
       </div>
@@ -229,20 +245,6 @@ export function GraphControl() {
         </div>
       </div>
 
-      {/* 返回按钮 */}
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={goBack}
-        disabled={nodeHistory.length === 0}
-        className="w-full"
-      >
-        <ChevronLeft className="h-4 w-4 mr-1" />
-        返回上一节点
-        {nodeHistory.length > 0 && (
-          <span className="ml-1 text-xs text-muted-foreground">({nodeHistory.length})</span>
-        )}
-      </Button>
 
       {/* 展开中提示 */}
       {/* {isLoading && (
