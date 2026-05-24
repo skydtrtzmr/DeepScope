@@ -6,13 +6,12 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ArrowUpDown, ArrowUp, ArrowDown, Check } from 'lucide-react';
 
-type SortField = 'depth' | 'label' | 'category' | 'relationLabel';
+type SortField = 'depth' | 'label' | 'category';
 
 const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: 'depth', label: '按深度' },
   { value: 'label', label: '按名称' },
   { value: 'category', label: '按类别' },
-  { value: 'relationLabel', label: '按关系' },
 ];
 
 function sortNodes(nodes: RelatedNodeDetail[], field: SortField, asc: boolean): RelatedNodeDetail[] {
@@ -28,9 +27,6 @@ function sortNodes(nodes: RelatedNodeDetail[], field: SortField, asc: boolean): 
         break;
       case 'category':
         cmp = (a.category ?? 'zzz').localeCompare(b.category ?? 'zzz', 'zh') || a.label.localeCompare(b.label, 'zh');
-        break;
-      case 'relationLabel':
-        cmp = (a.relationLabel ?? 'zzz').localeCompare(b.relationLabel ?? 'zzz', 'zh') || a.label.localeCompare(b.label, 'zh');
         break;
     }
     return asc ? cmp : -cmp;
