@@ -69,17 +69,17 @@ interface GraphState {
 
 const DEFAULT_CONFIG: GraphConfig = {
   maxDirectRelations: 5,
-  maxDepth: 2,
+  maxDepth: 1,
 };
 
 const DEFAULT_EXPLORE_CONFIG: ExploreConfig = {
   m: 5,
-  n: 2,
+  n: 1,
 };
 
 const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
-  showEdgeArrows: true,
-  showEdgeLabels: true,
+  showEdgeArrows: false,
+  showEdgeLabels: false,
 };
 
 // BFS 算法：获取指定深度内的关联节点
