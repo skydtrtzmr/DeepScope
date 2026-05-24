@@ -27,7 +27,7 @@ export function NodeDetail() {
             className="w-3 h-3 rounded-full shrink-0"
             style={{ backgroundColor: (node.style?.fill as string) || getNodeColor(node.category) }}
           />
-          <h3 className="font-semibold text-sm">{node.label}</h3>
+          <h3 className="font-semibold text-m">{node.label}</h3>
         </div>
       </div>
       <div className="mt-3 space-y-2">
