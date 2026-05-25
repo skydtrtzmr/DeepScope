@@ -1,33 +1,12 @@
 # DeepScope 功能问题与优化计划
 
 > 生成时间：2026-05-16
-> 最后更新：2026-05-17
+> 最后更新：2026-05-25
 > 审阅范围：graph-store.ts、graph-container.tsx、graph-controls.tsx、node-detail-card.tsx、App.tsx、api.ts、graph.ts
 
 ---
 
 ## 现存 Bug
-
-### BUG-1. 探索按钮状态计算失效
-
-**文件**：`graph-store.ts`（`getExploreButtonState`、`expandNode`）
-
-**现象**：
-- 明明某一层已经全部加载完毕，点击"探索此节点"无反应（实际返回空数据被提前 return），但按钮状态仍显示"探索此节点"，没有切换为"已全部探索"
-- **高频复现场景**：对某一节点使用 `n>1`（多深度）进行探索后，按钮状态最容易异常
-
-**分析**：
-- `getExploreButtonState` 依赖 `expansionStates` 中记录的 `loadedDirectCount` vs `totalDirectCount`，以及 `maxDepthExplored` vs `exploreConfig.n`
-- `countLoadedDirectNeighbors` 统计的是 `fullData.edges` 中与当前节点直接相连的邻居数，但全量返回方案下后端可能返回已在画布上的节点，前端去重后 `loadedDirectCount` 的计算与后端 `totalNeighbors` 可能口径不一致
-- 多级探索场景下，展开节点 B 时加载了 A，A 的直接邻居被加入了 `fullData.edges`。之后再统计节点 C 的邻居时，如果 C 与 A 之间有边且该边已被 B 的展开加载，`countLoadedDirectNeighbors` 可能多算
-- **`n>1` 时的问题更突出**：当 `maxDepthExplored` 被记录为 `exploreConfig.n`（如 2），但实际 BFS 第 2 层返回的节点可能大部分已在画布上（被前端去重掉），导致虽然"深度 2 已探索"，但直接邻居并未全部加载。此时按钮既不显示"加载更多"（因为 `maxDepthExplored >= exploreConfig.n`），也可能因深度调低后又调高而出现"已全部探索"的误判
-- 另一种可能：`expansionStates` 中的 `totalDirectCount` 记录的是某次 expand 时后端返回的 `totalNeighbors`（后端自身 BFS 中的直接邻居总数），但前端去重逻辑导致实际可加载的邻居数少于这个值，使得 `loadedDirectCount < totalDirectCount` 永远成立，按钮永远不会显示"已全部探索"
-
-**待验证**：
-- 确认 `totalNeighbors` 的计算口径（后端 `_get_neighbor_ids_sorted(conn, node_id, set(), domain)` 在 exclude 为空时的行为）
-- 确认前端去重后是否会出现 `loadedDirectCount` 永远无法达到 `totalDirectCount` 的情况
-
----
 
 ### BUG-2. 画布闪烁与 d3-force 性能问题
 
@@ -65,16 +44,11 @@
 
 ## 后续功能规划
 
-### FEAT-1. 关联节点按聚合字段分组（树状结构）
+### FEAT-1. 关联节点聚合分组展示
 
-**描述**：在右侧面板的"关联节点"列表中，按后端配置的聚合字段（如按 category、按 depth 等）将关联节点分组展示，形成树状折叠结构。
+**描述**：在右侧面板的"关联节点"列表中，按 category 等字段分组展示，每组可折叠/展开。
 
-**实现思路**：
-- 后端在域配置中定义聚合规则（类似现有 backlinks 的 aggregation 配置）
-- 前端获取聚合规则后，对 `relatedNodes` 进行分组渲染
-- UI 上每组可折叠/展开，组头显示分类名和节点数量
-
----
+**当前进展**：已实现按深度/名称/类别的排序（含升降序切换），暂未做分组折叠。当前列表数据量较小（通常 5~20 节点），排序已满足需求。待数据量增大后再加分组。
 
 ### FEAT-2. 核心节点配置与相邻节点条件聚合
 
@@ -89,12 +63,47 @@
 
 ---
 
+## 已完成
+
+### ✅ BUG-1. 探索按钮状态计算失效 — 已修复
+
+**修复内容**（2026-05-25）：
+- `expandNode` 中 API 返回后立即创建 `expansionStates` 条目，而非等到有新节点才创建
+- 当后端返回 0 个新节点时（邻居已全部作为其他节点探索的副作用加载），用 `result.totalNeighbors` 补上 `expansionStates` 条目，使 `getExploreButtonState` 能正确返回"已全部探索"
+- `newNodes.length === 0 && newEdges.length === 0` 的 early return 也会更新 `expansionStates`
+
+### ✅ 关联节点排序 — 已实现
+
+**实现内容**（2026-05-25）：
+- 3 种排序方式：按深度（默认）、按名称、按类别
+- 每种排序的主键相同项按名称 A→Z 兜底
+- 升序/降序切换按钮
+- `getRelatedNodes` 默认排序从纯深度改为深度+名称
+
+### ✅ 显示设置面板 — 已实现
+
+**实现内容**（2026-05-24）：
+- `DisplaySettings` 接口：`showEdgeArrows`、`showEdgeLabels`
+- 工具栏 Settings 按钮 + 浮动设置面板
+- 动态切换使用 `graph.setEdge()` + `graph.draw()`，不重建图、不重排布局
+
+### ✅ 节点颜色兜底 — 已优化
+
+**实现内容**（2026-05-24）：
+- 去掉写死的 `NODE_TYPE_COLORS` 映射表
+- 改为基于 category 字符串哈希的确定性 HSL 颜色生成（同类别始终同色）
+- 画布、列表、详情卡三处颜色逻辑统一：后端 `style.fill` > 哈希颜色兜底
+
+### ✅ 工具栏按钮样式统一 — 已完成
+
+**实现内容**（2026-05-25）：
+- 帮助文档按钮改为 `Button variant="ghost" size="sm"`，与导入/导出/设置按钮样式统一
+
+---
+
 | 优先级 | 编号 | 问题 | 状态 |
 |--------|------|------|------|
-| P1 | BUG-1 | 探索按钮状态计算失效 | 待修复 |
 | P1 | BUG-2 | 画布闪烁与 d3-force 性能 | 待优化 |
 | P2 | IMPROVE-1 | 探索深度与完成状态互斥 | 待设计 |
-| P3 | FEAT-1 | 关联节点聚合树状结构 | 规划中 |
+| P3 | FEAT-1 | 关联节点聚合分组展示 | 规划中 |
 | P3 | FEAT-2 | 核心节点配置与条件聚合 | 规划中 |
-| ~~P3~~ | ~~#9~~ | ~~滑块频繁重算~~ | ~~待处理~~ |
-| ~~P3~~ | ~~#10~~ | ~~切换模式丢失历史~~ | ~~待处理~~ |
