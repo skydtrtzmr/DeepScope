@@ -3,7 +3,7 @@ import { useGraphStore } from '@/lib/stores/graph-store';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
-import { ChevronLeft, RotateCcw, Compass, Loader2, Minus, X, Plus } from 'lucide-react';
+import { ChevronLeft, RotateCcw, Minus, X, Plus } from 'lucide-react';
 
 /** 滑块拖动时的 debounce 间隔（ms） */
 const SLIDER_DEBOUNCE_MS = 200;
@@ -42,8 +42,8 @@ export function GraphControl() {
 
 
   const {
-    fullData, goBack, reset, nodeHistory, selectNode, selectedNodeId, getExploreButtonState,
-    updateExploreConfig, exploreConfig, isLoading, expandNode,
+    fullData, goBack, reset, nodeHistory, selectNode, selectedNodeId,
+    updateExploreConfig, exploreConfig,
   } = useGraphStore();
 
   const mSlider = useDebouncedSlider('maxDirectRelations', SLIDER_DEBOUNCE_MS);
@@ -54,8 +54,6 @@ export function GraphControl() {
 
   const node = fullData.nodes.find((n) => n.id === selectedNodeId);
   if (!node) return null;
-
-  const buttonState = getExploreButtonState(selectedNodeId);
 
   return (
     <div className="absolute top-4 left-4 z-10 w-64 bg-card border rounded-lg shadow-lg p-4 space-y-3">
@@ -136,8 +134,8 @@ export function GraphControl() {
           </div>
         </div>
 
-        {/* 探索按钮 */}
-        <Button
+        {/* 探索按钮（已改用双击节点触发探索，按钮保留注释以备恢复） */}
+        {/* <Button
           size="sm"
           variant={buttonState.type === 'done' ? 'outline' : 'default'}
           className="w-full gap-1.5"
@@ -153,8 +151,8 @@ export function GraphControl() {
           {buttonState.type === 'more' && (
             <span className="opacity-70">({buttonState.loaded}/{buttonState.total})</span>
           )}
-        </Button>
-        <p className="text-[10px] text-muted-foreground text-center">双击节点可快速探索</p>
+        </Button> */}
+        <p className="text-[10px] text-muted-foreground text-center">双击节点可探索邻居</p>
 
 
         {/* 返回按钮 */}

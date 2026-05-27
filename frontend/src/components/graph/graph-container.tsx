@@ -29,6 +29,7 @@ function createGraph(
   graphReadyRef: React.MutableRefObject<boolean>,
   selectNode: (nodeId: string | null) => void,
   expandNode: (nodeId: string) => void,
+  dblClickExpandingRef: React.MutableRefObject<boolean>,
   g6Data: Record<string, unknown>,
   displaySettings: DisplaySettings,
 ) {
@@ -137,15 +138,58 @@ function createGraph(
 
   const graph = new Graph(options);
 
+  // 单击/双击区分：延迟单击判定，250ms 内有第二次 click 则视为双击
+  let clickTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingClickNodeId: string | null = null;
+
   graph.on('node:click', (event) => {
     const nodeId = (event as { target: { id: string } }).target.id;
     if (!graph.getNodeData(nodeId)) return;
-    selectNode(nodeId);
+
+    // 如果本次 click 与上一次 click 同一节点且在等待期内 → 双击的第二次 click，取消定时器
+    if (clickTimer && pendingClickNodeId === nodeId) {
+      clearTimeout(clickTimer);
+      clickTimer = null;
+      pendingClickNodeId = null;
+      return; // 由 dblclick handler 统一处理
+    }
+
+    // 点击了不同节点，取消之前的定时器（立即切换）
+    if (clickTimer) {
+      clearTimeout(clickTimer);
+      clickTimer = null;
+    }
+
+    // 延迟 250ms 执行单击逻辑，等待可能的双击
+    pendingClickNodeId = nodeId;
+    clickTimer = setTimeout(() => {
+      clickTimer = null;
+      pendingClickNodeId = null;
+      selectNode(nodeId);
+    }, 250);
   });
 
   graph.on('node:dblclick', (event) => {
     const nodeId = (event as { target: { id: string } }).target.id;
     if (!graph.getNodeData(nodeId)) return;
+
+    // 清除可能残留的单击定时器
+    if (clickTimer) {
+      clearTimeout(clickTimer);
+      clickTimer = null;
+      pendingClickNodeId = null;
+    }
+
+    // 标记双击展开中，让 selectedNodeId useEffect 跳过立即聚焦
+    // 聚焦统一由 afterlayout（有新数据）或 isLoading 兜底（无新数据）处理
+    dblClickExpandingRef.current = true;
+
+    // 确保节点处于选中状态（避免 toggle 已选中节点导致取消选中）
+    const currentSelected = useGraphStore.getState().selectedNodeId;
+    if (currentSelected !== nodeId) {
+      selectNode(nodeId);
+    }
+
     expandNode(nodeId);
   });
 
@@ -293,6 +337,16 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const expandNodeRef = useRef(expandNode);
   expandNodeRef.current = expandNode;
 
+  // 双击展开中标记：dblclick 设为 true，阻止 selectedNodeId useEffect 立即聚焦
+  // 由 afterlayout（有新数据）或 isLoading 兜底（无新数据）统一聚焦
+  const dblClickExpandingRef = useRef(false);
+
+  // 增量渲染布局是否进行中：pendingAddition 处理时设为 true，afterlayout 后清为 false
+  const hasPendingLayoutRef = useRef(false);
+
+  // 增量渲染聚焦延时定时器，用于在 generation 变化时清理
+  const focusTimerRef = useRef<number | null>(null);
+
   // 增量渲染：pendingAddition 变化时，用 G6 addData + render 追加节点
   // 注意：commitAddition 会更新 fullData 但不递增 rebuildTrigger，因此不会触发重建
   useEffect(() => {
@@ -314,12 +368,33 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     graph.addData(g6Data);
     const gen = graphGenerationRef.current;
+    hasPendingLayoutRef.current = true;
     graph.render();
-    // 增量渲染同样用首帧即可，不等力导向布局完全收敛
+
+    // 延时 500ms 后聚焦：不等力导向完全收敛（afterlayout 太慢），只等初步稳定即可
+    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    focusTimerRef.current = window.setTimeout(() => {
+      if (graphGenerationRef.current !== gen) return;
+      hasPendingLayoutRef.current = false;
+      dblClickExpandingRef.current = false;
+      graphReadyRef.current = true;
+      if (!isDraggingRef.current) {
+        applyNodeStatesRef.current();
+        const currentNodeId = useGraphStore.getState().selectedNodeId;
+        if (currentNodeId) {
+          try { graph.focusElement(currentNodeId, { duration: 400, easing: 'ease-in-out' }); } catch { /* ignore */ }
+        }
+      }
+      focusTimerRef.current = null;
+    }, 500);
+
+    // 首帧也先标记 ready（万一 afterlayout 不触发），但不聚焦
     requestAnimationFrame(() => {
       if (graphGenerationRef.current !== gen) return;
-      graphReadyRef.current = true;
-      if (!isDraggingRef.current) applyNodeStatesRef.current();
+      if (!graphReadyRef.current) {
+        graphReadyRef.current = true;
+        if (!isDraggingRef.current) applyNodeStatesRef.current();
+      }
     });
 
     commitAddition(pendingAddition.nodes, pendingAddition.edges);
@@ -339,6 +414,8 @@ export function GraphContainer({ className }: GraphContainerProps) {
       graphRef.current = null;
     }
     graphReadyRef.current = false;
+    dblClickExpandingRef.current = false;
+    hasPendingLayoutRef.current = false;
 
     const gen = ++graphGenerationRef.current;
 
@@ -356,6 +433,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       graphReadyRef,
       selectNodeRef.current,
       expandNodeRef.current,
+      dblClickExpandingRef,
       g6Data,
       displaySettings,
     );
@@ -407,6 +485,29 @@ export function GraphContainer({ className }: GraphContainerProps) {
     if (isDraggingRef.current) return;
     applyNodeStates();
   }, [applyNodeStates]);
+
+  // 选中节点变化时，自动将画布聚焦到该节点（双击展开时跳过，由 afterlayout 统一处理）
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph || !graphReadyRef.current || !selectedNodeId) return;
+    if (dblClickExpandingRef.current) return; // 双击展开中，等待布局完成后再聚焦
+    try {
+      graph.focusElement(selectedNodeId, { duration: 400, easing: 'ease-in-out' });
+    } catch { /* ignore */ }
+  }, [selectedNodeId]);
+
+  // 兜底：双击展开但无新数据时 afterlayout 不会触发，通过 isLoading 结束来聚焦
+  const isLoading = useGraphStore((s) => s.isLoading);
+  useEffect(() => {
+    if (!isLoading && dblClickExpandingRef.current && !hasPendingLayoutRef.current) {
+      // 展开结束、没有待处理布局 → afterlayout 不会来了，直接聚焦
+      dblClickExpandingRef.current = false;
+      const graph = graphRef.current;
+      if (graph && graphReadyRef.current && selectedNodeId) {
+        try { graph.focusElement(selectedNodeId, { duration: 400, easing: 'ease-in-out' }); } catch { /* ignore */ }
+      }
+    }
+  }, [isLoading, selectedNodeId]);
 
   // 容器大小变化时调整图谱（使用 ResizeObserver 替代 window.resize）
   // window.resize 无法感知 flex 容器尺寸变化（如 F12 开启 dock 时），且需要 debounce 避免频繁调用打断拖拽
