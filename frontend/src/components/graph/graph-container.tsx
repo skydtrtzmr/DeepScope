@@ -28,6 +28,7 @@ function createGraph(
   applyNodeStatesRef: React.MutableRefObject<() => void>,
   graphReadyRef: React.MutableRefObject<boolean>,
   selectNode: (nodeId: string | null) => void,
+  expandNode: (nodeId: string) => void,
   g6Data: Record<string, unknown>,
   displaySettings: DisplaySettings,
 ) {
@@ -137,10 +138,15 @@ function createGraph(
   const graph = new Graph(options);
 
   graph.on('node:click', (event) => {
-    // G6 v5 事件对象：event.target 是触发事件的元素，.id 为节点 ID
     const nodeId = (event as { target: { id: string } }).target.id;
-    if (!graph.getNodeData(nodeId)) return; // 防御：确保 id 是有效节点
+    if (!graph.getNodeData(nodeId)) return;
     selectNode(nodeId);
+  });
+
+  graph.on('node:dblclick', (event) => {
+    const nodeId = (event as { target: { id: string } }).target.id;
+    if (!graph.getNodeData(nodeId)) return;
+    expandNode(nodeId);
   });
 
   graph.on('node:dragstart', () => {
@@ -224,7 +230,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
   const {
     fullData, visibleData, selectedNodeId, highlightedNodeId, highlightedEdgeIds,
-    selectNode, pendingAddition, commitAddition, rebuildTrigger,
+    selectNode, expandNode, pendingAddition, commitAddition, rebuildTrigger,
     displaySettings,
   } = useGraphStore();
 
@@ -283,6 +289,9 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
   const selectNodeRef = useRef(selectNode);
   selectNodeRef.current = selectNode;
+
+  const expandNodeRef = useRef(expandNode);
+  expandNodeRef.current = expandNode;
 
   // 增量渲染：pendingAddition 变化时，用 G6 addData + render 追加节点
   // 注意：commitAddition 会更新 fullData 但不递增 rebuildTrigger，因此不会触发重建
@@ -346,6 +355,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       applyNodeStatesRef,
       graphReadyRef,
       selectNodeRef.current,
+      expandNodeRef.current,
       g6Data,
       displaySettings,
     );

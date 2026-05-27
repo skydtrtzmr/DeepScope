@@ -154,6 +154,7 @@ export function GraphControl() {
             <span className="opacity-70">({buttonState.loaded}/{buttonState.total})</span>
           )}
         </Button>
+        <p className="text-[10px] text-muted-foreground text-center">双击节点可快速探索</p>
 
 
         {/* 返回按钮 */}
