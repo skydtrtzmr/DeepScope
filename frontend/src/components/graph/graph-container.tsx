@@ -382,7 +382,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       if (!isDraggingRef.current) {
         applyNodeStatesRef.current();
         const currentNodeId = useGraphStore.getState().selectedNodeId;
-        if (currentNodeId) {
+        if (currentNodeId && useGraphStore.getState().displaySettings.trackSelectedNode) {
           try { graph.focusElement(currentNodeId, { duration: 400, easing: 'ease-in-out' }); } catch { /* ignore */ }
         }
       }
@@ -492,6 +492,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
     const graph = graphRef.current;
     if (!graph || !graphReadyRef.current || !selectedNodeId) return;
     if (dblClickExpandingRef.current) return; // 双击展开中，等待布局完成后再聚焦
+    if (!useGraphStore.getState().displaySettings.trackSelectedNode) return;
     try {
       graph.focusElement(selectedNodeId, { duration: 400, easing: 'ease-in-out' });
     } catch { /* ignore */ }
@@ -504,7 +505,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       // 展开结束、没有待处理布局 → afterlayout 不会来了，直接聚焦
       dblClickExpandingRef.current = false;
       const graph = graphRef.current;
-      if (graph && graphReadyRef.current && selectedNodeId) {
+      if (graph && graphReadyRef.current && selectedNodeId && useGraphStore.getState().displaySettings.trackSelectedNode) {
         try { graph.focusElement(selectedNodeId, { duration: 400, easing: 'ease-in-out' }); } catch { /* ignore */ }
       }
     }

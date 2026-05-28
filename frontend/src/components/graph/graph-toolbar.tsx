@@ -75,6 +75,18 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
             <div className="absolute right-0 top-full mt-1 w-56 rounded-md border bg-card shadow-lg z-50 p-3 space-y-3">
               <p className="text-xs font-semibold text-muted-foreground">显示设置</p>
               <div className="space-y-2">
+                <p className="text-xs font-medium text-foreground/80">节点</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs">跟踪选中节点</span>
+                  <ToggleSwitch
+                    checked={displaySettings.trackSelectedNode}
+                    onCheckedChange={(checked) => updateDisplaySettings({ trackSelectedNode: checked })}
+                    id="toggle-track-selected"
+                    label="选中节点时自动聚焦到该节点"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
                 <p className="text-xs font-medium text-foreground/80">边</p>
                 <div className="flex items-center justify-between">
                   <span className="text-xs">显示箭头</span>

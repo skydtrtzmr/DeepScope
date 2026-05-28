@@ -80,6 +80,7 @@ const DEFAULT_EXPLORE_CONFIG: ExploreConfig = {
 const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showEdgeArrows: false,
   showEdgeLabels: false,
+  trackSelectedNode: true,
 };
 
 // BFS 算法：获取指定深度内的关联节点
