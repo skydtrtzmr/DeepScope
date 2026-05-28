@@ -39,7 +39,7 @@ function createGraph(
     behaviors: [
       'drag-canvas',
       'zoom-canvas',
-      { type: 'drag-element-force', fixed: false }, {
+      { type: 'drag-element-force', fixed: true }, {
         type: 'hover-activate',
         state: 'hovered',      // 悬浮时给元素设置 'hovered' 状态
         inactiveState: 'dim',  // 非悬浮元素设置 'dim' 状态（可选，用于淡化其他节点）
@@ -366,12 +366,13 @@ export function GraphContainer({ className }: GraphContainerProps) {
       `[graph] 增量渲染 → addData ${pendingAddition.nodes.length} 节点, ${pendingAddition.edges.length} 边（rebuildTrigger=${rebuildTrigger}）`
     );
 
+    graph.stopLayout();
     graph.addData(g6Data);
     const gen = graphGenerationRef.current;
     hasPendingLayoutRef.current = true;
     graph.render();
 
-    // 延时 500ms 后聚焦：不等力导向完全收敛（afterlayout 太慢），只等初步稳定即可
+    // 延时 200ms 后聚焦：不等力导向完全收敛（afterlayout 太慢），只等初步稳定即可
     if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
     focusTimerRef.current = window.setTimeout(() => {
       if (graphGenerationRef.current !== gen) return;
@@ -386,7 +387,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
         }
       }
       focusTimerRef.current = null;
-    }, 500);
+    }, 200);
 
     // 首帧也先标记 ready（万一 afterlayout 不触发），但不聚焦
     requestAnimationFrame(() => {
