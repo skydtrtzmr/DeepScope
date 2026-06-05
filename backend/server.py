@@ -229,6 +229,30 @@ async def fetch_initial_graph(
         )
 
 
+@app.get("/api/graph/nodes", response_model=GraphData)
+async def fetch_nodes_by_ids(
+    ids: str = Query(..., description="逗号分隔的节点 ID 列表"),
+    domain: str = Query(default=DEFAULT_DOMAIN),
+):
+    """
+    按 ID 查询节点：仅返回指定节点本身，不返回边和邻居。
+    """
+    id_list = [s.strip() for s in ids.split(",") if s.strip()]
+    if not id_list:
+        return GraphData(nodes=[], edges=[])
+
+    with get_db(domain) as conn:
+        ph = ",".join("?" * len(id_list))
+        rows = conn.execute(
+            f"SELECT * FROM nodes WHERE id IN ({ph})",
+            id_list,
+        ).fetchall()
+        return GraphData(
+            nodes=[row_to_node(r, domain) for r in rows],
+            edges=[],
+        )
+
+
 @app.post("/api/graph/expand", response_model=ExpandResponse)
 async def expand_graph(req: ExpandRequest):
     """

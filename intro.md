@@ -39,6 +39,23 @@
 ```
 - **说明**：初始加载不受 `m`/`n` 影响，完全由后端决定展示哪些节点。
 
+### 3.3 节点查询接口（按 ID 查询）
+- **请求**：`GET /api/graph/nodes`
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `ids` | string | 是 | 逗号分隔的节点 ID 列表（当前仅支持单个） |
+| `domain` | string | 否 | 查询的 domain，默认取首个可用 domain |
+
+- **响应**：
+```json
+{
+  "nodes": [ { "id": "人员/person-00022", ... } ],
+  "edges": []
+}
+```
+- **说明**：仅返回指定节点本身，不返回边和邻居。用于通过 URL 参数直接定位首屏节点。
+
 ### 3.2 节点展开接口（累积增长 + 分页加载更多）
 - **请求**：`POST /api/graph/expand`
 
@@ -134,6 +151,21 @@
 ### 5.9 孤立节点处理
 - 若 `totalNeighbors === 0`，点击节点后不发起请求，提示“该节点无关联节点”，列表清空。
 
+### 5.10 URL 首屏节点参数
+前端支持通过 URL 查询参数直接指定首屏初始节点，无需使用 `?data=` 传入完整 JSON。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `node` | string | 是 | 首屏要高亮并展开的中心节点 ID（如 `人员/person-00022`） |
+| `expand` | string | 否 | `1` 或不传时自动展开邻居；`0` 时仅渲染中心节点，不展开 |
+| `domain` | string | 否 | 指定 domain，不传时使用默认首个 domain |
+
+**首屏加载流程**：
+1. 若 URL 存在 `?node=`，前端调用 `GET /api/graph/nodes?ids=...&domain=...` 获取节点
+2. `setGraphData` 渲染中心节点
+3. 等待 G6 渲染完成后（约 300ms）自动 `selectNode`
+4. 若 `expand !== '0'`，自动调用 `expandNode` 展开邻居，由 `expansionStates` 管理后续 offset
+
 ## 6. 布局策略
 
 - **初始布局**：G6 力导向布局（`type: 'force'`）。
@@ -176,7 +208,37 @@
 - `lineDash`: [5, 5]
 - `endArrow`: true
 
+## 11. 测试指南
+
+### 11.1 URL 首屏节点参数测试
+
+假设前端运行在 `http://localhost:5173`，后端已启动并包含 `demo-region` domain：
+
+1. **自动展开邻居（默认）**
+   ```
+   http://localhost:5173/?domain=demo-region&node=人员/person-00022
+   ```
+   - 预期：首屏只显示 `person-00022` 一个节点，约 300ms 后高亮选中并自动展开邻居子图。
+
+2. **仅渲染中心节点，不自动展开**
+   ```
+   http://localhost:5173/?domain=demo-region&node=人员/person-00022&expand=0
+   ```
+   - 预期：首屏只显示 `person-00022`，节点被选中，但不调用 `expandNode`，画布保持单节点状态。
+
+3. **不指定 domain（使用默认）**
+   ```
+   http://localhost:5173/?node=人员/person-00022
+   ```
+   - 预期：使用首个可用 domain 查询节点。
+
+4. **节点 ID 不存在**
+   ```
+   http://localhost:5173/?node=不存在的节点
+   ```
+   - 预期：`/api/graph/nodes` 返回空数组，画布无节点，显示空白或 loading 状态。
+
 ---
 
-**文档版本**：1.0  
-**最后更新**：2026-05-10  
+**文档版本**：1.1  
+**最后更新**：2026-06-05  

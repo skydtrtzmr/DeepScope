@@ -4,7 +4,7 @@ import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { fetchDomains, fetchInitialGraph } from '@/lib/api';
+import { fetchDomains, fetchInitialGraph, fetchNodesByIds } from '@/lib/api';
 import type { GraphData } from '@/types/graph';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 
 function AppContent() {
-  const { setGraphData, fullData, setDomains, setCurrentDomain, currentDomain } = useGraphStore();
+  const { setGraphData, fullData, setDomains, setCurrentDomain, currentDomain, selectNode, expandNode } = useGraphStore();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [importError, setImportError] = useState('');
@@ -40,6 +40,8 @@ function AppContent() {
     // 尝试从 URL 参数获取数据（仅首次）
     const params = new URLSearchParams(window.location.search);
     const dataParam = params.get('data');
+    const nodeParam = params.get('node');
+
     if (dataParam && !initializedRef.current) {
       try {
         const data = JSON.parse(decodeURIComponent(dataParam)) as GraphData;
@@ -51,6 +53,25 @@ function AppContent() {
       }
     }
 
+    if (nodeParam && !initializedRef.current) {
+      const shouldExpand = params.get('expand') !== '0';
+      fetchNodesByIds([nodeParam], currentDomain)
+        .then((data) => {
+          setGraphData(data);
+          initializedRef.current = true;
+          if (data.nodes.length > 0) {
+            setTimeout(() => {
+              selectNode(nodeParam);
+              if (shouldExpand) {
+                expandNode(nodeParam);
+              }
+            }, 300);
+          }
+        })
+        .catch(console.error);
+      return;
+    }
+
     setGraphData({ nodes: [], edges: [] });
     fetchInitialGraph(currentDomain)
       .then((data) => {
@@ -58,7 +79,7 @@ function AppContent() {
         initializedRef.current = true;
       })
       .catch(console.error);
-  }, [currentDomain, setGraphData]);
+  }, [currentDomain, setGraphData, selectNode, expandNode]);
 
   // 导入数据
   const handleImport = useCallback(() => {

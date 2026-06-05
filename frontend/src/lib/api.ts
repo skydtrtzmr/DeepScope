@@ -35,6 +35,14 @@ export interface ExpandGraphResponse {
   totalNeighbors: number;
 }
 
+// 按 ID 查询节点（仅返回节点，无边）
+export async function fetchNodesByIds(ids: string[], domain: string): Promise<GraphData> {
+  const { data } = await api.get('/api/graph/nodes', {
+    params: { ids: ids.join(','), domain },
+  });
+  return data;
+}
+
 // 节点展开（POST）
 export async function expandGraph(params: ExpandGraphParams): Promise<ExpandGraphResponse> {
   const { data } = await api.post('/api/graph/expand', {
