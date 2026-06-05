@@ -280,6 +280,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
   // 应用节点/边的选中高亮状态
   // 不使用 G6 state 的 opacity（清除后不恢复），改为用 updateNodeData/updateEdgeData 显式设置
+  // 优化：批量收集后一次性调用，避免逐节点/逐边触发多次重绘
   const applyNodeStates = useCallback(() => {
     const graph = graphRef.current;
     if (!graph || !fullData || !visibleData) return;
@@ -287,6 +288,9 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     const visibleNodeIds = new Set(visibleData.nodes.map((n) => n.id));
     const hasSelection = !!selectedNodeId;
+
+    const nodeStateUpdates: { id: string; states: string[] }[] = [];
+    const nodeStyleUpdates: { id: string; style: { opacity: number } }[] = [];
 
     fullData.nodes.forEach((node) => {
       if (!graph.getNodeData(node.id)) return;
@@ -296,32 +300,39 @@ export function GraphContainer({ className }: GraphContainerProps) {
       } else if (node.id === highlightedNodeId) {
         states.push('highlighted');
       }
-      try { graph.setElementState(node.id, states); } catch { /* ignore */ }
+      nodeStateUpdates.push({ id: node.id, states });
 
       // 淡化：不在 BFS 可见范围内的节点设为低 opacity，其余完全不透明
       const dimmed = hasSelection && !visibleNodeIds.has(node.id);
-      try {
-        graph.updateNodeData([{
-          id: node.id,
-          style: { opacity: dimmed ? 0.5 : 1 },
-        }]);
-      } catch { /* ignore */ }
+      nodeStyleUpdates.push({ id: node.id, style: { opacity: dimmed ? 0.5 : 1 } });
     });
+
+    nodeStateUpdates.forEach(({ id, states }) => {
+      try { graph.setElementState(id, states); } catch { /* ignore */ }
+    });
+    if (nodeStyleUpdates.length > 0) {
+      try { graph.updateNodeData(nodeStyleUpdates); } catch { /* ignore */ }
+    }
+
+    const edgeStateUpdates: { id: string; states: string[] }[] = [];
+    const edgeStyleUpdates: { id: string; style: { opacity: number } }[] = [];
 
     fullData.edges.forEach((edge) => {
       if (!graph.getEdgeData(edge.id)) return;
       const isActive = selectedNodeId && highlightedEdgeIds.has(edge.id);
-      try { graph.setElementState(edge.id, isActive ? ['active'] : []); } catch { /* ignore */ }
+      edgeStateUpdates.push({ id: edge.id, states: isActive ? ['active'] : [] });
 
       // 淡化：非高亮边在选中时设为低 opacity，其余完全不透明
       const dimmed = hasSelection && !isActive;
-      try {
-        graph.updateEdgeData([{
-          id: edge.id,
-          style: { opacity: dimmed ? 0.2 : 1 },
-        }]);
-      } catch { /* ignore */ }
+      edgeStyleUpdates.push({ id: edge.id, style: { opacity: dimmed ? 0.2 : 1 } });
     });
+
+    edgeStateUpdates.forEach(({ id, states }) => {
+      try { graph.setElementState(id, states); } catch { /* ignore */ }
+    });
+    if (edgeStyleUpdates.length > 0) {
+      try { graph.updateEdgeData(edgeStyleUpdates); } catch { /* ignore */ }
+    }
   }, [fullData, visibleData, selectedNodeId, highlightedNodeId, highlightedEdgeIds]);
 
   // 保持最新引用，供事件回调使用
