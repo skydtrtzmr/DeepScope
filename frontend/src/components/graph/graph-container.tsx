@@ -161,15 +161,15 @@ function createGraph(
       clickTimer = null;
     }
 
-    // 立即选中节点并显示详情（不等待双击判定）
-    selectNode(nodeId);
-
-    // 启动定时器，仅用于追踪双击窗口
+    // 如果selectNode放在这里，则是不等待延迟、直接执行单击逻辑
+    // selectNode(nodeId);
+    // 延迟 250ms 执行单击逻辑，等待可能的双击
     pendingClickNodeId = nodeId;
     clickTimer = setTimeout(() => {
       clickTimer = null;
       pendingClickNodeId = null;
-    }, 250);
+      selectNode(nodeId);
+    }, 150);
   });
 
   graph.on('node:dblclick', (event) => {
