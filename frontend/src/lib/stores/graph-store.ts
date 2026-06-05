@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { toast } from 'sonner';
 import type {
   GraphData, GraphNode, GraphEdge, GraphConfig, ExploreConfig,
   ExploreButtonState, RelatedNodeDetail, DomainItem, DisplaySettings,
@@ -51,6 +52,9 @@ interface GraphState {
   domains: DomainItem[];
   currentDomain: string;
 
+  // 安全上限
+  maxTotalNodes: number;
+
   // Actions
   setGraphData: (data: GraphData) => void;
   expandNode: (nodeId: string) => Promise<void>;
@@ -60,6 +64,7 @@ interface GraphState {
   updateConfig: (config: Partial<GraphConfig>) => void;
   updateDisplaySettings: (settings: Partial<DisplaySettings>) => void;
   updateExploreConfig: (config: Partial<ExploreConfig>) => void;
+  setMaxTotalNodes: (n: number) => void;
   getExploreButtonState: (nodeId: string) => ExploreButtonState;
   goBack: () => void;
   reset: () => void;
@@ -198,9 +203,18 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   rebuildTrigger: 0,
   domains: [],
   currentDomain: '',
+  maxTotalNodes: 0,
 
   setGraphData: (data) => {
-    const clean = sanitizeGraphData(data);
+    let clean = sanitizeGraphData(data);
+    const { maxTotalNodes } = get();
+    if (maxTotalNodes > 0 && clean.nodes.length > maxTotalNodes) {
+      console.warn(`[store] 首屏数据节点数 ${clean.nodes.length} 超过上限 ${maxTotalNodes}，截断`);
+      clean.nodes = clean.nodes.slice(0, maxTotalNodes);
+      const allowedIds = new Set(clean.nodes.map((n) => n.id));
+      clean.edges = clean.edges.filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target));
+      toast.warning(`数据量超过上限，仅展示前 ${maxTotalNodes} 个节点`);
+    }
     console.log(`[store] setGraphData → ${clean.nodes.length} 节点, ${clean.edges.length} 边（过滤前 ${data.edges.length} 边）`);
     set({
       fullData: clean,
@@ -281,6 +295,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ exploreConfig: { ...exploreConfig, ...newConfig } });
   },
 
+  setMaxTotalNodes: (n) => {
+    set({ maxTotalNodes: n > 0 ? n : 0 });
+  },
+
   getExploreButtonState: (nodeId) => {
     const { fullData, exploreConfig, expansionStates } = get();
     const state = expansionStates.get(nodeId);
@@ -350,13 +368,37 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         return;
       }
 
-      const newNodes = result.nodes.filter((n) => !existingNodeIds.has(n.id));
-      const newNodeIds = new Set(newNodes.map((n) => n.id));
+      let newNodes = result.nodes.filter((n) => !existingNodeIds.has(n.id));
       const existingEdgeIds = new Set(fullData.edges.map((e) => e.id));
+
+      // 节点总数上限截断
+      const { maxTotalNodes } = get();
+      if (maxTotalNodes > 0) {
+        const currentCount = fullData.nodes.length;
+        if (currentCount >= maxTotalNodes) {
+          console.warn(`[store] 节点数已达上限 ${maxTotalNodes}，停止追加`);
+          toast.error(`节点数已达上限 ${maxTotalNodes}，无法继续追加`);
+          set({ isLoading: false, expandingNodeId: null, expansionStates: newExpansionStates });
+          return;
+        }
+        const allowed = maxTotalNodes - currentCount;
+        if (newNodes.length > allowed) {
+          console.warn(`[store] 节点数即将超过上限 ${maxTotalNodes}，截断至 ${allowed} 个新节点`);
+          newNodes = newNodes.slice(0, allowed);
+          toast.warning(`数据量超过上限，仅追加前 ${allowed} 个新节点`);
+        }
+      }
+
+      const newNodeIds = new Set(newNodes.map((n) => n.id));
       const allNodeIds = new Set([...existingNodeIds, ...newNodeIds]);
-      const newEdges = result.edges.filter(
+      let newEdges = result.edges.filter(
         (e) => !existingEdgeIds.has(e.id) && allNodeIds.has(e.source) && allNodeIds.has(e.target),
       );
+
+      // 上限截断后过滤悬空边
+      if (maxTotalNodes > 0) {
+        newEdges = newEdges.filter((e) => newNodeIds.has(e.source) || newNodeIds.has(e.target));
+      }
 
       if (newNodes.length === 0 && newEdges.length === 0) {
         set({ isLoading: false, expandingNodeId: null, expansionStates: newExpansionStates });

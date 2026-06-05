@@ -17,11 +17,33 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 
 function AppContent() {
-  const { setGraphData, fullData, setDomains, setCurrentDomain, currentDomain, selectNode, expandNode } = useGraphStore();
+  const { setGraphData, fullData, setDomains, setCurrentDomain, currentDomain, selectNode, expandNode, updateExploreConfig, setMaxTotalNodes } = useGraphStore();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [importError, setImportError] = useState('');
   const initializedRef = useRef(false);
+
+  // 加载外部配置文件
+  useEffect(() => {
+    fetch('/app-config.json')
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((cfg) => {
+        if (cfg?.explore) {
+          updateExploreConfig(cfg.explore);
+          console.log('[config] 已加载外部配置:', cfg.explore);
+        }
+        if (typeof cfg?.maxTotalNodes === 'number') {
+          setMaxTotalNodes(cfg.maxTotalNodes);
+          console.log('[config] 已加载节点上限:', cfg.maxTotalNodes);
+        }
+      })
+      .catch(() => {
+        // 配置文件不存在或解析失败时静默使用代码默认值
+      });
+  }, [updateExploreConfig]);
 
   // 加载 domain 列表
   useEffect(() => {
