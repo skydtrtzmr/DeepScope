@@ -146,26 +146,29 @@ function createGraph(
     const nodeId = (event as { target: { id: string } }).target.id;
     if (!graph.getNodeData(nodeId)) return;
 
-    // 如果本次 click 与上一次 click 同一节点且在等待期内 → 双击的第二次 click，取消定时器
+    // 如果本次 click 与上一次 click 同一节点且在等待期内 → 双击的第二次 click
+    // 不执行 selectNode（避免 toggle 取消选中），由 dblclick handler 统一处理
     if (clickTimer && pendingClickNodeId === nodeId) {
       clearTimeout(clickTimer);
       clickTimer = null;
       pendingClickNodeId = null;
-      return; // 由 dblclick handler 统一处理
+      return;
     }
 
-    // 点击了不同节点，取消之前的定时器（立即切换）
+    // 点击了不同节点，取消之前的定时器
     if (clickTimer) {
       clearTimeout(clickTimer);
       clickTimer = null;
     }
 
-    // 延迟 250ms 执行单击逻辑，等待可能的双击
+    // 立即选中节点并显示详情（不等待双击判定）
+    selectNode(nodeId);
+
+    // 启动定时器，仅用于追踪双击窗口
     pendingClickNodeId = nodeId;
     clickTimer = setTimeout(() => {
       clickTimer = null;
       pendingClickNodeId = null;
-      selectNode(nodeId);
     }, 250);
   });
 
@@ -279,8 +282,8 @@ export function GraphContainer({ className }: GraphContainerProps) {
   } = useGraphStore();
 
   // 应用节点/边的选中高亮状态
-  // 不使用 G6 state 的 opacity（清除后不恢复），改为用 updateNodeData/updateEdgeData 显式设置
-  // 优化：批量收集后一次性调用，避免逐节点/逐边触发多次重绘
+  // 不使用 G6 state 的 opacity，改为用 updateNodeData/updateEdgeData 显式设置
+  // 批量收集后一次性调用，避免逐节点/逐边触发多次重绘
   const applyNodeStates = useCallback(() => {
     const graph = graphRef.current;
     if (!graph || !fullData || !visibleData) return;
@@ -302,7 +305,6 @@ export function GraphContainer({ className }: GraphContainerProps) {
       }
       nodeStateUpdates.push({ id: node.id, states });
 
-      // 淡化：不在 BFS 可见范围内的节点设为低 opacity，其余完全不透明
       const dimmed = hasSelection && !visibleNodeIds.has(node.id);
       nodeStyleUpdates.push({ id: node.id, style: { opacity: dimmed ? 0.5 : 1 } });
     });
@@ -322,7 +324,6 @@ export function GraphContainer({ className }: GraphContainerProps) {
       const isActive = selectedNodeId && highlightedEdgeIds.has(edge.id);
       edgeStateUpdates.push({ id: edge.id, states: isActive ? ['active'] : [] });
 
-      // 淡化：非高亮边在选中时设为低 opacity，其余完全不透明
       const dimmed = hasSelection && !isActive;
       edgeStyleUpdates.push({ id: edge.id, style: { opacity: dimmed ? 0.2 : 1 } });
     });
