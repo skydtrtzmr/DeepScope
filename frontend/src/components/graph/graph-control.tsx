@@ -8,7 +8,7 @@ import { ChevronLeft, RotateCcw, Minus, X, Plus } from 'lucide-react';
 /** 滑块拖动时的 debounce 间隔（ms） */
 const SLIDER_DEBOUNCE_MS = 200;
 
-function useDebouncedSlider(key: 'maxDirectRelations' | 'maxDepth', delay: number) {
+function useDebouncedSlider(key: 'directRelations' | 'depth', delay: number) {
   const config = useGraphStore((s) => s.config);
   const updateConfig = useGraphStore((s) => s.updateConfig);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,11 +43,11 @@ export function GraphControl() {
 
   const {
     fullData, goBack, reset, nodeHistory, selectNode, selectedNodeId,
-    updateExploreConfig, exploreConfig,
+    updateExploreConfig, exploreConfig, sliderLimits,
   } = useGraphStore();
 
-  const mSlider = useDebouncedSlider('maxDirectRelations', SLIDER_DEBOUNCE_MS);
-  const nSlider = useDebouncedSlider('maxDepth', SLIDER_DEBOUNCE_MS);
+  const mSlider = useDebouncedSlider('directRelations', SLIDER_DEBOUNCE_MS);
+  const nSlider = useDebouncedSlider('depth', SLIDER_DEBOUNCE_MS);
 
   if (!selectedNodeId || !fullData) return null;
 
@@ -88,14 +88,14 @@ export function GraphControl() {
               value={[exploreConfig.m]}
               onValueChange={([value]) => updateExploreConfig({ m: value })}
               min={1}
-              max={20}
+              max={sliderLimits.exploreMMax}
               step={1}
               className="flex-1"
             />
             <Button
               variant="outline" size="sm" className="size-6 p-0"
-              onClick={() => updateExploreConfig({ m: Math.min(20, exploreConfig.m + 1) })}
-              disabled={exploreConfig.m >= 20}
+              onClick={() => updateExploreConfig({ m: Math.min(sliderLimits.exploreMMax, exploreConfig.m + 1) })}
+              disabled={exploreConfig.m >= sliderLimits.exploreMMax}
             >
               <Plus className="h-2.5 w-2.5" />
             </Button>
@@ -120,14 +120,14 @@ export function GraphControl() {
               value={[exploreConfig.n]}
               onValueChange={([value]) => updateExploreConfig({ n: value })}
               min={1}
-              max={5}
+              max={sliderLimits.exploreNMax}
               step={1}
               className="flex-1"
             />
             <Button
               variant="outline" size="sm" className="size-6 p-0"
-              onClick={() => updateExploreConfig({ n: Math.min(5, exploreConfig.n + 1) })}
-              disabled={exploreConfig.n >= 5}
+              onClick={() => updateExploreConfig({ n: Math.min(sliderLimits.exploreNMax, exploreConfig.n + 1) })}
+              disabled={exploreConfig.n >= sliderLimits.exploreNMax}
             >
               <Plus className="h-2.5 w-2.5" />
             </Button>
@@ -197,14 +197,14 @@ export function GraphControl() {
               value={[mSlider.localValue]}
               onValueChange={([value]) => mSlider.onSliderChange(value)}
               min={0}
-              max={20}
+              max={sliderLimits.highlightDirectRelationsMax}
               step={1}
               className="flex-1"
             />
             <Button
               variant="outline" size="sm" className="size-7 p-0"
-              onClick={() => mSlider.updateDirect(Math.min(20, mSlider.localValue + 1))}
-              disabled={mSlider.localValue >= 20}
+              onClick={() => mSlider.updateDirect(Math.min(sliderLimits.highlightDirectRelationsMax, mSlider.localValue + 1))}
+              disabled={mSlider.localValue >= sliderLimits.highlightDirectRelationsMax}
             >
               <Plus className="h-3 w-3" />
             </Button>
@@ -229,14 +229,14 @@ export function GraphControl() {
               value={[nSlider.localValue]}
               onValueChange={([value]) => nSlider.onSliderChange(value)}
               min={0}
-              max={3}
+              max={sliderLimits.highlightDepthMax}
               step={1}
               className="flex-1"
             />
             <Button
               variant="outline" size="sm" className="size-7 p-0"
-              onClick={() => nSlider.updateDirect(Math.min(3, nSlider.localValue + 1))}
-              disabled={nSlider.localValue >= 3}
+              onClick={() => nSlider.updateDirect(Math.min(sliderLimits.highlightDepthMax, nSlider.localValue + 1))}
+              disabled={nSlider.localValue >= sliderLimits.highlightDepthMax}
             >
               <Plus className="h-3 w-3" />
             </Button>

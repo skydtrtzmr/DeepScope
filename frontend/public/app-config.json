@@ -1,7 +1,20 @@
 {
   "explore": {
-    "m": 9,
-    "n": 4
+    "m": 5,
+    "n": 3,
+    "mMax": 20,
+    "nMax": 6
+  },
+  "highlight": {
+    "directRelations": 5,
+    "depth": 1,
+    "directRelationsMax": 20,
+    "depthMax": 3
+  },
+  "display": {
+    "showEdgeArrows": true,
+    "showEdgeLabels": false,
+    "trackSelectedNode": true
   },
   "maxTotalNodes": 100
 }

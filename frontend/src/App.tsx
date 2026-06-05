@@ -5,7 +5,7 @@ import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { fetchDomains, fetchInitialGraph, fetchNodesByIds } from '@/lib/api';
-import type { GraphData } from '@/types/graph';
+import type { GraphData, SliderLimits } from '@/types/graph';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 
 function AppContent() {
-  const { setGraphData, fullData, setDomains, setCurrentDomain, currentDomain, selectNode, expandNode, updateExploreConfig, setMaxTotalNodes } = useGraphStore();
+  const { setGraphData, fullData, setDomains, setCurrentDomain, currentDomain, selectNode, expandNode, updateExploreConfig, updateConfig, updateDisplaySettings, setMaxTotalNodes, setSliderLimits } = useGraphStore();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [importError, setImportError] = useState('');
@@ -33,11 +33,36 @@ function AppContent() {
       .then((cfg) => {
         if (cfg?.explore) {
           updateExploreConfig(cfg.explore);
-          console.log('[config] 已加载外部配置:', cfg.explore);
+          console.log('[config] 已加载探索配置:', cfg.explore);
+        }
+        if (cfg?.highlight) {
+          updateConfig({
+            directRelations: cfg.highlight.directRelations ?? undefined,
+            depth: cfg.highlight.depth ?? undefined,
+          });
+          console.log('[config] 已加载高亮配置:', cfg.highlight);
         }
         if (typeof cfg?.maxTotalNodes === 'number') {
           setMaxTotalNodes(cfg.maxTotalNodes);
           console.log('[config] 已加载节点上限:', cfg.maxTotalNodes);
+        }
+        if (cfg?.display) {
+          updateDisplaySettings(cfg.display);
+          console.log('[config] 已加载显示配置:', cfg.display);
+        }
+        // 滑块上限（从 explore 和 highlight 中提取上限字段）
+        const limits: Partial<SliderLimits> = {};
+        if (cfg.explore) {
+          if (typeof cfg.explore.mMax === 'number') limits.exploreMMax = cfg.explore.mMax;
+          if (typeof cfg.explore.nMax === 'number') limits.exploreNMax = cfg.explore.nMax;
+        }
+        if (cfg.highlight) {
+          if (typeof cfg.highlight.directRelationsMax === 'number') limits.highlightDirectRelationsMax = cfg.highlight.directRelationsMax;
+          if (typeof cfg.highlight.depthMax === 'number') limits.highlightDepthMax = cfg.highlight.depthMax;
+        }
+        if (Object.keys(limits).length > 0) {
+          setSliderLimits(limits);
+          console.log('[config] 已加载滑块上限:', limits);
         }
       })
       .catch(() => {

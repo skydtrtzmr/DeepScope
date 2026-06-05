@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import type {
   GraphData, GraphNode, GraphEdge, GraphConfig, ExploreConfig,
   ExploreButtonState, RelatedNodeDetail, DomainItem, DisplaySettings,
+  SliderLimits,
 } from '@/types/graph';
 import { expandGraph } from '@/lib/api';
 
@@ -55,6 +56,9 @@ interface GraphState {
   // 安全上限
   maxTotalNodes: number;
 
+  // 滑块上限配置（可从 app-config.json 覆盖默认值）
+  sliderLimits: SliderLimits;
+
   // Actions
   setGraphData: (data: GraphData) => void;
   expandNode: (nodeId: string) => Promise<void>;
@@ -65,6 +69,7 @@ interface GraphState {
   updateDisplaySettings: (settings: Partial<DisplaySettings>) => void;
   updateExploreConfig: (config: Partial<ExploreConfig>) => void;
   setMaxTotalNodes: (n: number) => void;
+  setSliderLimits: (limits: Partial<SliderLimits>) => void;
   getExploreButtonState: (nodeId: string) => ExploreButtonState;
   goBack: () => void;
   reset: () => void;
@@ -73,8 +78,8 @@ interface GraphState {
 }
 
 const DEFAULT_CONFIG: GraphConfig = {
-  maxDirectRelations: 5,
-  maxDepth: 1,
+  directRelations: 5,
+  depth: 1,
 };
 
 const DEFAULT_EXPLORE_CONFIG: ExploreConfig = {
@@ -88,12 +93,19 @@ const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   trackSelectedNode: true,
 };
 
+const DEFAULT_SLIDER_LIMITS: SliderLimits = {
+  exploreMMax: 20,
+  exploreNMax: 5,
+  highlightDirectRelationsMax: 20,
+  highlightDepthMax: 3,
+};
+
 // BFS 算法：获取指定深度内的关联节点
 function getRelatedNodes(
   data: GraphData,
   startNodeId: string,
   maxDirect: number,
-  maxDepth: number
+  depth: number
 ): { visibleData: GraphData; relatedNodes: RelatedNodeDetail[]; treeEdgeIds: Set<string> } {
   const visitedNodes = new Set<string>();
   const visibleNodeIds = new Set<string>();
@@ -118,8 +130,8 @@ function getRelatedNodes(
   const queue: { nodeId: string; depth: number }[] = [{ nodeId: startNodeId, depth: 0 }];
 
   while (queue.length > 0) {
-    const { nodeId, depth } = queue.shift()!;
-    if (depth >= maxDepth) continue;
+    const { nodeId, depth: curDepth } = queue.shift()!;
+    if (curDepth >= depth) continue;
 
     const neighbors = adjacency.get(nodeId) || [];
     let addedCount = 0;
@@ -142,12 +154,12 @@ function getRelatedNodes(
             description: node.description,
             style: node.style,
             relationLabel: neighbor.label,
-            depth: depth + 1,
+            depth: curDepth + 1,
             data: node.data,
           });
         }
 
-        queue.push({ nodeId: neighbor.nodeId, depth: depth + 1 });
+        queue.push({ nodeId: neighbor.nodeId, depth: curDepth + 1 });
         addedCount++;
       } else {
         visibleEdgeIds.add(neighbor.edgeId);
@@ -204,6 +216,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   domains: [],
   currentDomain: '',
   maxTotalNodes: 0,
+  sliderLimits: DEFAULT_SLIDER_LIMITS,
 
   setGraphData: (data) => {
     let clean = sanitizeGraphData(data);
@@ -257,7 +270,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
     // BFS 过滤生成 visibleData + 关联节点列表
     const { visibleData, relatedNodes, treeEdgeIds } = getRelatedNodes(
-      fullData, nodeId, config.maxDirectRelations, config.maxDepth,
+      fullData, nodeId, config.directRelations, config.depth,
     );
     set({
       selectedNodeId: nodeId,
@@ -279,7 +292,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
     if (selectedNodeId && fullData) {
       const { relatedNodes, treeEdgeIds, visibleData } = getRelatedNodes(
-        fullData, selectedNodeId, updatedConfig.maxDirectRelations, updatedConfig.maxDepth,
+        fullData, selectedNodeId, updatedConfig.directRelations, updatedConfig.depth,
       );
       set({ visibleData, relatedNodes, highlightedEdgeIds: treeEdgeIds });
     }
@@ -297,6 +310,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   setMaxTotalNodes: (n) => {
     set({ maxTotalNodes: n > 0 ? n : 0 });
+  },
+
+  setSliderLimits: (limits) => {
+    const { sliderLimits } = get();
+    set({ sliderLimits: { ...sliderLimits, ...limits } });
   },
 
   getExploreButtonState: (nodeId) => {
@@ -442,7 +460,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     console.log(`[store] commitAddition → 追加 ${nodes.length} 节点, ${edges.length} 边`);
 
     const result = selectedNodeId
-      ? getRelatedNodes(mergedData, selectedNodeId, config.maxDirectRelations, config.maxDepth)
+      ? getRelatedNodes(mergedData, selectedNodeId, config.directRelations, config.depth)
       : null;
 
     set({
@@ -465,7 +483,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     if (!fullData) return;
 
     const { relatedNodes, treeEdgeIds, visibleData } = getRelatedNodes(
-      fullData, previousNodeId, config.maxDirectRelations, config.maxDepth,
+      fullData, previousNodeId, config.directRelations, config.depth,
     );
     set({
       selectedNodeId: previousNodeId,

@@ -51,8 +51,16 @@ export interface DisplaySettings {
 
 // 图谱配置（高亮范围：控制 BFS 从已加载数据中筛选可见节点）
 export interface GraphConfig {
-  maxDirectRelations: number; // 每节点每层展开邻居上限 m
-  maxDepth: number; // BFS 深度 n
+  directRelations: number; // 每节点每层展开邻居上限 m
+  depth: number; // BFS 深度 n
+}
+
+// 滑块上限配置
+export interface SliderLimits {
+  exploreMMax: number;             // 探索：每层加载数量上限
+  exploreNMax: number;             // 探索：深度上限
+  highlightDirectRelationsMax: number; // 高亮：每层邻居上限滑块 max
+  highlightDepthMax: number;       // 高亮：深度上限滑块 max
 }
 
 // 探索配置（控制 API 请求参数）
