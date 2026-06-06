@@ -14,7 +14,8 @@
   "display": {
     "showEdgeArrows": true,
     "showEdgeLabels": false,
-    "trackSelectedNode": true
+    "trackSelectedNode": true,
+    "expandTrigger": "rightclick"
   },
   "maxTotalNodes": 100
 }

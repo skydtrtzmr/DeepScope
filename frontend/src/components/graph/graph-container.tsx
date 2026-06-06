@@ -53,8 +53,8 @@ function createGraph(
       manyBody: { strength: -80 },
       collide: { radius: 40, strength: 1 },
       center: { strength: 0.05 },
-      alphaDecay: 0.02,
-      velocityDecay: 0.3,
+      alphaDecay: 0.05,
+      velocityDecay: 0.4,
     },
     node: {
       type: 'circle',
@@ -138,7 +138,27 @@ function createGraph(
 
   const graph = new Graph(options);
 
-  // 单击/双击区分：延迟单击判定，250ms 内有第二次 click 则视为双击
+  // 展开处理函数（双击/右键共用）
+  const handleExpand = (nodeId: string) => {
+    if (clickTimer) {
+      clearTimeout(clickTimer);
+      clickTimer = null;
+      pendingClickNodeId = null;
+    }
+    // 标记展开中，让 selectedNodeId useEffect 跳过立即聚焦
+    dblClickExpandingRef.current = true;
+    const currentSelected = useGraphStore.getState().selectedNodeId;
+    if (currentSelected !== nodeId) {
+      selectNode(nodeId);
+    }
+    expandNode(nodeId);
+  };
+
+  const needsDblClickTimer =
+    displaySettings.expandTrigger === 'dblclick' ||
+    displaySettings.expandTrigger === 'both';
+
+  // 单击/双击区分：仅在 dblclick/both 模式下使用延迟判定
   let clickTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingClickNodeId: string | null = null;
 
@@ -146,55 +166,50 @@ function createGraph(
     const nodeId = (event as { target: { id: string } }).target.id;
     if (!graph.getNodeData(nodeId)) return;
 
-    // 如果本次 click 与上一次 click 同一节点且在等待期内 → 双击的第二次 click
-    // 不执行 selectNode（避免 toggle 取消选中），由 dblclick handler 统一处理
-    if (clickTimer && pendingClickNodeId === nodeId) {
-      clearTimeout(clickTimer);
-      clickTimer = null;
-      pendingClickNodeId = null;
-      return;
-    }
-
-    // 点击了不同节点，取消之前的定时器
-    if (clickTimer) {
-      clearTimeout(clickTimer);
-      clickTimer = null;
-    }
-
-    // 如果selectNode放在这里，则是不等待延迟、直接执行单击逻辑
-    // selectNode(nodeId);
-    // 延迟 250ms 执行单击逻辑，等待可能的双击
-    pendingClickNodeId = nodeId;
-    clickTimer = setTimeout(() => {
-      clickTimer = null;
-      pendingClickNodeId = null;
-      selectNode(nodeId);
-    }, 150);
-  });
-
-  graph.on('node:dblclick', (event) => {
-    const nodeId = (event as { target: { id: string } }).target.id;
-    if (!graph.getNodeData(nodeId)) return;
-
-    // 清除可能残留的单击定时器
-    if (clickTimer) {
-      clearTimeout(clickTimer);
-      clickTimer = null;
-      pendingClickNodeId = null;
-    }
-
-    // 标记双击展开中，让 selectedNodeId useEffect 跳过立即聚焦
-    // 聚焦统一由 afterlayout（有新数据）或 isLoading 兜底（无新数据）处理
-    dblClickExpandingRef.current = true;
-
-    // 确保节点处于选中状态（避免 toggle 已选中节点导致取消选中）
-    const currentSelected = useGraphStore.getState().selectedNodeId;
-    if (currentSelected !== nodeId) {
+    if (needsDblClickTimer) {
+      // dblclick/both 模式：延迟判定，给双击让路
+      if (clickTimer && pendingClickNodeId === nodeId) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+        pendingClickNodeId = null;
+        return;
+      }
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+      }
+      pendingClickNodeId = nodeId;
+      clickTimer = setTimeout(() => {
+        clickTimer = null;
+        pendingClickNodeId = null;
+        selectNode(nodeId);
+      }, 150);
+    } else {
+      // rightclick/none 模式：直接选中，无延迟
       selectNode(nodeId);
     }
-
-    expandNode(nodeId);
   });
+
+  // 双击展开
+  if (needsDblClickTimer) {
+    graph.on('node:dblclick', (event) => {
+      const nodeId = (event as { target: { id: string } }).target.id;
+      if (!graph.getNodeData(nodeId)) return;
+      handleExpand(nodeId);
+    });
+  }
+
+  // 右键展开
+  if (
+    displaySettings.expandTrigger === 'rightclick' ||
+    displaySettings.expandTrigger === 'both'
+  ) {
+    graph.on('node:contextmenu', (event) => {
+      const nodeId = (event as { target: { id: string } }).target.id;
+      if (!graph.getNodeData(nodeId)) return;
+      handleExpand(nodeId);
+    });
+  }
 
   graph.on('node:dragstart', () => {
     isDraggingRef.current = true;
@@ -395,7 +410,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
         applyNodeStatesRef.current();
         const currentNodeId = useGraphStore.getState().selectedNodeId;
         if (currentNodeId && useGraphStore.getState().displaySettings.trackSelectedNode) {
-          try { graph.focusElement(currentNodeId, { duration: 400, easing: 'ease-in-out' }); } catch { /* ignore */ }
+          try { graph.focusElement(currentNodeId, { duration: 200, easing: 'ease-in-out' }); } catch { /* ignore */ }
         }
       }
       focusTimerRef.current = null;
@@ -506,7 +521,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
     if (dblClickExpandingRef.current) return; // 双击展开中，等待布局完成后再聚焦
     if (!useGraphStore.getState().displaySettings.trackSelectedNode) return;
     try {
-      graph.focusElement(selectedNodeId, { duration: 400, easing: 'ease-in-out' });
+      graph.focusElement(selectedNodeId, { duration: 200, easing: 'ease-in-out' });
     } catch { /* ignore */ }
   }, [selectedNodeId]);
 
@@ -518,7 +533,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       dblClickExpandingRef.current = false;
       const graph = graphRef.current;
       if (graph && graphReadyRef.current && selectedNodeId && useGraphStore.getState().displaySettings.trackSelectedNode) {
-        try { graph.focusElement(selectedNodeId, { duration: 400, easing: 'ease-in-out' }); } catch { /* ignore */ }
+        try { graph.focusElement(selectedNodeId, { duration: 200, easing: 'ease-in-out' }); } catch { /* ignore */ }
       }
     }
   }, [isLoading, selectedNodeId]);
@@ -554,6 +569,22 @@ export function GraphContainer({ className }: GraphContainerProps) {
       observer.disconnect();
     };
   }, []);
+
+  // 根据 expandTrigger 配置阻止浏览器右键菜单（rightclick/both 模式下需要）
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const needsPreventContextMenu =
+      displaySettings.expandTrigger === 'rightclick' ||
+      displaySettings.expandTrigger === 'both';
+
+    if (!needsPreventContextMenu) return;
+
+    const preventCtx = (e: MouseEvent) => e.preventDefault();
+    container.addEventListener('contextmenu', preventCtx);
+    return () => container.removeEventListener('contextmenu', preventCtx);
+  }, [displaySettings.expandTrigger]);
 
   return (
     <div className="relative w-full h-full" style={{ minHeight: 400 }}>
