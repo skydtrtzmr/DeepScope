@@ -1,4 +1,5 @@
 {
+  "apiBaseUrl": "http://localhost:8003",
   "explore": {
     "m": 5,
     "n": 3,

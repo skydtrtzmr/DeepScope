@@ -5,6 +5,20 @@ const api = axios.create({
   timeout: 10000,
 });
 
+let _baseURL = '';
+
+/** 设置后端 API 的 base URL（可从 app-config.json 中配置 apiBaseUrl 字段） */
+export function setApiBaseUrl(url: string) {
+  _baseURL = url;
+}
+
+api.interceptors.request.use((config) => {
+  if (_baseURL) {
+    config.baseURL = _baseURL;
+  }
+  return config;
+});
+
 // 获取可用 domain 列表
 export type { DomainItem };
 

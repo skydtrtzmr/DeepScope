@@ -4,7 +4,7 @@ import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { fetchDomains, fetchInitialGraph, fetchNodesByIds } from '@/lib/api';
+import { fetchDomains, fetchInitialGraph, fetchNodesByIds, setApiBaseUrl } from '@/lib/api';
 import type { GraphData, SliderLimits } from '@/types/graph';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +21,7 @@ function AppContent() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [importError, setImportError] = useState('');
+  const [configReady, setConfigReady] = useState(false);
   const initializedRef = useRef(false);
 
   // 加载外部配置文件
@@ -31,6 +32,10 @@ function AppContent() {
         return res.json();
       })
       .then((cfg) => {
+        if (cfg?.apiBaseUrl) {
+          setApiBaseUrl(cfg.apiBaseUrl);
+          console.log('[config] 已设置 API base URL:', cfg.apiBaseUrl);
+        }
         if (cfg?.explore) {
           updateExploreConfig(cfg.explore);
           console.log('[config] 已加载探索配置:', cfg.explore);
@@ -64,21 +69,25 @@ function AppContent() {
           setSliderLimits(limits);
           console.log('[config] 已加载滑块上限:', limits);
         }
+        setConfigReady(true);
+        console.log('[config] 配置加载完成，apiBaseUrl 已就绪');
       })
       .catch(() => {
-        // 配置文件不存在或解析失败时静默使用代码默认值
+        // 配置文件不存在或解析失败时也标记完成，使用代码默认值
+        setConfigReady(true);
       });
   }, [updateExploreConfig]);
 
-  // 加载 domain 列表
+  // 加载 domain 列表（必须在配置加载完成后，确保 apiBaseUrl 已设置）
   useEffect(() => {
+    if (!configReady) return;
     fetchDomains().then((domains) => {
       setDomains(domains);
       if (domains.length > 0) {
         setCurrentDomain(domains[0].name);
       }
     }).catch(console.error);
-  }, [setDomains, setCurrentDomain]);
+  }, [configReady, setDomains, setCurrentDomain]);
 
   // domain 变化时加载初始图谱数据
   useEffect(() => {
