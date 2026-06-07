@@ -169,14 +169,18 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `node` | string | 是 | 首屏要高亮并展开的中心节点 ID（如 `人员/person-00022`） |
-| `expand` | string | 否 | `1` 或不传时自动展开邻居；`0` 时仅渲染中心节点，不展开 |
+| `expand` | string | 否 | `1` 或不传时自动展开邻居；`0` 时仅选中中心节点，不展开 |
+| `m` | int | 否 | 初始展开的广度（每层邻居数），独立于 UI 滑块配置 |
+| `n` | int | 否 | 初始展开的深度（间接层数），独立于 UI 滑块配置 |
 | `domain` | string | 否 | 指定 domain，不传时使用默认首个 domain |
+
+> **`m`/`n` 与 UI 滑块的分离设计**：URL 的 `m`/`n` 仅影响首屏初始展开，与操作界面中的可调滑块互不干扰。URL 未传 `m`/`n` 时，展开展走 UI 滑块配置；传了则用 URL 参数，后续用户的按钮/双击/右键探索仍走 UI 滑块配置。
 
 **首屏加载流程**：
 1. 若 URL 存在 `?node=`，前端调用 `GET /api/graph/nodes?ids=...&domain=...` 获取节点
 2. `setGraphData` 渲染中心节点
 3. 等待 G6 渲染完成后（约 300ms）自动 `selectNode`
-4. 若 `expand !== '0'`，自动调用 `expandNode` 展开邻居，由 `expansionStates` 管理后续 offset
+4. 若 `expand !== '0'` 或 URL 含 `m`/`n`，自动调用 `expandNode(nodeId, { m, n })` 展开邻居
 
 ## 6. 布局策略
 
@@ -230,21 +234,33 @@
    ```
    http://localhost:5173/?domain=demo-region&node=人员/person-00022
    ```
-   - 预期：首屏只显示 `person-00022` 一个节点，约 300ms 后高亮选中并自动展开邻居子图。
+   - 预期：首屏只显示 `person-00022` 一个节点，约 300ms 后高亮选中并自动展开邻居子图（展开参数走 UI 默认配置）。
 
-2. **仅渲染中心节点，不自动展开**
+2. **指定展开广度/深度（独立于 UI）**
+   ```
+   http://localhost:5173/?domain=demo-region&node=人员/person-00022&m=10&n=2
+   ```
+   - 预期：高亮选中后自动展开子图，m=10（每层 10 个邻居）、n=2（深度 2 层）。UI 滑块配置不受影响。
+
+3. **仅指定广度**
+   ```
+   http://localhost:5173/?domain=demo-region&node=人员/person-00022&m=3
+   ```
+   - 预期：m=3（每层 3 个邻居），n 走 exploreConfig 默认值（通常 n=1）。
+
+4. **仅渲染中心节点，不自动展开**
    ```
    http://localhost:5173/?domain=demo-region&node=人员/person-00022&expand=0
    ```
    - 预期：首屏只显示 `person-00022`，节点被选中，但不调用 `expandNode`，画布保持单节点状态。
 
-3. **不指定 domain（使用默认）**
+5. **不指定 domain（使用默认）**
    ```
    http://localhost:5173/?node=人员/person-00022
    ```
    - 预期：使用首个可用 domain 查询节点。
 
-4. **节点 ID 不存在**
+6. **节点 ID 不存在**
    ```
    http://localhost:5173/?node=不存在的节点
    ```
@@ -252,5 +268,5 @@
 
 ---
 
-**文档版本**：1.1  
-**最后更新**：2026-06-05  
+**文档版本**：1.2  
+**最后更新**：2026-06-07  
