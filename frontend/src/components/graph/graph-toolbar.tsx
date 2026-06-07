@@ -32,9 +32,9 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
   const edgeCount = fullData?.edges.length ?? 0;
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 border-b bg-card gap-2">
+    <div className="flex items-center justify-between px-4 py-3 border-b bg-card gap-3">
       <div className="flex items-center gap-4 min-w-0">
-        <h2 className="font-semibold text-sm shrink-0">知识图谱</h2>
+        <h2 className="font-semibold text-base shrink-0">知识图谱</h2>
 
         {/* 域选择器 */}
         {domains.length > 0 && (

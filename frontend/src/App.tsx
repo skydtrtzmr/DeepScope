@@ -102,6 +102,10 @@ function AppContent() {
 
     if (nodeParam && !initializedRef.current) {
       const shouldExpand = params.get('expand') !== '0';
+      const urlM = params.get('m') ? parseInt(params.get('m')!, 10) : undefined;
+      const urlN = params.get('n') ? parseInt(params.get('n')!, 10) : undefined;
+      // URL 带 m/n → 必定展开（用 URL 参数）；无 m/n → 按 expand 标识决定
+      const hasUrlOverride = urlM !== undefined || urlN !== undefined;
       fetchNodesByIds([nodeParam], currentDomain)
         .then((data) => {
           setGraphData(data);
@@ -109,8 +113,8 @@ function AppContent() {
           if (data.nodes.length > 0) {
             setTimeout(() => {
               selectNode(nodeParam);
-              if (shouldExpand) {
-                expandNode(nodeParam);
+              if (hasUrlOverride || shouldExpand) {
+                expandNode(nodeParam, { m: urlM, n: urlN });
               }
             }, 300);
           }

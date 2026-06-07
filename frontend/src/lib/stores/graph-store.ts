@@ -61,7 +61,7 @@ interface GraphState {
 
   // Actions
   setGraphData: (data: GraphData) => void;
-  expandNode: (nodeId: string) => Promise<void>;
+  expandNode: (nodeId: string, overrides?: { m?: number; n?: number }) => Promise<void>;
   commitAddition: (nodes: GraphNode[], edges: GraphEdge[]) => void;
   selectNode: (nodeId: string | null) => void;
   highlightNode: (nodeId: string | null) => void;
@@ -339,13 +339,17 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     return { type: 'done', label: '已全部探索' };
   },
 
-  expandNode: async (nodeId) => {
+  expandNode: async (nodeId, overrides) => {
     const { fullData, expansionStates, exploreConfig, expandingNodeId, currentDomain } = get();
     if (!fullData) return;
     if (expandingNodeId === nodeId) return;
 
     const buttonState = get().getExploreButtonState(nodeId);
     if (buttonState.type === 'done') return;
+
+    // URL 传参可覆盖 m/n，否则用 UI 配置
+    const m = overrides?.m ?? exploreConfig.m;
+    const n = overrides?.n ?? exploreConfig.n;
 
     set({ isLoading: true, expandingNodeId: nodeId });
 
@@ -358,7 +362,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         const loadedDirectCount = countLoadedDirectNeighbors(fullData, nodeId);
         result = await expandGraph({
           nodeId,
-          m: exploreConfig.m,
+          m,
           n: 1,
           offset: loadedDirectCount,
           domain: currentDomain,
@@ -366,8 +370,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       } else {
         result = await expandGraph({
           nodeId,
-          m: exploreConfig.m,
-          n: exploreConfig.n,
+          m,
+          n,
           offset: 0,
           domain: currentDomain,
         });
@@ -379,7 +383,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       newExpansionStates.set(nodeId, {
         loadedDirectCount: loadedDirect,
         totalDirectCount: result.totalNeighbors,
-        maxDepthExplored: exploreConfig.n,
+        maxDepthExplored: n,
       });
 
       if (result.nodes.length === 0) {
@@ -436,7 +440,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         totalDirectCount: result.totalNeighbors,
         maxDepthExplored: buttonState.type === 'more'
           ? (prevState?.maxDepthExplored ?? 1)
-          : exploreConfig.n,
+          : n,
       });
 
       set({
