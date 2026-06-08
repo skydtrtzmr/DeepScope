@@ -1,17 +1,17 @@
 meta {
-  name: 请求指定域的初始节点
+  name: 请求初始节点
   type: http
   seq: 2
 }
 
 get {
-  url: http://127.0.0.1:8001/api/graph/initial?domain=demo-core
+  url: http://127.0.0.1:8003/api/graph/initial
   body: none
   auth: inherit
 }
 
 params:query {
-  domain: demo-core
+  ~domain: demo-core
 }
 
 settings {

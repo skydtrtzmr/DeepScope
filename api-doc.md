@@ -24,11 +24,18 @@
 
 ## 2. 接口详情
 
+> 以下示例假设后端运行在 `http://localhost:8003`，domain 使用 `demo-region`。  
+> Windows CMD 如需多行命令，请用 `^` 替代 `\` 作为续行符；以下示例已统一使用单行格式，跨平台通用。
+
 ### 2.1 GET `/api/domains`
 
 获取后端可用的业务域（domain）列表。
 
-**请求参数**：无
+**请求示例**：
+
+```bash
+curl http://localhost:8003/api/domains
+```
 
 **响应**：
 ```json
@@ -51,7 +58,17 @@
 
 ### 2.2 GET `/api/graph/initial`
 
-初始加载图谱数据，完全由后端决定展示哪些节点，不受 `m`/`n` 影响。
+初始加载图谱数据，完全由后端决定展示哪些节点（由 `mock_graph.json` 中的 `initialNodeIds` 控制），不受 `m`/`n` 影响。
+
+**请求示例**：
+
+```bash
+# 不指定 domain（使用默认首个可用 domain）
+curl "http://localhost:8003/api/graph/initial"
+
+# 指定 domain
+curl "http://localhost:8003/api/graph/initial?domain=demo-region"
+```
 
 **请求参数**：
 
@@ -92,7 +109,26 @@
 
 ### 2.3 POST `/api/graph/expand`
 
-节点展开接口，支持累积增长和分页加载更多直接邻居。
+节点展开接口，支持累积增长和分页加载更多直接邻居。后端根据 `offset` 自动切换 BFS 多层展开和分页模式。
+
+**请求示例**：
+
+```bash
+# 首次展开：BFS 多层，每层 5 个邻居，深度 2
+curl --request POST \
+  --url http://127.0.0.1:8003/api/graph/expand \
+  --header 'content-type: application/json' \
+  --data '{
+  "nodeId": "人员/person-00022",
+  "m": 5,
+  "n": 2,
+  "offset": 0,
+  "domain": "demo-region"
+}'
+
+# 分页加载更多：offset=5，跳过前 5 个已加载的直接邻居
+curl -X POST http://localhost:8003/api/graph/expand -H "Content-Type: application/json" -d '{"nodeId":"人员/person-00022","m":5,"n":1,"offset":5,"domain":"demo-region"}'
+```
 
 **请求体**（JSON）：
 
@@ -132,6 +168,16 @@
 ### 2.4 GET `/api/graph/nodes`
 
 按节点 ID 查询，用于 URL 首屏节点定位。
+
+**请求示例**：
+
+```bash
+# 查询单个节点（URL 编码处理中文）
+curl "http://localhost:8003/api/graph/nodes?ids=%E4%BA%BA%E5%91%98%2Fperson-00022&domain=demo-region"
+
+# 浏览器中直接访问（中文可直接使用）
+# http://localhost:8003/api/graph/nodes?ids=人员/person-00022&domain=demo-region
+```
 
 **请求参数**：
 
