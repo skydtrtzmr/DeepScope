@@ -19,8 +19,8 @@
     "expandTrigger": "rightclick"
   },
   "batchLoad": {
-    "pageSize": 10,
-    "pageSizeMax": 30
+    "pageSize": 5,
+    "pageSizeMax": 10
   },
   "maxTotalNodes": 100
 }

@@ -198,7 +198,7 @@ export function GraphControl() {
           {isLoading ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
-            <span className="text-xs">分批加载</span>
+            <span className="text-sm">分批加载</span>
           )}
           {neighborState.hasTotal && (
             <span className="opacity-70 text-xs">({neighborState.loaded}/{neighborState.total})</span>
