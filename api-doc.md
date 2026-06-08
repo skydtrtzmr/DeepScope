@@ -1,8 +1,5 @@
 # DeepScope API 文档
 
-> 版本：1.0  
-> 最后更新：2026-06-07
-
 本文档描述 DeepScope 后端需实现的全部 HTTP 接口、数据模型及前端 URL 入参规范。
 
 > 前端配置相关（`apiBaseUrl`、探索/高亮/显示默认值等）请参见 [`frontend/Readme.md`](./frontend/Readme.md)。
@@ -14,9 +11,9 @@
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/domains` | 获取可用业务域列表 |
-| GET | `/api/graph/initial` | 初始图谱加载 |
-| POST | `/api/graph/expand` | BFS 多层节点展开 |
-| POST | `/api/graph/neighbors` | 分页加载直接邻居 |
+| GET | `/api/graph/initial` | 初始图谱加载（后端决定返回子图） |
+| POST | `/api/graph/expand` | 指定深度和每层数量的多层节点展开 |
+| POST | `/api/graph/neighbors` | 分页加载邻居 |
 | GET | `/api/graph/nodes` | 按 ID 查询节点 |
 
 所有图谱数据接口统一使用 **子图 JSON**（`nodes` + `edges`）格式。
@@ -59,7 +56,7 @@ curl http://localhost:8003/api/domains
 
 ### 2.2 GET `/api/graph/initial`
 
-初始加载图谱数据，完全由后端决定展示哪些节点（由 `mock_graph.json` 中的 `initialNodeIds` 控制），不受 `m`/`n` 影响。
+初始加载图谱数据，完全由后端决定展示哪些节点，不受 `m`/`n` 影响。
 
 **请求示例**：
 
@@ -143,7 +140,7 @@ curl -X POST http://localhost:8003/api/graph/expand -H "Content-Type: applicatio
 
 ### 2.4 POST `/api/graph/neighbors`
 
-分页加载直接邻居：传入已加载的邻居 ID 列表，后端排除后返回下一批未加载的直接邻居。不依赖顺序，与 BFS 展开互不干扰。
+分页加载邻居：传入已加载的邻居 ID 列表，后端排除后返回下一批未加载的直接邻居。不依赖顺序，与 BFS 展开互不干扰。
 
 **请求示例**：
 
@@ -245,7 +242,7 @@ curl "http://localhost:8003/api/graph/nodes?ids=%E4%BA%BA%E5%91%98%2Fperson-0002
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `id` | string | 否 | 边唯一标识 |
+| `id` | string | **是** | 边唯一标识 |
 | `source` | string | **是** | 源节点 ID |
 | `target` | string | **是** | 目标节点 ID |
 | `label` | string | 否 | 关系描述文本 |
