@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 
 function AppContent() {
-  const { setGraphData, fullData, setDomains, setCurrentDomain, currentDomain, selectNode, expandNode, updateExploreConfig, updateConfig, updateDisplaySettings, setMaxTotalNodes, setSliderLimits } = useGraphStore();
+  const { setGraphData, fullData, setDomains, setCurrentDomain, currentDomain, selectNode, bfsExpandNode, updateExploreConfig, updateBatchLoadConfig, updateConfig, updateDisplaySettings, setMaxTotalNodes, setSliderLimits } = useGraphStore();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [importError, setImportError] = useState('');
@@ -55,7 +55,11 @@ function AppContent() {
           updateDisplaySettings(cfg.display);
           console.log('[config] 已加载显示配置:', cfg.display);
         }
-        // 滑块上限（从 explore 和 highlight 中提取上限字段）
+        if (cfg?.batchLoad) {
+          updateBatchLoadConfig({ pageSize: cfg.batchLoad.pageSize ?? undefined });
+          console.log('[config] 已加载分批加载配置:', cfg.batchLoad);
+        }
+        // 滑块上限（从 explore、highlight、batchLoad 中提取上限字段）
         const limits: Partial<SliderLimits> = {};
         if (cfg.explore) {
           if (typeof cfg.explore.mMax === 'number') limits.exploreMMax = cfg.explore.mMax;
@@ -64,6 +68,9 @@ function AppContent() {
         if (cfg.highlight) {
           if (typeof cfg.highlight.directRelationsMax === 'number') limits.highlightDirectRelationsMax = cfg.highlight.directRelationsMax;
           if (typeof cfg.highlight.depthMax === 'number') limits.highlightDepthMax = cfg.highlight.depthMax;
+        }
+        if (cfg.batchLoad) {
+          if (typeof cfg.batchLoad.pageSizeMax === 'number') limits.batchLoadPageSizeMax = cfg.batchLoad.pageSizeMax;
         }
         if (Object.keys(limits).length > 0) {
           setSliderLimits(limits);
@@ -123,7 +130,7 @@ function AppContent() {
             setTimeout(() => {
               selectNode(nodeParam);
               if (hasUrlOverride || shouldExpand) {
-                expandNode(nodeParam, { m: urlM, n: urlN });
+                bfsExpandNode(nodeParam, { m: urlM, n: urlN });
               }
             }, 300);
           }
@@ -139,7 +146,7 @@ function AppContent() {
         initializedRef.current = true;
       })
       .catch(console.error);
-  }, [currentDomain, setGraphData, selectNode, expandNode]);
+  }, [currentDomain, setGraphData, selectNode, bfsExpandNode]);
 
   // 导入数据
   const handleImport = useCallback(() => {

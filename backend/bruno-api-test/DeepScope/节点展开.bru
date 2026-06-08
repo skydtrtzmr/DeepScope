@@ -12,11 +12,11 @@ post {
 
 body:json {
   {
-    "nodeId": "人员/person-00022",
-    "m": 5,
-    "n": 1,
-    "offset": 5,
-    "domain": "demo-region"
+      "nodeId": "项目/proj-00093",
+      "m": 5,
+      "n": 2,
+      "offset": 25,
+      "domain": "demo-core"
   }
 }
 
@@ -26,7 +26,7 @@ settings {
 }
 
 example {
-  name: 首次展开
+  name: 首次展开-项目
   
   request: {
     url: http://127.0.0.1:8003/api/graph/expand
@@ -34,20 +34,20 @@ example {
     mode: json
     body:json: {
       {
-        "nodeId": "人员/person-00022",
-        "m": 5,
-        "n": 2,
-        "offset": 0,
-        "domain": "demo-region"
+          "nodeId": "项目/proj-00093",
+          "m": 5,
+          "n": 2,
+          "offset": 0,
+          "domain": "demo-core"
       }
     }
   }
   
   response: {
     headers: {
-      date: Mon, 08 Jun 2026 06:35:12 GMT
+      date: Mon, 08 Jun 2026 06:40:36 GMT
       server: uvicorn
-      content-length: 6275
+      content-length: 17490
       content-type: application/json
     }
   
@@ -62,27 +62,293 @@ example {
         {
           "nodes": [
             {
-              "id": "组织/org-00016",
-              "label": "org-00016",
-              "category": "组织",
-              "description": "## 基本信息\n\n- **类型**: 小组\n- **状态**: 休眠\n- **部门/类别**: 职能组\n\n## 时间\n\n- **日期**: 2020-01-03\n- **创建**: 2020-01-03\n- **修改**: 2020-01-03",
+              "id": "人员/person-00778",
+              "label": "人员-00778",
+              "category": "人员",
+              "description": "## 基本信息\n\n- **类型**: 运营\n- **状态**: 在职\n- **部门/类别**: 运营部\n- **优先级**: 37\n\n## 关联\n\n- **所属组织**: org-00159\n\n## 时间\n\n- **日期**: 2020-08-25\n- **创建**: 2020-08-25\n- **修改**: 2020-08-25",
               "data": {
-                "rank": 923,
-                "domain": "demo-region"
+                "rank": 756,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#f59e0b",
+                "radius": 32
+              }
+            },
+            {
+              "id": "任务/task-05337",
+              "label": "任务-05337",
+              "category": "任务",
+              "description": "## 基本信息\n\n- **类型**: 测试\n- **部门/类别**: 普通\n- **优先级**: 28\n\n## 关联\n\n- **关联项目**: proj-00093\n\n## 时间\n\n- **日期**: 2024-11-14\n- **创建**: 2024-11-14\n- **修改**: 2024-11-14",
+              "data": {
+                "rank": 387,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#ef4444",
+                "radius": 32
+              }
+            },
+            {
+              "id": "任务/task-05408",
+              "label": "任务-05408",
+              "category": "任务",
+              "description": "## 基本信息\n\n- **类型**: 评审\n- **状态**: 进行中\n- **部门/类别**: 紧急\n- **优先级**: 85\n\n## 关联\n\n- **关联项目**: proj-00093\n\n## 时间\n\n- **日期**: 2022-02-02\n- **创建**: 2022-02-02\n- **修改**: 2022-02-02",
+              "data": {
+                "rank": 1018,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#ef4444",
+                "radius": 30
+              }
+            },
+            {
+              "id": "问答/qa-08804",
+              "label": "问答-08804",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 业务问题\n- **部门/类别**: 后端\n- **优先级**: 56\n\n## 关联\n\n- **关联项目**: proj-00093\n- **关联任务**: task-06502\n- **相关人员**: person-00717\n\n## 时间\n\n- **日期**: 2025-09-08\n- **创建**: 2025-09-08\n- **修改**: 2025-09-08",
+              "data": {
+                "rank": 358,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 30
+              }
+            },
+            {
+              "id": "问答/qa-08927",
+              "label": "问答-08927",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 使用问题\n- **状态**: 已解决\n- **部门/类别**: 前端\n- **优先级**: 20\n\n## 关联\n\n- **关联项目**: proj-00093\n- **关联任务**: task-02001\n- **相关人员**: person-01702\n\n## 时间\n\n- **日期**: 2020-09-30\n- **创建**: 2020-09-30\n- **修改**: 2020-09-30",
+              "data": {
+                "rank": 364,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 30
+              }
+            },
+            {
+              "id": "人员/person-00435",
+              "label": "人员-00435",
+              "category": "人员",
+              "description": "## 基本信息\n\n- **类型**: 设计师\n- **状态**: 借调\n- **部门/类别**: 管理部\n\n## 关联\n\n- **所属组织**: org-00310\n\n## 时间\n\n- **日期**: 2025-10-26\n- **创建**: 2025-10-26\n- **修改**: 2025-10-26",
+              "data": {
+                "rank": 1055,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#f59e0b",
+                "radius": 30
+              }
+            },
+            {
+              "id": "人员/person-00717",
+              "label": "人员-00717",
+              "category": "人员",
+              "description": "## 基本信息\n\n- **部门/类别**: 设计部\n\n## 关联\n\n- **所属组织**: org-00258\n\n## 时间\n\n- **日期**: 2025-01-06\n- **创建**: 2025-01-06\n- **修改**: 2025-01-06",
+              "data": {
+                "rank": 25,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#f59e0b",
+                "radius": 42
+              }
+            },
+            {
+              "id": "人员/person-00895",
+              "label": "人员-00895",
+              "category": "人员",
+              "description": "## 基本信息\n\n- **类型**: 设计师\n- **状态**: 在职\n- **部门/类别**: 设计部\n- **优先级**: 38\n\n## 关联\n\n- **所属组织**: org-00269\n\n## 时间\n\n- **日期**: 2024-07-19\n- **创建**: 2024-07-19\n- **修改**: 2024-07-19",
+              "data": {
+                "rank": 457,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#f59e0b",
+                "radius": 34
+              }
+            },
+            {
+              "id": "人员/person-01702",
+              "label": "人员-01702",
+              "category": "人员",
+              "description": "## 基本信息\n\n- **类型**: 设计师\n- **状态**: 在职\n- **优先级**: 16\n\n## 关联\n\n- **所属组织**: org-00090\n\n## 时间\n\n- **日期**: 2023-12-01\n- **创建**: 2023-12-01\n- **修改**: 2023-12-01",
+              "data": {
+                "rank": 83,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#f59e0b",
+                "radius": 40
+              }
+            },
+            {
+              "id": "任务/task-01986",
+              "label": "任务-01986",
+              "category": "任务",
+              "description": "## 基本信息\n\n- **状态**: 已完成\n- **优先级**: 32\n\n## 关联\n\n- **关联项目**: proj-00287\n\n## 时间\n\n- **日期**: 2023-10-21\n- **创建**: 2023-10-21\n- **修改**: 2023-10-21",
+              "data": {
+                "rank": 666,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#ef4444",
+                "radius": 30
+              }
+            },
+            {
+              "id": "任务/task-02001",
+              "label": "任务-02001",
+              "category": "任务",
+              "description": "## 基本信息\n\n- **类型**: 开发\n- **状态**: 已完成\n- **部门/类别**: 普通\n\n## 时间\n\n- **日期**: 2020-08-14\n- **创建**: 2020-08-14\n- **修改**: 2020-08-14",
+              "data": {
+                "rank": 220,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#ef4444",
+                "radius": 32
+              }
+            },
+            {
+              "id": "任务/task-04345",
+              "label": "任务-04345",
+              "category": "任务",
+              "description": "## 基本信息\n\n- **类型**: 部署\n- **状态**: 进行中\n- **部门/类别**: 普通\n- **优先级**: 12\n\n## 关联\n\n- **关联项目**: proj-00304\n\n## 时间\n\n- **日期**: 2025-11-10\n- **创建**: 2025-11-10\n- **修改**: 2025-11-10",
+              "data": {
+                "rank": 343,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#ef4444",
+                "radius": 32
+              }
+            },
+            {
+              "id": "任务/task-06381",
+              "label": "任务-06381",
+              "category": "任务",
+              "description": "## 基本信息\n\n- **类型**: 调研\n- **状态**: 阻塞中\n- **优先级**: 57\n\n## 关联\n\n- **关联项目**: proj-00096\n\n## 时间\n\n- **日期**: 2021-04-25\n- **创建**: 2021-04-25\n- **修改**: 2021-04-25",
+              "data": {
+                "rank": 2415,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#ef4444",
+                "radius": 28
+              }
+            },
+            {
+              "id": "任务/task-06502",
+              "label": "任务-06502",
+              "category": "任务",
+              "description": "## 基本信息\n\n- **类型**: 测试\n- **状态**: 待处理\n- **部门/类别**: 普通\n- **优先级**: 10\n\n## 关联\n\n- **关联项目**: proj-00339\n\n## 时间\n\n- **日期**: 2024-09-26\n- **创建**: 2024-09-26\n- **修改**: 2024-09-26",
+              "data": {
+                "rank": 4281,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#ef4444",
+                "radius": 26
+              }
+            },
+            {
+              "id": "组织/org-00159",
+              "label": "组织-00159",
+              "category": "组织",
+              "description": "## 基本信息\n\n- **类型**: 小组\n- **状态**: 休眠\n- **优先级**: 19\n\n## 时间\n\n- **日期**: 2024-07-09\n- **创建**: 2024-07-09\n- **修改**: 2024-07-09",
+              "data": {
+                "rank": 58,
+                "domain": "demo-core"
               },
               "style": {
                 "fill": "#6366f1",
-                "radius": 44
+                "radius": 34
               }
             },
             {
-              "id": "问答/qa-00392",
-              "label": "qa-00392",
+              "id": "问答/qa-00502",
+              "label": "问答-00502",
               "category": "问答",
-              "description": "## 基本信息\n\n- **类型**: 流程问题\n- **状态**: 已回复\n- **部门/类别**: 运维\n- **优先级**: 42\n\n## 关联\n\n- **关联项目**: proj-00052\n- **关联任务**: task-00334\n\n## 时间\n\n- **日期**: 2021-12-11\n- **创建**: 2021-12-11\n- **修改**: 2021-12-11",
+              "description": "## 基本信息\n\n- **类型**: 使用问题\n- **状态**: 已关闭\n- **优先级**: 62\n\n## 关联\n\n- **关联任务**: task-01546\n- **相关人员**: person-00778\n\n## 时间\n\n- **日期**: 2020-07-08\n- **创建**: 2020-07-08\n- **修改**: 2020-07-08",
               "data": {
-                "rank": 1341,
-                "domain": "demo-region"
+                "rank": 490,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 28
+              }
+            },
+            {
+              "id": "问答/qa-00786",
+              "label": "问答-00786",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 流程问题\n- **状态**: 已解决\n- **部门/类别**: 后端\n- **优先级**: 67\n\n## 关联\n\n- **关联项目**: proj-00373\n- **关联任务**: task-03065\n- **相关人员**: person-01194\n\n## 时间\n\n- **日期**: 2024-05-29\n- **创建**: 2024-05-29\n- **修改**: 2024-05-29",
+              "data": {
+                "rank": 37,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 30
+              }
+            },
+            {
+              "id": "问答/qa-01212",
+              "label": "问答-01212",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 方案咨询\n- **状态**: 已解决\n- **部门/类别**: 前端\n- **优先级**: 24\n\n## 关联\n\n- **关联项目**: proj-00593\n- **关联任务**: task-05408\n\n## 时间\n\n- **日期**: 2022-08-17\n- **创建**: 2022-08-17\n- **修改**: 2022-08-17",
+              "data": {
+                "rank": 5397,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 24
+              }
+            },
+            {
+              "id": "问答/qa-02515",
+              "label": "问答-02515",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 使用问题\n- **状态**: 待补充\n- **优先级**: 9\n\n## 关联\n\n- **关联项目**: proj-00326\n- **关联任务**: task-05337\n\n## 时间\n\n- **日期**: 2020-07-11\n- **创建**: 2020-07-11\n- **修改**: 2020-07-11",
+              "data": {
+                "rank": 823,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 28
+              }
+            },
+            {
+              "id": "问答/qa-02785",
+              "label": "问答-02785",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 使用问题\n- **状态**: 已关闭\n- **部门/类别**: 算法\n- **优先级**: 23\n\n## 关联\n\n- **关联任务**: task-05337\n\n## 时间\n\n- **日期**: 2024-04-15\n- **创建**: 2024-04-15\n- **修改**: 2024-04-15",
+              "data": {
+                "rank": 5853,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 24
+              }
+            },
+            {
+              "id": "问答/qa-04235",
+              "label": "问答-04235",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 使用问题\n- **状态**: 已关闭\n- **部门/类别**: 后端\n- **优先级**: 95\n\n## 关联\n\n- **关联任务**: task-05408\n\n## 时间\n\n- **日期**: 2024-09-26\n- **创建**: 2024-09-26\n- **修改**: 2024-09-26",
+              "data": {
+                "rank": 3373,
+                "domain": "demo-core"
               },
               "style": {
                 "fill": "#8b5cf6",
@@ -90,13 +356,13 @@ example {
               }
             },
             {
-              "id": "问答/qa-00562",
-              "label": "qa-00562",
+              "id": "问答/qa-04459",
+              "label": "问答-04459",
               "category": "问答",
-              "description": "## 基本信息\n\n- **状态**: 待补充\n- **优先级**: 34\n\n## 关联\n\n- **关联任务**: task-00431\n- **相关人员**: person-00022\n\n## 时间\n\n- **日期**: 2024-04-28\n- **创建**: 2024-04-28\n- **修改**: 2024-04-28",
+              "description": "## 基本信息\n\n- **类型**: 技术问题\n- **状态**: 已解决\n- **部门/类别**: 前端\n- **优先级**: 13\n\n## 关联\n\n- **关联任务**: task-05337\n- **相关人员**: person-01322\n\n## 时间\n\n- **日期**: 2024-01-25\n- **创建**: 2024-01-25\n- **修改**: 2024-01-25",
               "data": {
-                "rank": 1511,
-                "domain": "demo-region"
+                "rank": 3440,
+                "domain": "demo-core"
               },
               "style": {
                 "fill": "#8b5cf6",
@@ -104,247 +370,643 @@ example {
               }
             },
             {
-              "id": "人员/person-00011",
-              "label": "person-00011",
-              "category": "人员",
-              "description": "## 基本信息\n\n- **类型**: 产品经理\n- **状态**: 在职\n- **优先级**: 87\n\n## 关联\n\n- **所属组织**: org-00016\n\n## 时间\n\n- **日期**: 2023-07-26\n- **创建**: 2023-07-26\n- **修改**: 2023-07-26",
+              "id": "问答/qa-04482",
+              "label": "问答-04482",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 技术问题\n- **状态**: 已回复\n- **部门/类别**: 算法\n\n## 关联\n\n- **关联项目**: proj-00417\n\n## 时间\n\n- **日期**: 2021-09-07\n- **创建**: 2021-09-07\n- **修改**: 2021-09-07",
               "data": {
-                "rank": 14,
-                "domain": "demo-region"
+                "rank": 3447,
+                "domain": "demo-core"
               },
               "style": {
-                "fill": "#f59e0b",
-                "radius": 34
-              }
-            },
-            {
-              "id": "人员/person-00086",
-              "label": "person-00086",
-              "category": "人员",
-              "description": "## 基本信息\n\n- **类型**: 测试\n- **状态**: 在职\n- **部门/类别**: 运营部\n\n## 关联\n\n- **所属组织**: org-00016\n\n## 时间\n\n- **日期**: 2024-07-22\n- **创建**: 2024-07-22\n- **修改**: 2024-07-22",
-              "data": {
-                "rank": 89,
-                "domain": "demo-region"
-              },
-              "style": {
-                "fill": "#f59e0b",
-                "radius": 34
-              }
-            },
-            {
-              "id": "人员/person-00120",
-              "label": "person-00120",
-              "category": "人员",
-              "description": "## 基本信息\n\n- **类型**: 工程师\n- **状态**: 离职\n- **优先级**: 7\n\n## 关联\n\n- **所属组织**: org-00016\n\n## 时间\n\n- **日期**: 2024-04-08\n- **创建**: 2024-04-08\n- **修改**: 2024-04-08",
-              "data": {
-                "rank": 123,
-                "domain": "demo-region"
-              },
-              "style": {
-                "fill": "#f59e0b",
-                "radius": 34
-              }
-            },
-            {
-              "id": "任务/task-00334",
-              "label": "task-00334",
-              "category": "任务",
-              "description": "## 基本信息\n\n- **类型**: 开发\n- **状态**: 待处理\n- **部门/类别**: 例行\n- **优先级**: 96\n\n## 关联\n\n- **关联项目**: proj-00052\n\n## 时间\n\n- **日期**: 2024-11-20\n- **创建**: 2024-11-20\n- **修改**: 2024-11-20",
-              "data": {
-                "rank": 539,
-                "domain": "demo-region"
-              },
-              "style": {
-                "fill": "#ef4444",
+                "fill": "#8b5cf6",
                 "radius": 26
               }
             },
             {
-              "id": "任务/task-00431",
-              "label": "task-00431",
-              "category": "任务",
-              "description": "## 基本信息\n\n- **类型**: 文档\n- **状态**: 进行中\n\n## 关联\n\n- **关联项目**: proj-00009\n\n## 时间\n\n- **日期**: 2025-06-27\n- **创建**: 2025-06-27\n- **修改**: 2025-06-27",
+              "id": "问答/qa-07448",
+              "label": "问答-07448",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 技术问题\n- **状态**: 待补充\n- **部门/类别**: 后端\n- **优先级**: 41\n\n## 关联\n\n- **关联项目**: proj-00572\n- **关联任务**: task-05408\n- **相关人员**: person-00387\n\n## 时间\n\n- **日期**: 2022-06-16\n- **创建**: 2022-06-16\n- **修改**: 2022-06-16",
               "data": {
-                "rank": 636,
-                "domain": "demo-region"
+                "rank": 4325,
+                "domain": "demo-core"
               },
               "style": {
-                "fill": "#ef4444",
+                "fill": "#8b5cf6",
                 "radius": 26
               }
             },
             {
-              "id": "项目/proj-00034",
-              "label": "proj-00034",
-              "category": "项目",
-              "description": "## 基本信息\n\n- **类型**: 技术预研\n- **状态**: 进行中\n- **部门/类别**: 技术\n- **优先级**: 4\n\n## 关联\n\n- **负责人**: person-00139\n\n## 时间\n\n- **日期**: 2024-12-13\n- **创建**: 2024-12-13\n- **修改**: 2024-12-13",
+              "id": "问答/qa-09602",
+              "label": "问答-09602",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **状态**: 已解决\n- **部门/类别**: 数据\n\n## 关联\n\n- **关联项目**: proj-00594\n- **相关人员**: person-00778\n\n## 时间\n\n- **日期**: 2023-12-29\n- **创建**: 2023-12-29\n- **修改**: 2023-12-29",
               "data": {
-                "rank": 1985,
-                "domain": "demo-region"
+                "rank": 7783,
+                "domain": "demo-core"
               },
               "style": {
-                "fill": "#10b981",
-                "radius": 44
+                "fill": "#8b5cf6",
+                "radius": 24
               }
             },
             {
-              "id": "项目/proj-00052",
-              "label": "proj-00052",
-              "category": "项目",
-              "description": "## 基本信息\n\n- **类型**: 基础设施建设\n- **状态**: 已暂停\n- **优先级**: 55\n\n## 关联\n\n- **负责人**: person-00001\n\n## 时间\n\n- **日期**: 2023-09-18\n- **创建**: 2023-09-18\n- **修改**: 2023-09-18",
+              "id": "问答/qa-09938",
+              "label": "问答-09938",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 技术问题\n- **优先级**: 61\n\n## 时间\n\n- **日期**: 2021-12-11\n- **创建**: 2021-12-11\n- **修改**: 2021-12-11",
               "data": {
-                "rank": 2003,
-                "domain": "demo-region"
+                "rank": 7892,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 24
+              }
+            },
+            {
+              "id": "项目/proj-00170",
+              "label": "项目-00170",
+              "category": "项目",
+              "description": "## 基本信息\n\n- **类型**: 市场推广\n- **状态**: 已取消\n- **部门/类别**: 业务\n- **优先级**: 73\n\n## 时间\n\n- **日期**: 2020-09-25\n- **创建**: 2020-09-25\n- **修改**: 2020-09-25",
+              "data": {
+                "rank": 332,
+                "domain": "demo-core"
               },
               "style": {
                 "fill": "#10b981",
-                "radius": 44
+                "radius": 50
               }
             }
           ],
           "edges": [
             {
-              "id": "人员/person-00022--组织/org-00016--link",
-              "source": "人员/person-00022",
-              "target": "组织/org-00016",
-              "label": "关联",
+              "id": "任务/task-05337--项目/proj-00093--link",
+              "source": "任务/task-05337",
+              "target": "项目/proj-00093",
+              "label": "包含任务",
               "data": {
-                "category": "关联",
-                "domain": "demo-region"
+                "category": "项目-任务",
+                "domain": "demo-core"
               },
               "style": {
-                "stroke": "#cbd5e1",
+                "stroke": "#f87171",
                 "lineWidth": 1
               }
             },
             {
-              "id": "问答/qa-00392--人员/person-00022--link",
-              "source": "问答/qa-00392",
-              "target": "人员/person-00022",
-              "label": "关联",
+              "id": "任务/task-05408--项目/proj-00093--link",
+              "source": "任务/task-05408",
+              "target": "项目/proj-00093",
+              "label": "包含任务",
               "data": {
-                "category": "关联",
-                "domain": "demo-region"
+                "category": "项目-任务",
+                "domain": "demo-core"
               },
               "style": {
-                "stroke": "#cbd5e1",
+                "stroke": "#f87171",
                 "lineWidth": 1
               }
             },
             {
-              "id": "问答/qa-00562--人员/person-00022--link",
-              "source": "问答/qa-00562",
-              "target": "人员/person-00022",
-              "label": "关联",
+              "id": "问答/qa-08804--项目/proj-00093--link",
+              "source": "问答/qa-08804",
+              "target": "项目/proj-00093",
+              "label": "相关问答",
               "data": {
-                "category": "关联",
-                "domain": "demo-region"
+                "category": "项目-问答",
+                "domain": "demo-core"
               },
               "style": {
-                "stroke": "#cbd5e1",
+                "stroke": "#c084fc",
                 "lineWidth": 1
               }
             },
             {
-              "id": "人员/person-00011--组织/org-00016--link",
-              "source": "人员/person-00011",
-              "target": "组织/org-00016",
-              "label": "关联",
+              "id": "问答/qa-08927--项目/proj-00093--link",
+              "source": "问答/qa-08927",
+              "target": "项目/proj-00093",
+              "label": "相关问答",
               "data": {
-                "category": "关联",
-                "domain": "demo-region"
+                "category": "项目-问答",
+                "domain": "demo-core"
               },
               "style": {
-                "stroke": "#cbd5e1",
+                "stroke": "#c084fc",
                 "lineWidth": 1
               }
             },
             {
-              "id": "人员/person-00086--组织/org-00016--link",
-              "source": "人员/person-00086",
-              "target": "组织/org-00016",
-              "label": "关联",
+              "id": "项目/proj-00093--人员/person-00778--link",
+              "source": "项目/proj-00093",
+              "target": "人员/person-00778",
+              "label": "参与项目",
               "data": {
-                "category": "关联",
-                "domain": "demo-region"
+                "category": "人员-项目",
+                "domain": "demo-core"
               },
               "style": {
-                "stroke": "#cbd5e1",
+                "stroke": "#34d399",
                 "lineWidth": 1
               }
             },
             {
-              "id": "人员/person-00120--组织/org-00016--link",
-              "source": "人员/person-00120",
-              "target": "组织/org-00016",
-              "label": "关联",
+              "id": "人员/person-00778--组织/org-00159--link",
+              "source": "人员/person-00778",
+              "target": "组织/org-00159",
+              "label": "所属组织",
               "data": {
-                "category": "关联",
-                "domain": "demo-region"
+                "category": "人员-组织",
+                "domain": "demo-core"
               },
               "style": {
-                "stroke": "#cbd5e1",
+                "stroke": "#818cf8",
                 "lineWidth": 1
               }
             },
             {
-              "id": "问答/qa-00392--项目/proj-00052--link",
-              "source": "问答/qa-00392",
-              "target": "项目/proj-00052",
-              "label": "关联",
+              "id": "任务/task-05337--人员/person-00435--link",
+              "source": "任务/task-05337",
+              "target": "人员/person-00435",
+              "label": "负责任务",
               "data": {
-                "category": "关联",
-                "domain": "demo-region"
+                "category": "人员-任务",
+                "domain": "demo-core"
               },
               "style": {
-                "stroke": "#cbd5e1",
+                "stroke": "#f87171",
                 "lineWidth": 1
               }
             },
             {
-              "id": "问答/qa-00392--任务/task-00334--link",
-              "source": "问答/qa-00392",
-              "target": "任务/task-00334",
-              "label": "关联",
+              "id": "问答/qa-00502--人员/person-00778--link",
+              "source": "问答/qa-00502",
+              "target": "人员/person-00778",
+              "label": "相关问答",
               "data": {
-                "category": "关联",
-                "domain": "demo-region"
+                "category": "人员-问答",
+                "domain": "demo-core"
               },
               "style": {
-                "stroke": "#cbd5e1",
+                "stroke": "#c084fc",
                 "lineWidth": 1
               }
             },
             {
-              "id": "问答/qa-00392--项目/proj-00034--link",
-              "source": "问答/qa-00392",
-              "target": "项目/proj-00034",
-              "label": "关联",
+              "id": "问答/qa-00786--人员/person-00778--link",
+              "source": "问答/qa-00786",
+              "target": "人员/person-00778",
+              "label": "相关问答",
               "data": {
-                "category": "关联",
-                "domain": "demo-region"
+                "category": "人员-问答",
+                "domain": "demo-core"
               },
               "style": {
-                "stroke": "#cbd5e1",
+                "stroke": "#c084fc",
                 "lineWidth": 1
               }
             },
             {
-              "id": "问答/qa-00562--任务/task-00431--link",
-              "source": "问答/qa-00562",
-              "target": "任务/task-00431",
-              "label": "关联",
+              "id": "问答/qa-01212--任务/task-05408--link",
+              "source": "问答/qa-01212",
+              "target": "任务/task-05408",
+              "label": "相关问答",
               "data": {
-                "category": "关联",
-                "domain": "demo-region"
+                "category": "任务-问答",
+                "domain": "demo-core"
               },
               "style": {
-                "stroke": "#cbd5e1",
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-02515--任务/task-05337--link",
+              "source": "问答/qa-02515",
+              "target": "任务/task-05337",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-02785--任务/task-05337--link",
+              "source": "问答/qa-02785",
+              "target": "任务/task-05337",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-04235--任务/task-05408--link",
+              "source": "问答/qa-04235",
+              "target": "任务/task-05408",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-04459--任务/task-05337--link",
+              "source": "问答/qa-04459",
+              "target": "任务/task-05337",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-04482--任务/task-05337--link",
+              "source": "问答/qa-04482",
+              "target": "任务/task-05337",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-07448--任务/task-05408--link",
+              "source": "问答/qa-07448",
+              "target": "任务/task-05408",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-08804--任务/task-06502--link",
+              "source": "问答/qa-08804",
+              "target": "任务/task-06502",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-08804--人员/person-00717--link",
+              "source": "问答/qa-08804",
+              "target": "人员/person-00717",
+              "label": "相关问答",
+              "data": {
+                "category": "人员-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-08804--任务/task-06381--link",
+              "source": "问答/qa-08804",
+              "target": "任务/task-06381",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-08804--任务/task-01986--link",
+              "source": "问答/qa-08804",
+              "target": "任务/task-01986",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-08927--任务/task-02001--link",
+              "source": "问答/qa-08927",
+              "target": "任务/task-02001",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-08927--人员/person-01702--link",
+              "source": "问答/qa-08927",
+              "target": "人员/person-01702",
+              "label": "相关问答",
+              "data": {
+                "category": "人员-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-08927--任务/task-04345--link",
+              "source": "问答/qa-08927",
+              "target": "任务/task-04345",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-08927--人员/person-00895--link",
+              "source": "问答/qa-08927",
+              "target": "人员/person-00895",
+              "label": "相关问答",
+              "data": {
+                "category": "人员-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-09602--人员/person-00778--link",
+              "source": "问答/qa-09602",
+              "target": "人员/person-00778",
+              "label": "相关问答",
+              "data": {
+                "category": "人员-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-09938--任务/task-05408--link",
+              "source": "问答/qa-09938",
+              "target": "任务/task-05408",
+              "label": "相关问答",
+              "data": {
+                "category": "任务-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "项目/proj-00170--人员/person-00778--link",
+              "source": "项目/proj-00170",
+              "target": "人员/person-00778",
+              "label": "参与项目",
+              "data": {
+                "category": "人员-项目",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#34d399",
                 "lineWidth": 1
               }
             }
           ],
-          "totalNeighbors": 3
+          "totalNeighbors": 23
+        }
+      '''
+    }
+  }
+}
+
+example {
+  name: 展开更多-项目
+  
+  request: {
+    url: http://127.0.0.1:8003/api/graph/expand
+    method: POST
+    mode: json
+    body:json: {
+      {
+          "nodeId": "项目/proj-00093",
+          "m": 5,
+          "n": 1,
+          "offset": 5,
+          "domain": "demo-core"
+      }
+    }
+  }
+  
+  response: {
+    headers: {
+      date: Mon, 08 Jun 2026 06:41:15 GMT
+      server: uvicorn
+      content-length: 3291
+      content-type: application/json
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "nodes": [
+            {
+              "id": "任务/task-01833",
+              "label": "任务-01833",
+              "category": "任务",
+              "description": "## 基本信息\n\n- **类型**: 测试\n- **状态**: 阻塞中\n\n## 关联\n\n- **关联项目**: proj-00093\n\n## 时间\n\n- **日期**: 2020-03-28\n- **创建**: 2020-03-28\n- **修改**: 2020-03-28",
+              "data": {
+                "rank": 1541,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#ef4444",
+                "radius": 28
+              }
+            },
+            {
+              "id": "任务/task-04454",
+              "label": "任务-04454",
+              "category": "任务",
+              "description": "## 基本信息\n\n- **类型**: 评审\n- **状态**: 进行中\n- **部门/类别**: 紧急\n- **优先级**: 95\n\n## 关联\n\n- **关联项目**: proj-00093\n\n## 时间\n\n- **日期**: 2020-09-28\n- **创建**: 2020-09-28\n- **修改**: 2020-09-28",
+              "data": {
+                "rank": 2032,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#ef4444",
+                "radius": 28
+              }
+            },
+            {
+              "id": "问答/qa-00313",
+              "label": "问答-00313",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 流程问题\n- **状态**: 已解决\n\n## 关联\n\n- **关联项目**: proj-00093\n- **关联任务**: task-02362\n- **相关人员**: person-00731\n\n## 时间\n\n- **日期**: 2020-05-21\n- **创建**: 2020-05-21\n- **修改**: 2020-05-21",
+              "data": {
+                "rank": 2219,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 26
+              }
+            },
+            {
+              "id": "问答/qa-04667",
+              "label": "问答-04667",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **状态**: 待回复\n- **优先级**: 76\n\n## 关联\n\n- **关联项目**: proj-00093\n- **相关人员**: person-00900\n\n## 时间\n\n- **日期**: 2022-03-20\n- **创建**: 2022-03-20\n- **修改**: 2022-03-20",
+              "data": {
+                "rank": 1202,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 28
+              }
+            },
+            {
+              "id": "问答/qa-09900",
+              "label": "问答-09900",
+              "category": "问答",
+              "description": "## 基本信息\n\n- **类型**: 使用问题\n- **状态**: 已关闭\n- **部门/类别**: 运维\n- **优先级**: 35\n\n## 关联\n\n- **关联项目**: proj-00093\n- **关联任务**: task-06574\n\n## 时间\n\n- **日期**: 2024-05-07\n- **创建**: 2024-05-07\n- **修改**: 2024-05-07",
+              "data": {
+                "rank": 2109,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#8b5cf6",
+                "radius": 28
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "任务/task-01833--项目/proj-00093--link",
+              "source": "任务/task-01833",
+              "target": "项目/proj-00093",
+              "label": "包含任务",
+              "data": {
+                "category": "项目-任务",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#f87171",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "任务/task-04454--项目/proj-00093--link",
+              "source": "任务/task-04454",
+              "target": "项目/proj-00093",
+              "label": "包含任务",
+              "data": {
+                "category": "项目-任务",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#f87171",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-00313--项目/proj-00093--link",
+              "source": "问答/qa-00313",
+              "target": "项目/proj-00093",
+              "label": "相关问答",
+              "data": {
+                "category": "项目-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-04667--项目/proj-00093--link",
+              "source": "问答/qa-04667",
+              "target": "项目/proj-00093",
+              "label": "相关问答",
+              "data": {
+                "category": "项目-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            },
+            {
+              "id": "问答/qa-09900--项目/proj-00093--link",
+              "source": "问答/qa-09900",
+              "target": "项目/proj-00093",
+              "label": "相关问答",
+              "data": {
+                "category": "项目-问答",
+                "domain": "demo-core"
+              },
+              "style": {
+                "stroke": "#c084fc",
+                "lineWidth": 1
+              }
+            }
+          ],
+          "totalNeighbors": 23
         }
       '''
     }

@@ -43,8 +43,8 @@ export function GraphControl() {
 
   const {
     fullData, goBack, reset, nodeHistory, selectNode, selectedNodeId,
-    updateExploreConfig, exploreConfig, sliderLimits,
-    expandNode, getExploreButtonState, isLoading,
+    updateExploreConfig, exploreConfig, updateBatchLoadConfig, batchLoadConfig, sliderLimits,
+    bfsExpandNode, loadMoreNeighbors, getNeighborButtonState, isLoading,
   } = useGraphStore();
 
   const mSlider = useDebouncedSlider('directRelations', SLIDER_DEBOUNCE_MS);
@@ -52,7 +52,7 @@ export function GraphControl() {
 
   if (!selectedNodeId || !fullData) return null;
 
-  const buttonState = getExploreButtonState(selectedNodeId);
+  const neighborState = getNeighborButtonState(selectedNodeId);
 
   const node = fullData.nodes.find((n) => n.id === selectedNodeId);
   if (!node) return null;
@@ -136,22 +136,72 @@ export function GraphControl() {
           </div>
         </div>
 
-        {/* 探索按钮 */}
+        {/* 多层展开按钮 */}
         <Button
           size="sm"
-          variant={buttonState.type === 'done' ? 'outline' : 'default'}
+          variant="default"
           className="w-full gap-1.5"
-          onClick={() => expandNode(selectedNodeId)}
-          disabled={buttonState.type === 'done' || isLoading}
+          onClick={() => bfsExpandNode(selectedNodeId)}
+          disabled={isLoading}
         >
           {isLoading ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
             <Compass className="h-3 w-3" />
           )}
-          {buttonState.label}
-          {buttonState.type === 'more' && (
-            <span className="opacity-70">({buttonState.loaded}/{buttonState.total})</span>
+          多层展开
+        </Button>
+
+        {/* ── 分割线 ── */}
+        <div className="border-t pt-3" />
+
+        {/* 分批加载：每批数量滑块 */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">每批数量</Label>
+            <span className="text-xs font-medium tabular-nums">{batchLoadConfig.pageSize}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline" size="sm" className="size-6 p-0"
+              onClick={() => updateBatchLoadConfig({ pageSize: Math.max(1, batchLoadConfig.pageSize - 1) })}
+              disabled={batchLoadConfig.pageSize <= 1}
+            >
+              <Minus className="h-2.5 w-2.5" />
+            </Button>
+            <Slider
+              value={[batchLoadConfig.pageSize]}
+              onValueChange={([value]) => updateBatchLoadConfig({ pageSize: value })}
+              min={1}
+              max={sliderLimits.batchLoadPageSizeMax}
+              step={1}
+              className="flex-1"
+            />
+            <Button
+              variant="outline" size="sm" className="size-6 p-0"
+              onClick={() => updateBatchLoadConfig({ pageSize: Math.min(sliderLimits.batchLoadPageSizeMax, batchLoadConfig.pageSize + 1) })}
+              disabled={batchLoadConfig.pageSize >= sliderLimits.batchLoadPageSizeMax}
+            >
+              <Plus className="h-2.5 w-2.5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* 分批加载按钮 */}
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full gap-1.5"
+          onClick={() => loadMoreNeighbors(selectedNodeId)}
+          disabled={neighborState.hasTotal && neighborState.loaded >= neighborState.total || isLoading}
+        >
+          {isLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <span className="text-xs">分批加载</span>
+          )}
+          {neighborState.hasTotal && (
+            <span className="opacity-70 text-xs">({neighborState.loaded}/{neighborState.total})</span>
           )}
         </Button>
 

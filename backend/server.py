@@ -116,7 +116,13 @@ class ExpandRequest(BaseModel):
     nodeId: str
     m: int = 5
     n: int = 2
-    offset: int = 0
+    domain: str = DEFAULT_DOMAIN
+
+
+class NeighborRequest(BaseModel):
+    nodeId: str
+    limit: int = 5
+    excludeIds: list[str] = []
     domain: str = DEFAULT_DOMAIN
 
 
@@ -256,17 +262,21 @@ async def fetch_nodes_by_ids(
 @app.post("/api/graph/expand", response_model=ExpandResponse)
 async def expand_graph(req: ExpandRequest):
     """
-    节点展开（POST）：
-    - offset == 0: 多层 BFS 展开，每节点每层最多 m 个新邻居，最大深度 n
-    - offset > 0:  分页加载直接邻居（n 强制为 1）
-    - 后端全量返回邻居节点和边，去重由前端负责
+    节点 BFS 多层展开：每节点每层最多 m 个新邻居，最大深度 n。
     """
     domain = req.domain or DEFAULT_DOMAIN
-
     with get_db(domain) as conn:
-        if req.offset > 0:
-            return _paginate_direct_neighbors(conn, req.nodeId, req.m, req.offset, domain)
         return _bfs_expand(conn, req.nodeId, req.m, req.n, domain)
+
+
+@app.post("/api/graph/neighbors", response_model=ExpandResponse)
+async def paginate_neighbors(req: NeighborRequest):
+    """
+    分页加载直接邻居：排除 excludeIds 中已有的邻居，返回 limit 个未加载的直接邻居。
+    """
+    domain = req.domain or DEFAULT_DOMAIN
+    with get_db(domain) as conn:
+        return _paginate_direct_neighbors(conn, req.nodeId, req.limit, req.excludeIds, domain)
 
 
 # ── 内部函数 ────────────────────────────────────────────
@@ -304,13 +314,14 @@ def _get_neighbor_ids_sorted(
 def _paginate_direct_neighbors(
     conn: sqlite3.Connection,
     node_id: str,
-    m: int,
-    offset: int,
+    limit: int,
+    exclude_ids: list[str],
     domain: str,
 ) -> ExpandResponse:
     all_neighbors = _get_neighbor_ids_sorted(conn, node_id, set(), domain)
     total_neighbors = len(all_neighbors)
-    page_ids = all_neighbors[offset : offset + m]
+    exclude_set = set(exclude_ids)
+    page_ids = [nid for nid in all_neighbors if nid not in exclude_set][:limit]
 
     if not page_ids:
         return ExpandResponse(nodes=[], edges=[], totalNeighbors=total_neighbors)

@@ -58,24 +58,30 @@ export interface GraphConfig {
 
 // 滑块上限配置
 export interface SliderLimits {
-  exploreMMax: number;             // 探索：每层加载数量上限
-  exploreNMax: number;             // 探索：深度上限
+  exploreMMax: number;             // 多层展开：每层分支上限
+  exploreNMax: number;             // 多层展开：深度上限
+  batchLoadPageSizeMax: number;    // 分批加载：每批数量上限
   highlightDirectRelationsMax: number; // 高亮：每层邻居上限滑块 max
   highlightDepthMax: number;       // 高亮：深度上限滑块 max
 }
 
-// 探索配置（控制 API 请求参数）
+// 多层展开配置（控制 BFS API 参数）
 export interface ExploreConfig {
   m: number; // 每节点每层展开邻居上限
   n: number; // 探索深度
 }
 
-// 探索按钮状态
-export type ExploreButtonState =
-  | { type: 'explore'; label: '探索此节点' }
-  | { type: 'deeper'; label: '探索更深' }
-  | { type: 'more'; label: '加载更多'; loaded: number; total: number }
-  | { type: 'done'; label: '已全部探索' };
+// 分批加载配置（控制 neighbors API 参数）
+export interface BatchLoadConfig {
+  pageSize: number; // 每批直接邻居数量
+}
+
+// 加载更多邻居按钮状态
+export interface NeighborButtonState {
+  loaded: number;
+  total: number;
+  hasTotal: boolean;  // total 是否已知（即已展开过至少一次）
+}
 
 // 关联节点详情（用于列表展示）
 export interface RelatedNodeDetail {

@@ -1,17 +1,15 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import type {
-  GraphData, GraphNode, GraphEdge, GraphConfig, ExploreConfig,
-  ExploreButtonState, RelatedNodeDetail, DomainItem, DisplaySettings,
+  GraphData, GraphNode, GraphEdge, GraphConfig, ExploreConfig, BatchLoadConfig,
+  NeighborButtonState, RelatedNodeDetail, DomainItem, DisplaySettings,
   SliderLimits,
 } from '@/types/graph';
-import { expandGraph } from '@/lib/api';
+import { expandGraph, fetchNeighbors } from '@/lib/api';
 
-/** 每个节点的探索状态 */
+/** 每个节点的探索状态（仅记录后端返回的直接邻居总数，loaded 实时从 edges 计算） */
 interface NodeExpansionState {
-  loadedDirectCount: number;
   totalDirectCount: number;
-  maxDepthExplored: number;
 }
 
 interface GraphState {
@@ -28,6 +26,9 @@ interface GraphState {
 
   // 探索配置（控制 API 请求参数）
   exploreConfig: ExploreConfig;
+
+  // 分批加载配置（控制加载更多邻居按钮）
+  batchLoadConfig: BatchLoadConfig;
 
   // 显示配置（控制 G6 渲染样式）
   displaySettings: DisplaySettings;
@@ -61,16 +62,18 @@ interface GraphState {
 
   // Actions
   setGraphData: (data: GraphData) => void;
-  expandNode: (nodeId: string, overrides?: { m?: number; n?: number }) => Promise<void>;
+  bfsExpandNode: (nodeId: string, overrides?: { m?: number; n?: number }) => Promise<void>;
+  loadMoreNeighbors: (nodeId: string) => Promise<void>;
   commitAddition: (nodes: GraphNode[], edges: GraphEdge[]) => void;
   selectNode: (nodeId: string | null) => void;
   highlightNode: (nodeId: string | null) => void;
   updateConfig: (config: Partial<GraphConfig>) => void;
   updateDisplaySettings: (settings: Partial<DisplaySettings>) => void;
   updateExploreConfig: (config: Partial<ExploreConfig>) => void;
+  updateBatchLoadConfig: (config: Partial<BatchLoadConfig>) => void;
   setMaxTotalNodes: (n: number) => void;
   setSliderLimits: (limits: Partial<SliderLimits>) => void;
-  getExploreButtonState: (nodeId: string) => ExploreButtonState;
+  getNeighborButtonState: (nodeId: string) => NeighborButtonState;
   goBack: () => void;
   reset: () => void;
   setDomains: (domains: DomainItem[]) => void;
@@ -87,6 +90,10 @@ const DEFAULT_EXPLORE_CONFIG: ExploreConfig = {
   n: 1,
 };
 
+const DEFAULT_BATCH_LOAD_CONFIG: BatchLoadConfig = {
+  pageSize: 10,
+};
+
 const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   showEdgeArrows: false,
   showEdgeLabels: false,
@@ -97,6 +104,7 @@ const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
 const DEFAULT_SLIDER_LIMITS: SliderLimits = {
   exploreMMax: 20,
   exploreNMax: 5,
+  batchLoadPageSizeMax: 30,
   highlightDirectRelationsMax: 20,
   highlightDepthMax: 3,
 };
@@ -188,6 +196,91 @@ function countLoadedDirectNeighbors(fullData: GraphData, nodeId: string): number
   return ids.size;
 }
 
+/** 获取已加载的直接邻居 ID 列表（用于 excludeIds） */
+function getLoadedDirectNeighborIds(fullData: GraphData, nodeId: string): string[] {
+  const ids = new Set<string>();
+  fullData.edges.forEach((e) => {
+    if (e.source === nodeId) ids.add(e.target);
+    if (e.target === nodeId) ids.add(e.source);
+  });
+  ids.delete(nodeId);
+  return [...ids];
+}
+
+/** 公用的展开结果合并逻辑：去重、上限截断、更新 expansionStates、设置 pendingAddition */
+type MergeContext = 'bfs' | 'neighbors';
+
+function mergeExpansionResult(
+  context: MergeContext,
+  nodeId: string,
+  result: { nodes: GraphNode[]; edges: GraphEdge[]; totalNeighbors: number },
+  existingNodeIds: Set<string>,
+  expansionStates: Map<string, NodeExpansionState>,
+  get: () => GraphState,
+  set: (partial: Partial<GraphState>) => void,
+) {
+  const { fullData } = get();
+  if (!fullData) return;
+
+  const newExpansionStates = new Map(expansionStates);
+  newExpansionStates.set(nodeId, {
+    totalDirectCount: result.totalNeighbors,
+  });
+
+  if (result.nodes.length === 0) {
+    set({ isLoading: false, expandingNodeId: null, expansionStates: newExpansionStates });
+    return;
+  }
+
+  let newNodes = result.nodes.filter((n) => !existingNodeIds.has(n.id));
+  const existingEdgeIds = new Set(fullData.edges.map((e) => e.id));
+
+  const { maxTotalNodes } = get();
+  if (maxTotalNodes > 0) {
+    const currentCount = fullData.nodes.length;
+    if (currentCount >= maxTotalNodes) {
+      console.warn(`[store] 节点数已达上限 ${maxTotalNodes}，停止追加`);
+      toast.error(`节点数已达上限 ${maxTotalNodes}，无法继续追加`);
+      set({ isLoading: false, expandingNodeId: null, expansionStates: newExpansionStates });
+      return;
+    }
+    const allowed = maxTotalNodes - currentCount;
+    if (newNodes.length > allowed) {
+      console.warn(`[store] 节点数即将超过上限 ${maxTotalNodes}，截断至 ${allowed} 个新节点`);
+      newNodes = newNodes.slice(0, allowed);
+      toast.warning(`数据量超过上限，仅追加前 ${allowed} 个新节点`);
+    }
+  }
+
+  const newNodeIds = new Set(newNodes.map((n) => n.id));
+  const allNodeIds = new Set([...existingNodeIds, ...newNodeIds]);
+  let newEdges = result.edges.filter(
+    (e) => !existingEdgeIds.has(e.id) && allNodeIds.has(e.source) && allNodeIds.has(e.target),
+  );
+
+  if (maxTotalNodes > 0) {
+    newEdges = newEdges.filter((e) => newNodeIds.has(e.source) || newNodeIds.has(e.target));
+  }
+
+  if (newNodes.length === 0 && newEdges.length === 0) {
+    const hint = context === 'bfs'
+      ? '未加载到新节点，可调高参数后重试'
+      : '直接邻居已全部加载，可尝试多层展开获取间接关联节点';
+    toast.info(hint);
+    set({ isLoading: false, expandingNodeId: null, expansionStates: newExpansionStates });
+    return;
+  }
+
+  newExpansionStates.set(nodeId, {
+    totalDirectCount: result.totalNeighbors,
+  });
+
+  set({
+    pendingAddition: { nodes: newNodes, edges: newEdges },
+    expansionStates: newExpansionStates,
+  });
+}
+
 /** 过滤掉 source/target 不在节点列表中的悬空边 */
 function sanitizeGraphData(data: GraphData): GraphData {
   const nodeIdSet = new Set(data.nodes.map((n) => n.id));
@@ -206,6 +299,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   highlightedEdgeIds: new Set(),
   config: DEFAULT_CONFIG,
   exploreConfig: DEFAULT_EXPLORE_CONFIG,
+  batchLoadConfig: DEFAULT_BATCH_LOAD_CONFIG,
   displaySettings: DEFAULT_DISPLAY_SETTINGS,
   nodeHistory: [],
   isLoading: false,
@@ -309,6 +403,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ exploreConfig: { ...exploreConfig, ...newConfig } });
   },
 
+  updateBatchLoadConfig: (newConfig) => {
+    const { batchLoadConfig } = get();
+    set({ batchLoadConfig: { ...batchLoadConfig, ...newConfig } });
+  },
+
   setMaxTotalNodes: (n) => {
     set({ maxTotalNodes: n > 0 ? n : 0 });
   },
@@ -318,36 +417,19 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ sliderLimits: { ...sliderLimits, ...limits } });
   },
 
-  getExploreButtonState: (nodeId) => {
-    const { fullData, exploreConfig, expansionStates } = get();
+  getNeighborButtonState: (nodeId) => {
+    const { fullData, expansionStates } = get();
+    const loaded = fullData ? countLoadedDirectNeighbors(fullData, nodeId) : 0;
     const state = expansionStates.get(nodeId);
-
-    if (!state) {
-      return { type: 'explore', label: '探索此节点' };
-    }
-
-    const loadedDirectCount = fullData ? countLoadedDirectNeighbors(fullData, nodeId) : 0;
-
-    if (exploreConfig.n > state.maxDepthExplored) {
-      return { type: 'deeper', label: '探索更深' };
-    }
-
-    if (loadedDirectCount < state.totalDirectCount) {
-      return { type: 'more', label: '加载更多', loaded: loadedDirectCount, total: state.totalDirectCount };
-    }
-
-    return { type: 'done', label: '已全部探索' };
+    const total = state?.totalDirectCount ?? 0;
+    return { loaded, total, hasTotal: !!state };
   },
 
-  expandNode: async (nodeId, overrides) => {
+  bfsExpandNode: async (nodeId, overrides) => {
     const { fullData, expansionStates, exploreConfig, expandingNodeId, currentDomain } = get();
     if (!fullData) return;
     if (expandingNodeId === nodeId) return;
 
-    const buttonState = get().getExploreButtonState(nodeId);
-    if (buttonState.type === 'done') return;
-
-    // URL 传参可覆盖 m/n，否则用 UI 配置
     const m = overrides?.m ?? exploreConfig.m;
     const n = overrides?.n ?? exploreConfig.n;
 
@@ -356,99 +438,42 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const existingNodeIds = new Set(fullData.nodes.map((n) => n.id));
 
     try {
-      let result;
+      const result = await expandGraph({ nodeId, m, n, domain: currentDomain });
 
-      if (buttonState.type === 'more') {
-        const loadedDirectCount = countLoadedDirectNeighbors(fullData, nodeId);
-        result = await expandGraph({
-          nodeId,
-          m,
-          n: 1,
-          offset: loadedDirectCount,
-          domain: currentDomain,
-        });
-      } else {
-        result = await expandGraph({
-          nodeId,
-          m,
-          n,
-          offset: 0,
-          domain: currentDomain,
-        });
-      }
-
-      // 即使没有新节点，也要记录该节点的探索状态（邻居可能已作为其他节点探索的副作用加载）
-      const newExpansionStates = new Map(expansionStates);
-      const loadedDirect = fullData ? countLoadedDirectNeighbors(fullData, nodeId) : 0;
-      newExpansionStates.set(nodeId, {
-        loadedDirectCount: loadedDirect,
-        totalDirectCount: result.totalNeighbors,
-        maxDepthExplored: n,
-      });
-
-      if (result.nodes.length === 0) {
-        set({ isLoading: false, expandingNodeId: null, expansionStates: newExpansionStates });
-        return;
-      }
-
-      let newNodes = result.nodes.filter((n) => !existingNodeIds.has(n.id));
-      const existingEdgeIds = new Set(fullData.edges.map((e) => e.id));
-
-      // 节点总数上限截断
-      const { maxTotalNodes } = get();
-      if (maxTotalNodes > 0) {
-        const currentCount = fullData.nodes.length;
-        if (currentCount >= maxTotalNodes) {
-          console.warn(`[store] 节点数已达上限 ${maxTotalNodes}，停止追加`);
-          toast.error(`节点数已达上限 ${maxTotalNodes}，无法继续追加`);
-          set({ isLoading: false, expandingNodeId: null, expansionStates: newExpansionStates });
-          return;
-        }
-        const allowed = maxTotalNodes - currentCount;
-        if (newNodes.length > allowed) {
-          console.warn(`[store] 节点数即将超过上限 ${maxTotalNodes}，截断至 ${allowed} 个新节点`);
-          newNodes = newNodes.slice(0, allowed);
-          toast.warning(`数据量超过上限，仅追加前 ${allowed} 个新节点`);
-        }
-      }
-
-      const newNodeIds = new Set(newNodes.map((n) => n.id));
-      const allNodeIds = new Set([...existingNodeIds, ...newNodeIds]);
-      let newEdges = result.edges.filter(
-        (e) => !existingEdgeIds.has(e.id) && allNodeIds.has(e.source) && allNodeIds.has(e.target),
-      );
-
-      // 上限截断后过滤悬空边
-      if (maxTotalNodes > 0) {
-        newEdges = newEdges.filter((e) => newNodeIds.has(e.source) || newNodeIds.has(e.target));
-      }
-
-      if (newNodes.length === 0 && newEdges.length === 0) {
-        set({ isLoading: false, expandingNodeId: null, expansionStates: newExpansionStates });
-        return;
-      }
-
-      const prevState = expansionStates.get(nodeId);
-      const newLoadedDirect = fullData
-        ? countLoadedDirectNeighbors(
-            { nodes: [...fullData.nodes, ...newNodes], edges: [...fullData.edges, ...newEdges] },
-            nodeId,
-          )
-        : newNodes.length;
-      newExpansionStates.set(nodeId, {
-        loadedDirectCount: newLoadedDirect,
-        totalDirectCount: result.totalNeighbors,
-        maxDepthExplored: buttonState.type === 'more'
-          ? (prevState?.maxDepthExplored ?? 1)
-          : n,
-      });
-
-      set({
-        pendingAddition: { nodes: newNodes, edges: newEdges },
-        expansionStates: newExpansionStates,
-      });
+      mergeExpansionResult('bfs', nodeId, result, existingNodeIds, expansionStates, get, set);
     } catch (err) {
-      console.error('展开节点失败:', err);
+      console.error('BFS 展开失败:', err);
+      set({ isLoading: false, expandingNodeId: null });
+    }
+  },
+
+  loadMoreNeighbors: async (nodeId) => {
+    const { fullData, expansionStates, batchLoadConfig, expandingNodeId, currentDomain } = get();
+    if (!fullData) return;
+    if (expandingNodeId === nodeId) return;
+
+    const state = expansionStates.get(nodeId);
+    const loadedDirect = fullData ? countLoadedDirectNeighbors(fullData, nodeId) : 0;
+    const total = state?.totalDirectCount ?? 0;
+    if (total > 0 && loadedDirect >= total) return;
+
+    const limit = batchLoadConfig.pageSize;
+
+    set({ isLoading: true, expandingNodeId: nodeId });
+
+    const existingNodeIds = new Set(fullData.nodes.map((n) => n.id));
+
+    try {
+      const result = await fetchNeighbors({
+        nodeId,
+        limit,
+        excludeIds: getLoadedDirectNeighborIds(fullData, nodeId),
+        domain: currentDomain,
+      });
+
+      mergeExpansionResult('neighbors', nodeId, result, existingNodeIds, expansionStates, get, set);
+    } catch (err) {
+      console.error('加载更多邻居失败:', err);
       set({ isLoading: false, expandingNodeId: null });
     }
   },
@@ -509,6 +534,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       highlightedEdgeIds: new Set(),
       config: DEFAULT_CONFIG,
       exploreConfig: DEFAULT_EXPLORE_CONFIG,
+      batchLoadConfig: DEFAULT_BATCH_LOAD_CONFIG,
       nodeHistory: [],
     });
   },

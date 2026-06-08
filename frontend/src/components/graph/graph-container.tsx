@@ -28,7 +28,7 @@ function createGraph(
   applyNodeStatesRef: React.MutableRefObject<() => void>,
   graphReadyRef: React.MutableRefObject<boolean>,
   selectNode: (nodeId: string | null) => void,
-  expandNode: (nodeId: string) => void,
+  bfsExpandNode: (nodeId: string) => void,
   dblClickExpandingRef: React.MutableRefObject<boolean>,
   g6Data: Record<string, unknown>,
   displaySettings: DisplaySettings,
@@ -151,7 +151,7 @@ function createGraph(
     if (currentSelected !== nodeId) {
       selectNode(nodeId);
     }
-    expandNode(nodeId);
+    bfsExpandNode(nodeId);
   };
 
   const needsDblClickTimer =
@@ -292,7 +292,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
   const {
     fullData, visibleData, selectedNodeId, highlightedNodeId, highlightedEdgeIds,
-    selectNode, expandNode, pendingAddition, commitAddition, rebuildTrigger,
+    selectNode, bfsExpandNode, pendingAddition, commitAddition, rebuildTrigger,
     displaySettings,
   } = useGraphStore();
 
@@ -361,8 +361,8 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const selectNodeRef = useRef(selectNode);
   selectNodeRef.current = selectNode;
 
-  const expandNodeRef = useRef(expandNode);
-  expandNodeRef.current = expandNode;
+  const bfsExpandNodeRef = useRef(bfsExpandNode);
+  bfsExpandNodeRef.current = bfsExpandNode;
 
   // 双击展开中标记：dblclick 设为 true，阻止 selectedNodeId useEffect 立即聚焦
   // 由 afterlayout（有新数据）或 isLoading 兜底（无新数据）统一聚焦
@@ -392,6 +392,31 @@ export function GraphContainer({ className }: GraphContainerProps) {
     console.log(
       `[graph] 增量渲染 → addData ${pendingAddition.nodes.length} 节点, ${pendingAddition.edges.length} 边（rebuildTrigger=${rebuildTrigger}）`
     );
+
+    // 将新增节点散布在选中节点周围，避免默认 (0,0) 把力导向拽偏
+    const currentNodeId = useGraphStore.getState().selectedNodeId;
+    let anchorX = 0;
+    let anchorY = 0;
+    if (currentNodeId) {
+      try {
+        const pos = graph.getElementPosition(currentNodeId);
+        anchorX = pos[0];
+        anchorY = pos[1];
+      } catch { /* 节点可能尚未渲染 */ }
+    }
+
+    g6Data.nodes = (g6Data.nodes || []).map((n, i) => {
+      const angle = (i / Math.max(1, g6Data.nodes?.length ?? 1)) * 2 * Math.PI;
+      const radius = 80 + Math.random() * 40;
+      return {
+        ...n,
+        style: {
+          ...(n.style as Record<string, unknown>),
+          x: anchorX + Math.cos(angle) * radius,
+          y: anchorY + Math.sin(angle) * radius,
+        },
+      };
+    });
 
     graph.stopLayout();
     graph.addData(g6Data);
@@ -460,7 +485,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       applyNodeStatesRef,
       graphReadyRef,
       selectNodeRef.current,
-      expandNodeRef.current,
+      bfsExpandNodeRef.current,
       dblClickExpandingRef,
       g6Data,
       displaySettings,

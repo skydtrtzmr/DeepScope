@@ -18,5 +18,9 @@
     "trackSelectedNode": true,
     "expandTrigger": "rightclick"
   },
+  "batchLoad": {
+    "pageSize": 10,
+    "pageSizeMax": 30
+  },
   "maxTotalNodes": 100
 }

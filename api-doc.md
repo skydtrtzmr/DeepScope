@@ -15,7 +15,8 @@
 |------|------|------|
 | GET | `/api/domains` | 获取可用业务域列表 |
 | GET | `/api/graph/initial` | 初始图谱加载 |
-| POST | `/api/graph/expand` | 节点展开（累积增长 + 分页） |
+| POST | `/api/graph/expand` | BFS 多层节点展开 |
+| POST | `/api/graph/neighbors` | 分页加载直接邻居 |
 | GET | `/api/graph/nodes` | 按 ID 查询节点 |
 
 所有图谱数据接口统一使用 **子图 JSON**（`nodes` + `edges`）格式。
@@ -109,25 +110,12 @@ curl "http://localhost:8003/api/graph/initial?domain=demo-region"
 
 ### 2.3 POST `/api/graph/expand`
 
-节点展开接口，支持累积增长和分页加载更多直接邻居。后端根据 `offset` 自动切换 BFS 多层展开和分页模式。
+多层展开（BFS）：从根节点出发，每层每个节点取前 `m` 个直接邻居，迭代 `n` 层。
 
 **请求示例**：
 
 ```bash
-# 首次展开：BFS 多层，每层 5 个邻居，深度 2
-curl --request POST \
-  --url http://127.0.0.1:8003/api/graph/expand \
-  --header 'content-type: application/json' \
-  --data '{
-  "nodeId": "人员/person-00022",
-  "m": 5,
-  "n": 2,
-  "offset": 0,
-  "domain": "demo-region"
-}'
-
-# 分页加载更多：offset=5，跳过前 5 个已加载的直接邻居
-curl -X POST http://localhost:8003/api/graph/expand -H "Content-Type: application/json" -d '{"nodeId":"人员/person-00022","m":5,"n":1,"offset":5,"domain":"demo-region"}'
+curl -X POST http://localhost:8003/api/graph/expand -H "Content-Type: application/json" -d '{"nodeId":"人员/person-00022","m":5,"n":2,"domain":"demo-region"}'
 ```
 
 **请求体**（JSON）：
@@ -135,9 +123,8 @@ curl -X POST http://localhost:8003/api/graph/expand -H "Content-Type: applicatio
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `nodeId` | string | 是 | 被展开的节点 ID |
-| `m` | int | 是 | 每层直接邻居数量上限 |
-| `n` | int | 是 | 间接层数（`offset > 0` 时后端应强制 `n=1`） |
-| `offset` | int | 否 | 直接邻居偏移量，默认为 0。`> 0` 表示分页加载更多 |
+| `m` | int | 是 | 每个节点每层最多取几个新邻居 |
+| `n` | int | 是 | 最大深度（迭代层数） |
 | `domain` | string | 否 | 查询的 domain |
 
 **响应**：
@@ -153,19 +140,43 @@ curl -X POST http://localhost:8003/api/graph/expand -H "Content-Type: applicatio
 |------|------|------|
 | `nodes` | array | 新增节点列表 |
 | `edges` | array | 新增边列表 |
-| `totalNeighbors` | int | 该节点的**全部直接邻居总数**（不受分页/offset 影响） |
-
-**行为规则**：
-
-| 场景 | 行为 |
-|------|------|
-| **首次展开（`offset=0`）** | 按 `m`、`n` 返回子图，`totalNeighbors` 返回直接邻居总数 |
-| **加载更多（`offset>0`）** | 后端忽略 `n`（按 `n=1` 处理），只返回下一批直接邻居及其与当前节点的边 |
-| **去重** | 返回的节点和边应排除当前画布已存在的 ID（前端在请求中不传 `excludeExistingIds`，由后端自行感知或由前端合并后去重） |
+| `totalNeighbors` | int | 根节点的**全部直接邻居总数** |
 
 ---
 
-### 2.4 GET `/api/graph/nodes`
+### 2.4 POST `/api/graph/neighbors`
+
+分页加载直接邻居：传入已加载的邻居 ID 列表，后端排除后返回下一批未加载的直接邻居。不依赖顺序，与 BFS 展开互不干扰。
+
+**请求示例**：
+
+```bash
+curl -X POST http://localhost:8003/api/graph/neighbors -H "Content-Type: application/json" -d '{"nodeId":"人员/person-00022","limit":5,"excludeIds":[],"domain":"demo-region"}'
+```
+
+**请求体**（JSON）：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `nodeId` | string | 是 | 被查询的节点 ID |
+| `limit` | int | 是 | 本批次返回几个直接邻居 |
+| `excludeIds` | string[] | 否 | 已加载的直接邻居 ID 列表，后端会跳过这些 |
+| `domain` | string | 否 | 查询的 domain |
+
+**响应**（与 expand 格式相同）：
+```json
+{
+  "nodes": [ ... ],
+  "edges": [ ... ],
+  "totalNeighbors": 123
+}
+```
+
+> `totalNeighbors` 始终为该节点的全部直接邻居总数，不受分页 `offset` 影响。
+
+---
+
+### 2.5 GET `/api/graph/nodes`
 
 按节点 ID 查询，用于 URL 首屏节点定位。
 
@@ -290,7 +301,7 @@ http://localhost:5173/?node=人员/person-00022&m=5
 
 1. URL 含 `?node=` → 前端调用 `GET /api/graph/nodes?ids=...` 获取节点
 2. 渲染中心节点，约 300ms 后自动 `selectNode`
-3. 若 `expand !== '0'` 或 URL 含 `m`/`n` → 调用 `POST /api/graph/expand` 展开邻居
+3. 若 `expand !== '0'` 或 URL 含 `m`/`n` → 调用 `POST /api/graph/expand`（BFS 多层展开）
 
 > `m`/`n` 仅影响首屏初始展开，与操作界面中用户可调的滑块配置互不干扰。
 

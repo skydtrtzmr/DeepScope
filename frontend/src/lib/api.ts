@@ -33,16 +33,23 @@ export async function fetchInitialGraph(domain: string): Promise<GraphData> {
   return data;
 }
 
-// 节点展开接口参数
+// BFS 多层展开参数
 export interface ExpandGraphParams {
   nodeId: string;
   m: number;
   n: number;
-  offset?: number;
   domain: string;
 }
 
-// 节点展开接口响应
+// 分页加载直接邻居参数
+export interface NeighborParams {
+  nodeId: string;
+  limit: number;
+  excludeIds: string[];
+  domain: string;
+}
+
+// 节点展开/邻居接口响应（共用）
 export interface ExpandGraphResponse {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -57,13 +64,23 @@ export async function fetchNodesByIds(ids: string[], domain: string): Promise<Gr
   return data;
 }
 
-// 节点展开（POST）
+// BFS 多层展开（POST）
 export async function expandGraph(params: ExpandGraphParams): Promise<ExpandGraphResponse> {
   const { data } = await api.post('/api/graph/expand', {
     nodeId: params.nodeId,
     m: params.m,
     n: params.n,
-    offset: params.offset ?? 0,
+    domain: params.domain,
+  });
+  return data;
+}
+
+// 分页加载直接邻居（POST）
+export async function fetchNeighbors(params: NeighborParams): Promise<ExpandGraphResponse> {
+  const { data } = await api.post('/api/graph/neighbors', {
+    nodeId: params.nodeId,
+    limit: params.limit,
+    excludeIds: params.excludeIds,
     domain: params.domain,
   });
   return data;

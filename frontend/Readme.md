@@ -60,6 +60,10 @@ npm run preview  # 预览构建产物
     "trackSelectedNode": true,
     "expandTrigger": "dblclick"
   },
+  "batchLoad": {
+    "pageSize": 10,
+    "pageSizeMax": 30
+  },
   "maxTotalNodes": 100
 }
 ```
@@ -77,9 +81,9 @@ npm run preview  # 预览构建产物
 
 > 应用初始化时最先加载该字段，后续所有 API 请求均使用此地址。
 
-### 2.2 `explore` — 探索设置
+### 2.2 `explore` — 多层展开设置
 
-控制节点展开时的默认深度/广度，以及 UI 滑块的可调范围。
+控制"多层展开"按钮的 BFS 深度/广度，以及 UI 滑块的可调范围。
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -88,7 +92,16 @@ npm run preview  # 预览构建产物
 | `mMax` | int | 20 | UI 滑块中 `m` 的可调上限 |
 | `nMax` | int | 5 | UI 滑块中 `n` 的可调上限 |
 
-### 2.3 `highlight` — 高亮设置
+### 2.3 `batchLoad` — 分批加载设置
+
+控制"分批加载"按钮每批请求的直接邻居数量。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `pageSize` | int | 10 | 每次"分批加载"请求几个直接邻居 |
+| `pageSizeMax` | int | 30 | UI 滑块中 `pageSize` 的可调上限 |
+
+### 2.4 `highlight` — 高亮设置
 
 控制选中节点时 BFS 高亮的可见范围。
 
@@ -99,7 +112,7 @@ npm run preview  # 预览构建产物
 | `directRelationsMax` | int | 20 | UI 滑块中该值的上限 |
 | `depthMax` | int | 3 | UI 滑块中该值的上限 |
 
-### 2.4 `display` — 显示设置
+### 2.5 `display` — 显示设置
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -117,7 +130,7 @@ npm run preview  # 预览构建产物
 | `"both"` | 展开 | 展开 | 阻止浏览器右键菜单 |
 | `"none"` | — | — | 仅按钮触发 |
 
-### 2.5 `maxTotalNodes` — 节点上限
+### 2.6 `maxTotalNodes` — 节点上限
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
