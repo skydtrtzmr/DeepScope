@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: http://127.0.0.1:8002/api/domains
+  url: http://127.0.0.1:8000/api/domains
   body: none
   auth: inherit
 }
@@ -13,4 +13,46 @@ get {
 settings {
   encodeUrl: true
   timeout: 0
+}
+
+example {
+  name: example
+  
+  request: {
+    url: http://127.0.0.1:8000/api/domains
+    method: GET
+    mode: none
+  }
+  
+  response: {
+    headers: {
+      date: Mon, 08 Jun 2026 14:58:49 GMT
+      server: uvicorn
+      content-length: 115
+      content-type: application/json
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        [
+          {
+            "name": "demo-core",
+            "nodeCount": 20011,
+            "edgeCount": 36567
+          },
+          {
+            "name": "demo-region",
+            "nodeCount": 2011,
+            "edgeCount": 3654
+          }
+        ]
+      '''
+    }
+  }
 }

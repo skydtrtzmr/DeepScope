@@ -3,7 +3,7 @@ import { useGraphStore } from '@/lib/stores/graph-store';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
-import { ChevronLeft, RotateCcw, Minus, X, Plus, Loader2, Compass } from 'lucide-react';
+import { ChevronLeft, RotateCcw, Minus, X, Plus, Loader2, Compass, Network } from 'lucide-react';
 
 /** 滑块拖动时的 debounce 间隔（ms） */
 const SLIDER_DEBOUNCE_MS = 200;
@@ -155,7 +155,7 @@ export function GraphControl() {
         {/* ── 分割线 ── */}
         <div className="border-t pt-3" />
 
-        {/* 分批加载：每批数量滑块 */}
+        {/* 更多邻居：每批数量滑块 */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label className="text-xs text-muted-foreground">每批数量</Label>
@@ -187,10 +187,10 @@ export function GraphControl() {
           </div>
         </div>
 
-        {/* 分批加载按钮 */}
+        {/* 更多邻居按钮 */}
         <Button
           size="sm"
-          variant="outline"
+          variant="default"
           className="w-full gap-1.5"
           onClick={() => loadMoreNeighbors(selectedNodeId)}
           disabled={neighborState.hasTotal && neighborState.loaded >= neighborState.total || isLoading}
@@ -198,8 +198,9 @@ export function GraphControl() {
           {isLoading ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
-            <span className="text-sm">分批加载</span>
+            <Network className="h-3 w-3" />
           )}
+          更多邻居
           {neighborState.hasTotal && (
             <span className="opacity-70 text-xs">({neighborState.loaded}/{neighborState.total})</span>
           )}

@@ -1,0 +1,74 @@
+meta {
+  name: 节点查询
+  type: http
+  seq: 5
+}
+
+get {
+  url: http://127.0.0.1:8000/api/graph/nodes?ids=人员/person-00022&domain=demo-core
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ids: 人员/person-00022
+  domain: demo-core
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+
+example {
+  name: example
+  
+  request: {
+    url: http://127.0.0.1:8000/api/graph/nodes?ids=人员/person-00022&domain=demo-core
+    method: GET
+    mode: none
+    params:query: {
+      ids: 人员/person-00022
+      domain: demo-core
+    }
+  }
+  
+  response: {
+    headers: {
+      date: Mon, 08 Jun 2026 14:58:23 GMT
+      server: uvicorn
+      content-length: 422
+      content-type: application/json
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "nodes": [
+            {
+              "id": "人员/person-00022",
+              "label": "人员-00022",
+              "category": "人员",
+              "description": "## 基本信息\n\n- **状态**: 外包\n- **部门/类别**: 设计部\n- **优先级**: 87\n\n## 关联\n\n- **所属组织**: org-00053\n\n## 时间\n\n- **日期**: 2024-01-23\n- **创建**: 2024-01-23\n- **修改**: 2024-01-23",
+              "data": {
+                "rank": 180,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#f59e0b",
+                "radius": 36
+              }
+            }
+          ],
+          "edges": []
+        }
+      '''
+    }
+  }
+}

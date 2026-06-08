@@ -9,7 +9,7 @@
 | 按钮 | API | 参数 | 含义 |
 |------|-----|------|------|
 | **多层展开** | `POST /api/graph/expand` | `nodeId, m, n, domain` | BFS 多层，每节点每层最多 m 个新邻居，最大深度 n |
-| **分批加载** | `POST /api/graph/neighbors` | `nodeId, limit, excludeIds, domain` | 单层分页，排除已有邻居后返回下一批 |
+| **更多邻居** | `POST /api/graph/neighbors` | `nodeId, limit, excludeIds, domain` | 单层分页，排除已有邻居后返回下一批 |
 
 两个按钮共享的唯一状态是 `fullData`（节点/边合集），除此之外互不依赖。
 
@@ -80,11 +80,11 @@ if (fullData.nodes.length + newNodes.length > maxTotalNodes) { /* 截断 */ }
 ```
 person-00778 的直接邻居：A, B, C, D, E, F（共 6 个）
 已加载：A, B, C, D → excludeIds = [A, B, C, D]
-分批加载下一批 → 返回 E, F + 边 00778↔E、00778↔F
+更多邻居下一批 → 返回 E, F + 边 00778↔E、00778↔F
 
 A↔B、C↔D 等边 → 之前已加载，不会丢失
 E↔A 等"邻居间"边 → 不是 neighbors 的职责，
-  后续探索 E 时会被 BFS 或分批加载自然发现
+  后续探索 E 时会被 BFS 或更多邻居自然发现
 ```
 
 > **与旧设计的区别**：旧统一 `expand` 接口如果传全量 `excludeIds`（排除画布上所有已有节点），在跨节点展开时（先展开 B 再展开 C）会丢失 B↔C 桥接边。现在拆分为 `expand`（全量返回，前端去重）和 `neighbors`（单节点排除），两个场景互不干扰。

@@ -1,8 +1,8 @@
-# DeepScope 设计文档（最终版）
+# DeepScope 设计文档
 
 启动后端：
 ```
-uv run uvicorn server:app --host 0.0.0.0 --port 8002
+uv run python server.py
 ```
 
 启动前端：
@@ -18,7 +18,7 @@ npm run preview
   - 初始图谱由后端决定并返回核心节点及边。
   - 用户点击节点时，按可配置的 `m`（直接邻居数）和 `n`（间接层数）向后端请求新子图，并**追加**到现有画布（累积增长）。
   - 支持用户通过界面控件实时调整 `m`、`n` 值（默认 `m=5`，`n=2`，前端可配置初始值）。
-  - 支持对同一节点分批加载更多直接邻居（通过“加载更多”按钮，仅广度，不触发深度）。
+  - 支持对同一节点分批加载更多直接邻居（通过"加载更多"按钮，仅广度，不触发深度）。
   - 图谱下方提供详情列表，展示当前选中节点的**已加载**直接邻居，支持点击跳转或高亮图谱节点；列表采用虚拟滚动优化长列表性能。
   - 纯 iframe 嵌入，不依赖外部系统通信。
 
@@ -35,94 +35,41 @@ npm run preview
 | 构建工具 | Vite |
 | 样式 | Tailwind CSS |
 
-## 3. 数据接口规范
+## 3. 接口设计
 
-后端需提供两个接口，返回 **子图 JSON**（节点 + 边）。
+后端提供 5 个 HTTP 接口，详细参数和模型定义见 [`api-doc.md`](./api-doc.md)。
 
-### 3.1 初始加载接口
-- **请求**：`GET /api/graph/initial` 或 `POST /api/graph/initial`（具体由后端定义）
-- **响应**：
-```json
-{
-  "nodes": [ ... ],
-  "edges": [ ... ]
-}
-```
-- **说明**：初始加载不受 `m`/`n` 影响，完全由后端决定展示哪些节点。
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/domains` | 获取可用业务域列表 |
+| GET | `/api/graph/initial` | 初始图谱加载（由后端配置决定） |
+| POST | `/api/graph/expand` | BFS 多层展开（后端全量返回，前端去重） |
+| POST | `/api/graph/neighbors` | 分页加载直接邻居（后端排除 excludeIds） |
+| GET | `/api/graph/nodes` | 按 ID 查询节点（URL 首屏定位用） |
 
-### 3.3 节点查询接口（按 ID 查询）
-- **请求**：`GET /api/graph/nodes`
+### 设计决策：为什么拆分为 expand + neighbors
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `ids` | string | 是 | 逗号分隔的节点 ID 列表（当前仅支持单个） |
-| `domain` | string | 否 | 查询的 domain，默认取首个可用 domain |
+- **expand（BFS 多层）**：后端全量返回发现的所有节点和边，**不接收 `excludeIds`**，前端负责去重合并。避免跨节点展开时桥接边丢失。
+- **neighbors（单层分页）**：后端接收 `excludeIds` 精确排除已加载邻居，只返回下一批。由于始终查询同一节点，排除不会导致边丢失。
 
-- **响应**：
-```json
-{
-  "nodes": [ { "id": "人员/person-00022", ... } ],
-  "edges": []
-}
-```
-- **说明**：仅返回指定节点本身，不返回边和邻居。用于通过 URL 参数直接定位首屏节点。
+详见 [`frontend/docs/expand-architecture.md`](./frontend/docs/expand-architecture.md)。
 
-### 3.2 节点展开接口（累积增长 + 分页加载更多）
-- **请求**：`POST /api/graph/expand`
+### 边去重策略
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `nodeId` | string | 是 | 当前点击的节点 ID |
-| `m` | int | 是 | 本次请求希望获取的直接邻居数量（即 `limit`） |
-| `n` | int | 是 | 间接层数（仅当 `offset=0` 时有效；`offset>0` 时后端应强制按 `n=1` 处理） |
-| `offset` | int | 否 | 直接邻居偏移量，默认为 0 |
-| `excludeExistingIds` | string[] | 是 | 当前画布已存在的节点 ID 列表（用于去重） |
+前端按 `id` 去重。
 
-- **响应**：
-```json
-{
-  "nodes": [...],
-  "edges": [...],
-  "totalNeighbors": 123
-}
-```
-- `totalNeighbors` 始终为当前节点的**全部直接邻居总数**（不受分页影响）。
+## 4. 核心交互
 
-- **行为规则**：
-  1. **首次点击（`offset=0`）**：按 `m`、`n` 返回子图，`totalNeighbors` 返回直接邻居总数。
-  2. **加载更多（`offset>0`）**：后端忽略 `n`（即 `n=1`），只返回下一批直接邻居及其与当前节点的边。
-  3. **去重**：返回的节点和边应排除 `excludeExistingIds` 中已存在的节点和边。
+详见 [`frontend/docs/dev-doc.md`](./frontend/docs/dev-doc.md)。
 
-## 4. 数据模型
+- **状态管理**：Zustand 管图谱数据，TanStack Query 管请求生命周期
+- **增量渲染**：新增节点围绕选中节点环形散布，旧节点位置不变
+- **URL 首屏参数**：支持 `?node=`、`?domain=`、`?expand=`、`?m=`、`?n=`
+- **加载更多**：详情列表底部按钮，已加载数 < totalNeighbors 时可用
 
-### 4.1 节点字段
+## 5. 测试指南
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `id` | string | 是 | 唯一标识 |
-| `label` | string | 是 | 显示文本 |
-| `type` | string | 否 | 类型（如 `person`, `company`） |
-| `url` | string | 否 | 跳转链接（新标签页打开） |
-| `description` | string | 否 | 详情描述 |
-| `style` | object | 否 | 遵循 G6 节点样式规范（如 `size`, `fill`, `stroke` 等） |
-
-### 4.2 边字段
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `source` | string | 是 | 源节点 id |
-| `target` | string | 是 | 目标节点 id |
-| `label` | string | 否 | 关系描述 |
-| `type` | string | 否 | 关系类型 |
-| `style` | object | 否 | 遵循 G6 边样式规范（如 `stroke`, `lineWidth`, `endArrow` 等） |
-
-- **边去重策略**：前端按 `source+target` 合并，同一对节点之间只保留一条边（多重边暂不支持，后续可启用 G6 `multiEdge`）。
-
-
-
-## 11. 测试指南
-
-### 11.1 URL 首屏节点参数测试
+### 5.1 URL 首屏节点参数测试
 
 假设前端运行在 `http://localhost:5173`，后端已启动并包含 `demo-region` domain：
 
@@ -162,7 +109,11 @@ npm run preview
    ```
    - 预期：`/api/graph/nodes` 返回空数组，画布无节点，显示空白或 loading 状态。
 
+### 5.2 Bruno API 测试
+
+项目内置 Bruno 测试集合，位于 `backend/bruno-api-test/DeepScope/`，覆盖所有 5 个接口。用 [Bruno](https://www.usebruno.com/) 打开该目录即可使用。
+
 ---
 
-**文档版本**：1.2  
-**最后更新**：2026-06-07  
+**文档版本**：2.0  
+**最后更新**：2026-06-08  

@@ -85,8 +85,6 @@ curl "http://localhost:8003/api/graph/initial?domain=demo-region"
       "id": "人员/person-00022",
       "label": "张三",
       "category": "人员",
-      "type": "person",
-      "url": "https://example.com/person/00022",
       "description": "某部门员工",
       "data": {},
       "style": { "fill": "#1890ff", "radius": 30 }
@@ -98,7 +96,6 @@ curl "http://localhost:8003/api/graph/initial?domain=demo-region"
       "source": "人员/person-00022",
       "target": "公司/company-003",
       "label": "任职于",
-      "type": "works_at",
       "data": {},
       "style": { "stroke": "#999", "lineWidth": 2 }
     }
@@ -229,10 +226,8 @@ curl "http://localhost:8003/api/graph/nodes?ids=%E4%BA%BA%E5%91%98%2Fperson-0002
 | `id` | string | **是** | 唯一标识 |
 | `label` | string | **是** | 显示文本 |
 | `category` | string | 否 | 分类标签（用于自动着色和分组） |
-| `type` | string | 否 | 节点类型（如 `person`、`company`） |
-| `url` | string | 否 | 跳转链接（新标签页打开） |
 | `description` | string | 否 | 详情描述（支持 Markdown） |
-| `data` | object | 否 | 自定义扩展数据 |
+| `data` | object | 否 | 自定义扩展数据（如 `rank`、`domain`） |
 | `style` | object | 否 | G6 节点样式覆盖 |
 
 `style` 常用属性：
@@ -254,8 +249,7 @@ curl "http://localhost:8003/api/graph/nodes?ids=%E4%BA%BA%E5%91%98%2Fperson-0002
 | `source` | string | **是** | 源节点 ID |
 | `target` | string | **是** | 目标节点 ID |
 | `label` | string | 否 | 关系描述文本 |
-| `type` | string | 否 | 关系类型（如 `works_at`、`friend_of`） |
-| `data` | object | 否 | 自定义扩展数据 |
+| `data` | object | 否 | 自定义扩展数据（如 `category`、`domain`） |
 | `style` | object | 否 | G6 边样式覆盖 |
 
 `style` 常用属性：
@@ -309,8 +303,8 @@ http://localhost:5173/?node=人员/person-00022&m=5
 
 ## 5. 通用规则
 
-- **去重**：`/api/graph/expand` 返回的节点和边应与画布已有数据去重
-- **总数**：`totalNeighbors` 始终为直接邻居全量总数，不受分页 `offset` 影响
-- **分页**：`offset > 0` 时，后端应按 `n=1`（仅直接邻居）处理，返回下一批直接邻居
+- **去重**：`/api/graph/expand` 全量返回，由前端负责去重合并；`/api/graph/neighbors` 由后端根据 `excludeIds` 排除
+- **总数**：`totalNeighbors` 始终为直接邻居全量总数，不受分页 `excludeIds` 影响
+- **分页**：`/api/graph/neighbors` 使用 `excludeIds` + `limit` 精确分页，每次返回下一批未加载的直接邻居
 - **Domain**：所有图谱接口支持可选的 `domain` 参数，用于多域场景
 - **数据上限**：前端可配置 `maxTotalNodes` 截断，后端也可附加全局上限

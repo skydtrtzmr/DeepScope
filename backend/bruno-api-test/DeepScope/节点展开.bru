@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: http://127.0.0.1:8003/api/graph/expand
+  url: http://127.0.0.1:8000/api/graph/expand
   body: json
   auth: inherit
 }
@@ -15,7 +15,6 @@ body:json {
       "nodeId": "项目/proj-00093",
       "m": 5,
       "n": 2,
-      "offset": 25,
       "domain": "demo-core"
   }
 }
@@ -26,10 +25,10 @@ settings {
 }
 
 example {
-  name: 首次展开-项目
+  name: example
   
   request: {
-    url: http://127.0.0.1:8003/api/graph/expand
+    url: http://127.0.0.1:8000/api/graph/expand
     method: POST
     mode: json
     body:json: {
@@ -37,7 +36,6 @@ example {
           "nodeId": "项目/proj-00093",
           "m": 5,
           "n": 2,
-          "offset": 0,
           "domain": "demo-core"
       }
     }
@@ -45,7 +43,7 @@ example {
   
   response: {
     headers: {
-      date: Mon, 08 Jun 2026 06:40:36 GMT
+      date: Mon, 08 Jun 2026 14:50:49 GMT
       server: uvicorn
       content-length: 17490
       content-type: application/json
@@ -816,192 +814,6 @@ example {
               },
               "style": {
                 "stroke": "#34d399",
-                "lineWidth": 1
-              }
-            }
-          ],
-          "totalNeighbors": 23
-        }
-      '''
-    }
-  }
-}
-
-example {
-  name: 展开更多-项目
-  
-  request: {
-    url: http://127.0.0.1:8003/api/graph/expand
-    method: POST
-    mode: json
-    body:json: {
-      {
-          "nodeId": "项目/proj-00093",
-          "m": 5,
-          "n": 1,
-          "offset": 5,
-          "domain": "demo-core"
-      }
-    }
-  }
-  
-  response: {
-    headers: {
-      date: Mon, 08 Jun 2026 06:41:15 GMT
-      server: uvicorn
-      content-length: 3291
-      content-type: application/json
-    }
-  
-    status: {
-      code: 200
-      text: OK
-    }
-  
-    body: {
-      type: json
-      content: '''
-        {
-          "nodes": [
-            {
-              "id": "任务/task-01833",
-              "label": "任务-01833",
-              "category": "任务",
-              "description": "## 基本信息\n\n- **类型**: 测试\n- **状态**: 阻塞中\n\n## 关联\n\n- **关联项目**: proj-00093\n\n## 时间\n\n- **日期**: 2020-03-28\n- **创建**: 2020-03-28\n- **修改**: 2020-03-28",
-              "data": {
-                "rank": 1541,
-                "domain": "demo-core"
-              },
-              "style": {
-                "fill": "#ef4444",
-                "radius": 28
-              }
-            },
-            {
-              "id": "任务/task-04454",
-              "label": "任务-04454",
-              "category": "任务",
-              "description": "## 基本信息\n\n- **类型**: 评审\n- **状态**: 进行中\n- **部门/类别**: 紧急\n- **优先级**: 95\n\n## 关联\n\n- **关联项目**: proj-00093\n\n## 时间\n\n- **日期**: 2020-09-28\n- **创建**: 2020-09-28\n- **修改**: 2020-09-28",
-              "data": {
-                "rank": 2032,
-                "domain": "demo-core"
-              },
-              "style": {
-                "fill": "#ef4444",
-                "radius": 28
-              }
-            },
-            {
-              "id": "问答/qa-00313",
-              "label": "问答-00313",
-              "category": "问答",
-              "description": "## 基本信息\n\n- **类型**: 流程问题\n- **状态**: 已解决\n\n## 关联\n\n- **关联项目**: proj-00093\n- **关联任务**: task-02362\n- **相关人员**: person-00731\n\n## 时间\n\n- **日期**: 2020-05-21\n- **创建**: 2020-05-21\n- **修改**: 2020-05-21",
-              "data": {
-                "rank": 2219,
-                "domain": "demo-core"
-              },
-              "style": {
-                "fill": "#8b5cf6",
-                "radius": 26
-              }
-            },
-            {
-              "id": "问答/qa-04667",
-              "label": "问答-04667",
-              "category": "问答",
-              "description": "## 基本信息\n\n- **状态**: 待回复\n- **优先级**: 76\n\n## 关联\n\n- **关联项目**: proj-00093\n- **相关人员**: person-00900\n\n## 时间\n\n- **日期**: 2022-03-20\n- **创建**: 2022-03-20\n- **修改**: 2022-03-20",
-              "data": {
-                "rank": 1202,
-                "domain": "demo-core"
-              },
-              "style": {
-                "fill": "#8b5cf6",
-                "radius": 28
-              }
-            },
-            {
-              "id": "问答/qa-09900",
-              "label": "问答-09900",
-              "category": "问答",
-              "description": "## 基本信息\n\n- **类型**: 使用问题\n- **状态**: 已关闭\n- **部门/类别**: 运维\n- **优先级**: 35\n\n## 关联\n\n- **关联项目**: proj-00093\n- **关联任务**: task-06574\n\n## 时间\n\n- **日期**: 2024-05-07\n- **创建**: 2024-05-07\n- **修改**: 2024-05-07",
-              "data": {
-                "rank": 2109,
-                "domain": "demo-core"
-              },
-              "style": {
-                "fill": "#8b5cf6",
-                "radius": 28
-              }
-            }
-          ],
-          "edges": [
-            {
-              "id": "任务/task-01833--项目/proj-00093--link",
-              "source": "任务/task-01833",
-              "target": "项目/proj-00093",
-              "label": "包含任务",
-              "data": {
-                "category": "项目-任务",
-                "domain": "demo-core"
-              },
-              "style": {
-                "stroke": "#f87171",
-                "lineWidth": 1
-              }
-            },
-            {
-              "id": "任务/task-04454--项目/proj-00093--link",
-              "source": "任务/task-04454",
-              "target": "项目/proj-00093",
-              "label": "包含任务",
-              "data": {
-                "category": "项目-任务",
-                "domain": "demo-core"
-              },
-              "style": {
-                "stroke": "#f87171",
-                "lineWidth": 1
-              }
-            },
-            {
-              "id": "问答/qa-00313--项目/proj-00093--link",
-              "source": "问答/qa-00313",
-              "target": "项目/proj-00093",
-              "label": "相关问答",
-              "data": {
-                "category": "项目-问答",
-                "domain": "demo-core"
-              },
-              "style": {
-                "stroke": "#c084fc",
-                "lineWidth": 1
-              }
-            },
-            {
-              "id": "问答/qa-04667--项目/proj-00093--link",
-              "source": "问答/qa-04667",
-              "target": "项目/proj-00093",
-              "label": "相关问答",
-              "data": {
-                "category": "项目-问答",
-                "domain": "demo-core"
-              },
-              "style": {
-                "stroke": "#c084fc",
-                "lineWidth": 1
-              }
-            },
-            {
-              "id": "问答/qa-09900--项目/proj-00093--link",
-              "source": "问答/qa-09900",
-              "target": "项目/proj-00093",
-              "label": "相关问答",
-              "data": {
-                "category": "项目-问答",
-                "domain": "demo-core"
-              },
-              "style": {
-                "stroke": "#c084fc",
                 "lineWidth": 1
               }
             }

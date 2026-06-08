@@ -1,23 +1,26 @@
 ## 5. 前端核心交互设计
 
 ### 5.1 状态管理分工
-- **Zustand**：管理图谱数据（`nodes` Map, `edges` Map）、当前选中节点、每个节点的已加载直接邻居 ID 列表及 `totalNeighbors`。
+- **Zustand**：管理图谱数据（`nodes` Map, `edges` Map）、当前选中节点、每个节点的已加载直接邻居 ID 列表及 `totalNeighbors`、`pendingAddition`（待渲染的增量数据）。
 - **TanStack Query**：管理 API 请求的 loading/error/cache，请求成功后调用 Zustand actions 更新数据。
 
 ### 5.2 初始加载
-- 使用 `useQuery` 调用初始接口，数据返回后渲染并布局（力导向布局）。
+- 使用 `useQuery` 调用 `GET /api/graph/initial`，数据返回后渲染并布局（力导向布局）。
 
-### 5.3 节点点击展开（累积增长）
-- 读取当前 `m`、`n`，构造请求参数（`offset=0`，`excludeExistingIds` 为当前所有节点 id）。
-- 使用 `useMutation` 或 `useQuery`（依据具体实现）发送请求。
-- 成功后合并到 Zustand，并调用 G6 增量添加（`graph.addItem`）。
-- 新节点布局：保持原有节点位置不变，新节点围绕点击节点做放射状分布（角度均分，半径为 100px）。
+### 5.3 节点多层展开（BFS 累积增长）
+- 读取当前 `m`、`n`，调用 `POST /api/graph/expand`（参数：`nodeId`, `m`, `n`, `domain`）。
+- 后端全量返回 BFS 发现的所有节点和边（不接收 `excludeIds`），前端 `mergeExpansionResult` 负责去重。
+- 成功后合并到 fullData，并调用 G6 增量添加。
+- 新节点布局：保持原有节点位置不变，新节点围绕点击节点做放射状分布（角度均分，半径约 100px）。
 - 自动轻度平移/缩放，使新节点可见。
 
-### 5.4 加载更多（广度扩展）
-- 详情列表底部显示“加载更多”按钮（`已加载直接邻居数 < totalNeighbors`）。
-- 请求参数：`nodeId` 相同，`offset = 已加载直接邻居数`，`n` 强制为 1（后端自动处理）。
+### 5.4 加载更多（分页加载直接邻居）
+- 详情列表底部显示"加载更多"按钮（`已加载直接邻居数 < totalNeighbors`）。
+- 调用 `POST /api/graph/neighbors`（参数：`nodeId`, `limit`, `excludeIds`, `domain`）。
+- `excludeIds` 为已加载的直接邻居 ID 列表，后端排除后返回下一批未加载邻居。
+- `limit` 取自 `batchLoadConfig.limit`（前端可配置，默认 5）。
 - 成功后仅追加新节点和边，不影响已有节点位置。
+- 与 BFS 多层展开（expand）互不干扰，两个按钮独立调用。
 
 ### 5.5 详情列表
 - 数据源：当前选中节点的**已加载直接邻居**（从 Zustand 中获取）。
@@ -44,7 +47,7 @@
 - 切换显示设置时仅调用 `graph.setEdge()` + `graph.draw()`，不重建图、不重排布局
 
 ### 5.7 重置功能
-- “重置”按钮：清空 Zustand 和图谱；重新请求初始数据；重置画布视图；清空选中节点和列表。
+- "重置"按钮：清空 Zustand 和图谱；重新请求初始数据；重置画布视图；清空选中节点和列表。
 - 无需二次确认。
 
 ### 5.8 加载状态与错误处理
@@ -52,7 +55,7 @@
 - 错误时显示 Toast 提示，用户可重试。
 
 ### 5.9 孤立节点处理
-- 若 `totalNeighbors === 0`，点击节点后不发起请求，提示“该节点无关联节点”，列表清空。
+- 若 `totalNeighbors === 0`，点击节点后不发起请求，提示"该节点无关联节点"，列表清空。
 
 ### 5.10 URL 首屏节点参数
 前端支持通过 URL 查询参数直接指定首屏初始节点，无需使用 `?data=` 传入完整 JSON。
@@ -71,7 +74,7 @@
 1. 若 URL 存在 `?node=`，前端调用 `GET /api/graph/nodes?ids=...&domain=...` 获取节点
 2. `setGraphData` 渲染中心节点
 3. 等待 G6 渲染完成后（约 300ms）自动 `selectNode`
-4. 若 `expand !== '0'` 或 URL 含 `m`/`n`，自动调用 `expandNode(nodeId, { m, n })` 展开邻居
+4. 若 `expand !== '0'` 或 URL 含 `m`/`n`，自动调用 `POST /api/graph/expand`（BFS 多层展开）
 
 ## 6. 布局策略
 
@@ -87,8 +90,8 @@
 
 ## 8. 错误与边界处理
 
-- 网络错误：显示“网络请求失败，请重试”。
-- 数据格式错误：console.error 并提示“数据格式无效”。
+- 网络错误：显示"网络请求失败，请重试"。
+- 数据格式错误：console.error 并提示"数据格式无效"。
 - m/n 控件非法值：前端钳制到有效范围。
 - 节点展开超时：使用 TanStack Query 的 `timeout` 配置或手动处理。
 
@@ -100,6 +103,7 @@
 - 撤销/重做。
 - 按节点类型过滤。
 - 主题切换。
+- neighbors 支持多层深度。
 
 ## 10. 附录：G6 样式参考
 
