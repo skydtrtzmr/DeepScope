@@ -22,24 +22,25 @@
 
 ## 2. 接口详情
 
-> 以下示例假设后端运行在 `http://localhost:8003`，domain 使用 `demo-region`。  
-> Windows CMD 如需多行命令，请用 `^` 替代 `\` 作为续行符；以下示例已统一使用单行格式，跨平台通用。
+> 以下示例假设后端运行在 `http://localhost:8000`，domain 使用 `demo-core`。
+> 每个接口末尾附有对应的 [Bruno](https://www.usebruno.com/) 测试文件路径，可直接导入使用。
 
 ### 2.1 GET `/api/domains`
 
 获取后端可用的业务域（domain）列表。
 
-**请求示例**：
+**请求**：
 
-```bash
-curl http://localhost:8003/api/domains
-```
+| 项目 | 值 |
+|------|-----|
+| 方法 | `GET` |
+| URL | `http://localhost:8000/api/domains` |
 
 **响应**：
 ```json
 [
   {
-    "name": "demo-region",
+    "name": "demo-core",
     "nodeCount": 120,
     "edgeCount": 350
   }
@@ -52,23 +53,22 @@ curl http://localhost:8003/api/domains
 | `nodeCount` | int | 该 domain 的节点总数 |
 | `edgeCount` | int | 该 domain 的边总数 |
 
+> Bruno 测试：`请求所有域.bru`
+
 ---
 
 ### 2.2 GET `/api/graph/initial`
 
 初始加载图谱数据，完全由后端决定展示哪些节点，不受 `m`/`n` 影响。
 
-**请求示例**：
+**请求**：
 
-```bash
-# 不指定 domain（使用默认首个可用 domain）
-curl "http://localhost:8003/api/graph/initial"
+| 项目 | 值 |
+|------|-----|
+| 方法 | `GET` |
+| URL | `http://localhost:8000/api/graph/initial` |
 
-# 指定 domain
-curl "http://localhost:8003/api/graph/initial?domain=demo-region"
-```
-
-**请求参数**：
+**Query 参数**：
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -100,17 +100,21 @@ curl "http://localhost:8003/api/graph/initial?domain=demo-region"
 }
 ```
 
+> Bruno 测试：`请求初始节点.bru`
+
 ---
 
 ### 2.3 POST `/api/graph/expand`
 
 多层展开（BFS）：从根节点出发，每层每个节点取前 `m` 个直接邻居，迭代 `n` 层。
 
-**请求示例**：
+**请求**：
 
-```bash
-curl -X POST http://localhost:8003/api/graph/expand -H "Content-Type: application/json" -d '{"nodeId":"人员/person-00022","m":5,"n":2,"domain":"demo-region"}'
-```
+| 项目 | 值 |
+|------|-----|
+| 方法 | `POST` |
+| URL | `http://localhost:8000/api/graph/expand` |
+| Content-Type | `application/json` |
 
 **请求体**（JSON）：
 
@@ -121,12 +125,21 @@ curl -X POST http://localhost:8003/api/graph/expand -H "Content-Type: applicatio
 | `n` | int | 是 | 最大深度（迭代层数） |
 | `domain` | string | 否 | 查询的 domain |
 
+```json
+{
+    "nodeId": "项目/proj-00093",
+    "m": 5,
+    "n": 2,
+    "domain": "demo-core"
+}
+```
+
 **响应**：
 ```json
 {
   "nodes": [ ... ],
   "edges": [ ... ],
-  "totalNeighbors": 123
+  "totalNeighbors": 23
 }
 ```
 
@@ -136,37 +149,106 @@ curl -X POST http://localhost:8003/api/graph/expand -H "Content-Type: applicatio
 | `edges` | array | 新增边列表 |
 | `totalNeighbors` | int | 根节点的**全部直接邻居总数** |
 
+> Bruno 测试：`节点展开.bru`
+
 ---
 
 ### 2.4 POST `/api/graph/neighbors`
 
-分页加载邻居：传入已加载的邻居 ID 列表，后端排除后返回下一批未加载的直接邻居。不依赖顺序，与 BFS 展开互不干扰。
+分页加载邻居，支持自动多层递进：当直接邻居被全部排除后，后端自动进入下一 BFS 层继续探索。前端无需感知层数变化。
 
-**请求示例**：
+**请求**：
 
-```bash
-curl -X POST http://localhost:8003/api/graph/neighbors -H "Content-Type: application/json" -d '{"nodeId":"人员/person-00022","limit":5,"excludeIds":[],"domain":"demo-region"}'
-```
+| 项目 | 值 |
+|------|-----|
+| 方法 | `POST` |
+| URL | `http://localhost:8000/api/graph/neighbors` |
+| Content-Type | `application/json` |
 
 **请求体**（JSON）：
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `nodeId` | string | 是 | 被查询的节点 ID |
-| `limit` | int | 是 | 本批次返回几个直接邻居 |
-| `excludeIds` | string[] | 否 | 已加载的直接邻居 ID 列表，后端会跳过这些 |
+| `limit` | int | 是 | 本批次最多返回几个新节点（跨层全局计数） |
+| `excludeIds` | string[] | 否 | 已加载的节点 ID 列表，后端跳过这些（但作为 BFS 前沿继续遍历）。首次请求传 `[]`，后续请求传入已加载邻居的 ID |
 | `domain` | string | 否 | 查询的 domain |
 
-**响应**（与 expand 格式相同）：
+**首次请求**（无排除）：
+```json
+{
+    "nodeId": "人员/person-00778",
+    "limit": 5,
+    "excludeIds": [],
+    "domain": "demo-core"
+}
+```
+
+**继续加载**（排除已加载的 5 个邻居）：
+```json
+{
+    "nodeId": "人员/person-00778",
+    "limit": 5,
+    "excludeIds": [
+        "组织/org-00159",
+        "问答/qa-00502",
+        "问答/qa-00786",
+        "项目/proj-00093",
+        "项目/proj-00170"
+    ],
+    "domain": "demo-core"
+}
+```
+
+**响应**：
 ```json
 {
   "nodes": [ ... ],
   "edges": [ ... ],
-  "totalNeighbors": 123
+  "totalNeighbors": 6,
+  "totalReachable": 42
 }
 ```
 
-> `totalNeighbors` 始终为该节点的全部直接邻居总数，不受分页 `offset` 影响。
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `nodes` | array | 本批次新增节点列表 |
+| `edges` | array | 本批次新增边列表 |
+| `totalNeighbors` | int | 根节点的直接邻居总数（仅层1，不受排除影响） |
+| `totalReachable` | int | **从根节点出发，BFS 全部可达节点的总数**（跨所有层，不含根节点自身）。前端用此字段计算 `(已加载 / totalReachable)` 和判断按钮是否禁用 |
+
+#### 多层递进行为
+
+后端 BFS 遍历规则：
+
+1. 首次请求时，后端做一次全量 BFS 扫描，计算出 `totalReachable`（后续每次请求返回相同值）
+2. 每次分页请求，使用 `visited` 集合（= `excludeIds` ∪ 本批次新发现节点）防止重复返回
+3. 当层1的直接邻居全部在 `excludeIds` 中时，自动以它们为前沿进入层2；同理自动递进到更深层
+4. 每批次最多返回 `limit` 个新节点（跨层累计）
+5. 返回的边包括：新节点与已有节点之间的边、新节点之间的边
+6. 前端维持 `loaded` 计数器；当 `loaded >= totalReachable` 时按钮禁用
+
+示例流程：
+```
+person-00778 有 6 个直接邻居（层1），每个层1邻居各有 4 个层2邻居
+totalReachable = 6 + 6×4 = 30
+
+第1批: excludeIds=[], limit=5
+  → 返回 5 个层1节点 + edges，totalReachable: 30
+  → 按钮显示 (5/30)
+
+第2批: excludeIds=[前5个层1节点], limit=5
+  → 层1剩余 1 个 + 层2 取 4 个 = 5 个节点 + edges
+  → 按钮显示 (10/30)
+
+...
+
+第N批: loaded >= 30 → 按钮禁用
+```
+
+> **⚠️ 当前状态**：以上多层递进行为为接口规范，当前测试后端（`backend/server.py`）仅实现了**单层分页**（`_paginate_direct_neighbors`），`totalReachable` 字段需后端自行实现。
+>
+> Bruno 测试：`邻居分页.bru`
 
 ---
 
@@ -174,17 +256,14 @@ curl -X POST http://localhost:8003/api/graph/neighbors -H "Content-Type: applica
 
 按节点 ID 查询，用于 URL 首屏节点定位。
 
-**请求示例**：
+**请求**：
 
-```bash
-# 查询单个节点（URL 编码处理中文）
-curl "http://localhost:8003/api/graph/nodes?ids=%E4%BA%BA%E5%91%98%2Fperson-00022&domain=demo-region"
+| 项目 | 值 |
+|------|-----|
+| 方法 | `GET` |
+| URL | `http://localhost:8000/api/graph/nodes` |
 
-# 浏览器中直接访问（中文可直接使用）
-# http://localhost:8003/api/graph/nodes?ids=人员/person-00022&domain=demo-region
-```
-
-**请求参数**：
+**Query 参数**：
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -201,7 +280,9 @@ curl "http://localhost:8003/api/graph/nodes?ids=%E4%BA%BA%E5%91%98%2Fperson-0002
 }
 ```
 
-> 说明：仅返回指定节点本身，不返回边和邻居。前端拿到后渲染单节点，再根据 URL 参数决定是否调用 `/api/graph/expand`。
+> 说明：仅返回指定节点本身，不返回边和邻居。前端拿到后渲染单节点，再根据 URL 参数决定是否调用 `POST /api/graph/expand`。
+>
+> Bruno 测试：`节点查询.bru`
 
 ---
 
@@ -263,7 +344,7 @@ curl "http://localhost:8003/api/graph/nodes?ids=%E4%BA%BA%E5%91%98%2Fperson-0002
 
 ## 4. 前端 URL 参数
 
-前端支持通过 URL 查询参数直接指定首屏节点，实现"深链接"效果。
+前端支持通过 URL 查询参数直接指定首屏节点。
 
 ### 4.1 参数说明
 
@@ -301,7 +382,7 @@ http://localhost:5173/?node=人员/person-00022&m=5
 ## 5. 通用规则
 
 - **去重**：`/api/graph/expand` 全量返回，由前端负责去重合并；`/api/graph/neighbors` 由后端根据 `excludeIds` 排除
-- **总数**：`totalNeighbors` 始终为直接邻居全量总数，不受分页 `excludeIds` 影响
-- **分页**：`/api/graph/neighbors` 使用 `excludeIds` + `limit` 精确分页，每次返回下一批未加载的直接邻居
+- **总数**：`totalNeighbors` = 层1直接邻居总数；`totalReachable`（仅 `neighbors`）= 全部 BFS 可达节点总数，用于前端 `(已加载 / totalReachable)` 显示和按钮禁用判断
+- **分页**：`/api/graph/neighbors` 使用 `excludeIds` + `limit` 分页，当直接邻居耗尽后自动深入下一 BFS 层
 - **Domain**：所有图谱接口支持可选的 `domain` 参数，用于多域场景
 - **数据上限**：前端可配置 `maxTotalNodes` 截断，后端也可附加全局上限
