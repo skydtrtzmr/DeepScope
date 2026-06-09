@@ -266,7 +266,7 @@ const graph = new Graph({
 
 Usage:
 
-In the [upsert](http://localhost:8000/en/manual/custom-extension/element#methods) method of the element class when customizing the shape, pass the second parameter:
+In the [upsert](http://localhost:8002/en/manual/custom-extension/element#methods) method of the element class when customizing the shape, pass the second parameter:
 
 ```ts
 this.upsert('shape-key', 'text', { text: 'label', fontSize: 16 }, this);

@@ -430,4 +430,4 @@ if __name__ == "__main__":
     print(f"DB 目录: {DATA_DIR}")
     print(f"发现 domains: {DOMAIN_NAMES}")
     print(f"初始节点配置: {INIT_CONFIG_PATH}")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8002)

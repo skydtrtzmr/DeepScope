@@ -41,7 +41,7 @@ npm run preview  # 预览构建产物
 
 ```json
 {
-  "apiBaseUrl": "http://localhost:8003",
+  "apiBaseUrl": "http://localhost:8002",
   "explore": {
     "m": 5,
     "n": 3,
@@ -77,7 +77,7 @@ npm run preview  # 预览构建产物
 | 值 | 行为 |
 |----|------|
 | `""`（空） | 使用相对路径。开发时经 Vite proxy 转发；生产时要求前后端同域 |
-| `"http://192.168.1.7:8003"` | 所有 API 请求直连该地址（需后端支持 CORS） |
+| `"http://192.168.1.7:8002"` | 所有 API 请求直连该地址（需后端支持 CORS） |
 
 > 应用初始化时最先加载该字段，后续所有 API 请求均使用此地址。
 

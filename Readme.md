@@ -14,21 +14,26 @@
 ## 2. 使用说明
 
 ### 启动后端
+
 在后端目录下运行
 ```
-uv run python server.py
-# 或
 uv run uvicorn server:app --host 0.0.0.0 --port 8002
 ```
 
 ### 启动前端
-在前端目录下运行
+
+在前端目录下，
+构建：
 ```
 npm run build
+```
+
+运行预览：
+```
 npm run preview
 ```
 
-前端配置文件；
+前端配置文件：
 `app-config.json`
 
 ## 3. 接口设计
@@ -59,41 +64,47 @@ npm run preview
 
 ### 5.1 URL 首屏节点参数测试
 
-假设前端运行在 `http://localhost:5173`，后端已启动并包含 `demo-region` domain：
+假设前端运行在 `http://localhost:4173`，后端已启动并包含 `demo-region` domain：
 
 1. **自动展开邻居（默认）**
    ```
-   http://localhost:5173/?domain=demo-region&node=人员/person-00022
+   http://localhost:4173/?domain=demo-region&node=人员/person-00022
    ```
    - 预期：首屏只显示 `person-00022` 一个节点，然后高亮选中并自动展开邻居子图（展开参数走 UI 默认配置）。
 
 2. **指定展开广度/深度（独立于 UI）**
    ```
-   http://localhost:5173/?domain=demo-region&node=人员/person-00022&m=5&n=2
+   http://localhost:4173/?domain=demo-region&node=人员/person-00022&m=5&n=2
    ```
    - 预期：高亮选中后自动展开子图，m=10（每层 5 个邻居）、n=2（深度 2 层）。UI 滑块配置不受影响。
 
 3. **仅指定广度**
    ```
-   http://localhost:5173/?domain=demo-region&node=人员/person-00022&m=3
+   http://localhost:4173/?domain=demo-region&node=人员/person-00022&m=3
    ```
    - 预期：m=3（每层 3 个邻居），n 走 exploreConfig 默认值（通常 n=1）。
 
 4. **仅渲染中心节点，不自动展开**
    ```
-   http://localhost:5173/?domain=demo-region&node=人员/person-00022&expand=0
+   http://localhost:4173/?domain=demo-region&node=人员/person-00022&expand=0
    ```
    - 预期：首屏只显示 `person-00022`，节点被选中，但不调用 `expandNode`，画布保持单节点状态。
 
 5. **不指定 domain（使用默认）**
    ```
-   http://localhost:5173/?node=人员/person-00022
+   http://localhost:4173/?node=人员/person-00022
    ```
    - 预期：使用首个可用 domain 查询节点。
 
-6. **节点 ID 不存在**
+6. **指定多个节点（逗号分隔）**
    ```
-   http://localhost:5173/?node=不存在的节点
+   http://localhost:4173/?domain=demo-region&node=项目/proj-00093,项目/proj-00171,项目/proj-00172
+   ```
+   - 预期：首屏同时显示三个项目节点，可分别点击展开各自的邻居。
+
+7. **节点 ID 不存在**
+   ```
+   http://localhost:4173/?node=不存在的节点
    ```
    - 预期：`/api/graph/nodes` 返回空数组，画布无节点，显示空白或 loading 状态。
 

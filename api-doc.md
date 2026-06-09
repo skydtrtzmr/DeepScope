@@ -11,14 +11,14 @@
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/domains` | 获取可用业务域列表 |
-| GET | `/api/graph/initial` | 初始图谱加载（后端决定返回子图） |
+| GET | `/api/graph/initial` | 初始图谱加载（后端决定返回的子图） |
 | POST | `/api/graph/expand` | 【探索节点】多层节点展开 |
 | POST | `/api/graph/neighbors` | 【探索节点】分页加载邻居 |
 | GET | `/api/graph/nodes` | 按 ID 查询节点 |
 
 > 说明：两个节点探索 API 本身都是**幂等**的（相同请求体始终返回相同结果）。区别在于前端按钮行为：
 > - **多层展开按钮**：`m`/`n` 不变的情况下，每次发相同参数，适合首屏触发和 URL 指定
-> - **更多邻居按钮**：每次需要前端根据已加载数据计算 `excludeIds`，参数随状态变化
+> - **更多邻居按钮**：每次需要前端根据已加载数据计算 `excludeIds`，参数随状态变化，适合针对直接关联邻居较多的节点，分批加载邻居
 
 所有图谱数据接口统一使用 **子图 JSON**（`nodes` + `edges`）格式。
 
@@ -26,7 +26,7 @@
 
 ## 2. 接口详情
 
-> 以下示例假设后端运行在 `http://localhost:8000`，domain 使用 `demo-core`。
+> 以下示例假设后端运行在 `http://localhost:8002`，domain 使用 `demo-core`。
 > 每个接口末尾附有对应的 [Bruno](https://www.usebruno.com/) 测试文件路径，可直接导入使用。
 
 ### 2.1 GET `/api/domains`
@@ -38,7 +38,7 @@
 | 项目 | 值 |
 |------|-----|
 | 方法 | `GET` |
-| URL | `http://localhost:8000/api/domains` |
+| URL | `http://localhost:8002/api/domains` |
 
 **响应**：
 ```json
@@ -70,7 +70,7 @@
 | 项目 | 值 |
 |------|-----|
 | 方法 | `GET` |
-| URL | `http://localhost:8000/api/graph/initial` |
+| URL | `http://localhost:8002/api/graph/initial` |
 
 **Query 参数**：
 
@@ -117,7 +117,7 @@
 | 项目 | 值 |
 |------|-----|
 | 方法 | `POST` |
-| URL | `http://localhost:8000/api/graph/expand` |
+| URL | `http://localhost:8002/api/graph/expand` |
 | Content-Type | `application/json` |
 
 **请求体**（JSON）：
@@ -166,7 +166,7 @@
 | 项目 | 值 |
 |------|-----|
 | 方法 | `POST` |
-| URL | `http://localhost:8000/api/graph/neighbors` |
+| URL | `http://localhost:8002/api/graph/neighbors` |
 | Content-Type | `application/json` |
 
 **请求体**（JSON）：
@@ -217,39 +217,31 @@
 |------|------|------|
 | `nodes` | array | 本批次新增节点列表 |
 | `edges` | array | 本批次新增边列表 |
-| `totalNeighbors` | int | 从根节点出发，BFS 全部可达节点（邻居）的总数。由后端决定**邻居层数**。不含根节点自身。不受排除影响。前端可以用此字段计算 `(已加载 / totalNeighbors)` 并判断按钮是否禁用。可选字段，可以停用前端计数及禁用判断功能。 |
+| `totalNeighbors` | int | 根节点的**直接邻居总数**（仅层1），不受排除影响。前端用 `(已加载 / totalNeighbors)` 计算按钮显示文案并判断是否禁用 |
 
-#### 多层递进行为
+#### 多层递进行为（规划）
 
-后端 BFS 遍历规则：
+> **⚠️ 以下为未来多层邻居支持的接口扩展方案，当前未实现。** 当前后端仅实现了单层分页（`_paginate_direct_neighbors`），`totalNeighbors` = 仅层1的直接邻居数。
 
-1. 首次请求时，后端做一次全量 BFS 扫描，计算出 `totalReachable`（后续每次请求返回相同值）
-2. 每次分页请求，使用 `visited` 集合（= `excludeIds` ∪ 本批次新发现节点）防止重复返回
-3. 当层1的直接邻居全部在 `excludeIds` 中时，自动以它们为前沿进入层2；同理自动递进到更深层
-4. 每批次最多返回 `limit` 个新节点（跨层累计）
-5. 返回的边包括：新节点与已有节点之间的边、新节点之间的边
-6. 前端维持 `loaded` 计数器；当 `loaded >= totalReachable` 时按钮禁用
+计划扩展：
 
-示例流程：
+- **概念扩展**：`totalNeighbors` 从"层1直接邻居总数"扩展为"后端 BFS 范围内的全部可达邻居总数"。后端决定探索几层，`totalNeighbors` 就反映那个范围内的总数。前端无需感知层数变化。
+- 后端 BFS 自动多层递进：当层1直接邻居全部排除后，自动进入层2，以此类推
+- 每批次返回 `limit` 个新节点（跨层累计），前端按钮始终显示 `(已加载 / totalNeighbors)`
+
+规划示例：
 ```
 person-00778 有 6 个直接邻居（层1），每个层1邻居各有 4 个层2邻居
-totalReachable = 6 + 6×4 = 30
 
-第1批: excludeIds=[], limit=5
-  → 返回 5 个层1节点 + edges，totalReachable: 30
-  → 按钮显示 (5/30)
+当前: totalNeighbors = 6（仅层1）
+  第1批 5/6 → 第2批 6/6 → 禁用
 
-第2批: excludeIds=[前5个层1节点], limit=5
-  → 层1剩余 1 个 + 层2 取 4 个 = 5 个节点 + edges
-  → 按钮显示 (10/30)
-
-...
-
-第N批: loaded >= 30 → 按钮禁用
+规划: totalNeighbors = 30（后端扩展 BFS 范围后）
+  第1批 5/30 → 第2批 10/30 → ... → 第N批 30/30 → 禁用
 ```
 
-> **⚠️ 当前状态**：以上多层递进行为为接口规范，当前测试后端（`backend/server.py`）仅实现了**单层分页**（`_paginate_direct_neighbors`），`totalReachable` 字段需后端自行实现。
->
+> 前端完全不需要改动 — `totalNeighbors` 字段名不变，后端只需扩展其语义和 BFS 深度即可。
+
 > Bruno 测试：`邻居分页.bru`
 
 ---
@@ -263,26 +255,38 @@ totalReachable = 6 + 6×4 = 30
 | 项目 | 值 |
 |------|-----|
 | 方法 | `GET` |
-| URL | `http://localhost:8000/api/graph/nodes` |
+| URL | `http://localhost:8002/api/graph/nodes` |
 
 **Query 参数**：
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `ids` | string | 是 | 逗号分隔的节点 ID 列表 |
+| `ids` | string | 是 | 逗号分隔的节点 ID 列表（支持多个） |
 | `domain` | string | 否 | 查询的 domain |
+
+**单节点请求**：
+```
+GET /api/graph/nodes?ids=人员/person-00022&domain=demo-core
+```
+
+**多节点请求**：
+```
+GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&domain=demo-core
+```
 
 **响应**：
 ```json
 {
   "nodes": [
-    { "id": "人员/person-00022", "label": "张三", "category": "人员" }
+    { "id": "人员/person-00022", "label": "张三", "category": "人员" },
+    { "id": "项目/proj-00093", "label": "项目-00093", "category": "项目" },
+    { "id": "项目/proj-00171", "label": "项目-00171", "category": "项目" }
   ],
   "edges": []
 }
 ```
 
-> 说明：仅返回指定节点本身，不返回边和邻居。前端拿到后渲染单节点，再根据 URL 参数决定是否调用 `POST /api/graph/expand`。
+> 说明：仅返回指定节点本身，不返回边和邻居。前端拿到后渲染所有节点，再根据 URL 参数决定是否调用 `POST /api/graph/expand`。
 >
 > Bruno 测试：`节点查询.bru`
 
@@ -362,13 +366,13 @@ totalReachable = 6 + 6×4 = 30
 
 ```
 # 完整示例：指定节点 + 广度 + 深度
-http://localhost:5173/?domain=demo-region&node=人员/person-00022&m=10&n=2
+http://localhost:4173/?domain=demo-region&node=人员/person-00022&m=10&n=2
 
 # 仅指定节点（不展开，适合嵌入场景）
-http://localhost:5173/?node=人员/person-00022&expand=0
+http://localhost:4173/?node=人员/person-00022&expand=0
 
 # 仅指定广度，n 走默认
-http://localhost:5173/?node=人员/person-00022&m=5
+http://localhost:4173/?node=人员/person-00022&m=5
 ```
 
 ### 4.3 首屏加载流程
@@ -384,7 +388,7 @@ http://localhost:5173/?node=人员/person-00022&m=5
 ## 5. 通用规则
 
 - **去重**：`/api/graph/expand` 全量返回，由前端负责去重合并；`/api/graph/neighbors` 由后端根据 `excludeIds` 排除
-- **总数**：`totalNeighbors` = 层1直接邻居总数；`totalReachable`（仅 `neighbors`）= 全部 BFS 可达节点总数，用于前端 `(已加载 / totalReachable)` 显示和按钮禁用判断（具体待定，可以不用此数据）
+- **总数**：`totalNeighbors`（当前实现）= 层1直接邻居总数，前端用 `(已加载 / totalNeighbors)` 显示和按钮禁用判断；未来多层支持后，该字段语义扩展为后端 BFS 范围内的全部可达邻居总数，字段名不变
 - **分页**：`/api/graph/neighbors` 使用 `excludeIds` + `limit` 分页，当直接邻居耗尽后自动深入下一 BFS 层
 - **Domain**：所有图谱接口支持可选的 `domain` 参数，用于多域场景
 - **数据上限**：前端可配置 `maxTotalNodes` 截断，后端也可附加全局上限
