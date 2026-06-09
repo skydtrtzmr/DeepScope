@@ -19,3 +19,84 @@ settings {
   encodeUrl: true
   timeout: 0
 }
+
+example {
+  name: 示例：多个节点
+  
+  request: {
+    url: http://127.0.0.1:8002/api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&domain=demo-core
+    method: GET
+    mode: none
+    params:query: {
+      ids: 项目/proj-00093,项目/proj-00171,项目/proj-00172
+      domain: demo-core
+    }
+  }
+  
+  response: {
+    headers: {
+      date: Tue, 09 Jun 2026 12:16:16 GMT
+      server: uvicorn
+      content-length: 1241
+      content-type: application/json
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "nodes": [
+            {
+              "id": "项目/proj-00093",
+              "label": "项目-00093",
+              "category": "项目",
+              "description": "## 基本信息\n\n- **类型**: 技术预研\n- **状态**: 已暂停\n- **优先级**: 43\n\n## 关联\n\n- **负责人**: person-00778\n\n## 时间\n\n- **日期**: 2020-10-06\n- **创建**: 2020-10-06\n- **修改**: 2020-10-06",
+              "data": {
+                "rank": 217,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#10b981",
+                "radius": 50
+              }
+            },
+            {
+              "id": "项目/proj-00171",
+              "label": "项目-00171",
+              "category": "项目",
+              "description": "## 基本信息\n\n- **类型**: 市场推广\n- **状态**: 已取消\n- **优先级**: 11\n\n## 关联\n\n- **负责人**: person-00042\n\n## 时间\n\n- **日期**: 2024-08-31\n- **创建**: 2024-08-31\n- **修改**: 2024-08-31",
+              "data": {
+                "rank": 127,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#10b981",
+                "radius": 50
+              }
+            },
+            {
+              "id": "项目/proj-00172",
+              "label": "项目-00172",
+              "category": "项目",
+              "description": "## 基本信息\n\n- **类型**: 产品研发\n- **状态**: 已取消\n- **部门/类别**: 业务\n- **优先级**: 35\n\n## 关联\n\n- **负责人**: person-01135\n\n## 时间\n\n- **日期**: 2024-08-31\n- **创建**: 2024-08-31\n- **修改**: 2024-08-31",
+              "data": {
+                "rank": 17,
+                "domain": "demo-core"
+              },
+              "style": {
+                "fill": "#10b981",
+                "radius": 50
+              }
+            }
+          ],
+          "edges": []
+        }
+      '''
+    }
+  }
+}
