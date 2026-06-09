@@ -382,7 +382,7 @@ http://localhost:5173/?node=人员/person-00022&m=5
 ## 5. 通用规则
 
 - **去重**：`/api/graph/expand` 全量返回，由前端负责去重合并；`/api/graph/neighbors` 由后端根据 `excludeIds` 排除
-- **总数**：`totalNeighbors` = 层1直接邻居总数；`totalReachable`（仅 `neighbors`）= 全部 BFS 可达节点总数，用于前端 `(已加载 / totalReachable)` 显示和按钮禁用判断
+- **总数**：`totalNeighbors` = 层1直接邻居总数；`totalReachable`（仅 `neighbors`）= 全部 BFS 可达节点总数，用于前端 `(已加载 / totalReachable)` 显示和按钮禁用判断（具体待定，可以不用此数据）
 - **分页**：`/api/graph/neighbors` 使用 `excludeIds` + `limit` 分页，当直接邻居耗尽后自动深入下一 BFS 层
 - **Domain**：所有图谱接口支持可选的 `domain` 参数，用于多域场景
 - **数据上限**：前端可配置 `maxTotalNodes` 截断，后端也可附加全局上限
