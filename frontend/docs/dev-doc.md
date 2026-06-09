@@ -1,3 +1,18 @@
+# 开发文档 
+
+## 3. 技术栈
+
+| 类别 | 技术选型 |
+|------|-----------|
+| 框架 | React 18 + TypeScript |
+| 图谱可视化 | AntV G6（样式完全遵循 G6 规范） |
+| 状态管理 | Zustand |
+| 数据请求 | axios + TanStack Query（@tanstack/react-query） |
+| 虚拟滚动 | @tanstack/react-virtual |
+| UI 组件库 | shadcn/ui |
+| 构建工具 | Vite |
+| 样式 | Tailwind CSS |
+
 ## 5. 前端核心交互设计
 
 ### 5.1 状态管理分工
