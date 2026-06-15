@@ -361,6 +361,7 @@ GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&d
 | `expand` | string | 否 | `0` 时仅选中不展开；默认展开 |
 | `m` | int | 否 | 初始展开广度（每层邻居数），独立于 UI 滑块 |
 | `n` | int | 否 | 初始展开深度（间接层数），独立于 UI 滑块 |
+| `api` | string | 否 | 指定后端接口地址，优先级高于 `app-config.json` 中的 `apiBaseUrl`，如 `?api=http://other-server:9000` |
 
 ### 4.2 示例
 
@@ -373,6 +374,12 @@ http://localhost:4173/?node=人员/person-00022&expand=0
 
 # 仅指定广度，n 走默认
 http://localhost:4173/?node=人员/person-00022&m=5
+
+# 指定后端地址（覆盖 app-config.json 中的 apiBaseUrl）
+http://localhost:4173/?api=http://192.168.1.100:8002
+
+# 完整组合：指定节点 + 后端地址 + 展开参数
+http://localhost:4173/?domain=demo-core&node=人员/person-00022&m=5&n=2&api=http://192.168.1.100:8002
 ```
 
 ### 4.3 首屏加载流程

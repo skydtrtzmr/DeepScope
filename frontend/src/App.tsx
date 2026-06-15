@@ -32,9 +32,15 @@ function AppContent() {
         return res.json();
       })
       .then((cfg) => {
+        // 优先级：URL 参数 ?api= > app-config.json 中的 apiBaseUrl
         if (cfg?.apiBaseUrl) {
           setApiBaseUrl(cfg.apiBaseUrl);
           console.log('[config] 已设置 API base URL:', cfg.apiBaseUrl);
+        }
+        const apiUrlParam = new URLSearchParams(window.location.search).get('api');
+        if (apiUrlParam) {
+          setApiBaseUrl(apiUrlParam);
+          console.log('[config] URL 参数 ?api= 覆盖 API base URL:', apiUrlParam);
         }
         if (cfg?.explore) {
           updateExploreConfig(cfg.explore);

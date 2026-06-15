@@ -2,12 +2,15 @@
 DeepScope 图谱数据测试服务。
 
 用法:
-    uv run python server.py
+    uv run python server.py              # 默认端口 8002
+    uv run python server.py 8003         # 自定义端口
+    uv run python server.py --port 9000  # 指定端口（推荐）
 
 依赖:
     uv pip install fastapi uvicorn
 """
 
+import argparse
 import json
 import os
 import sqlite3
@@ -426,8 +429,15 @@ def _fetch_nodes_and_edges(
 # ── 启动 ────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="DeepScope Graph Server")
+    parser.add_argument("port", nargs="?", type=int, default=None, help="服务端口")
+    parser.add_argument("--port", dest="port_kw", type=int, default=None, help="服务端口（推荐）")
+    args = parser.parse_args()
+    port = args.port or args.port_kw or 8002
+
     print(f"DeepScope Graph Server")
+    print(f"端口: {port}")
     print(f"DB 目录: {DATA_DIR}")
     print(f"发现 domains: {DOMAIN_NAMES}")
     print(f"初始节点配置: {INIT_CONFIG_PATH}")
-    uvicorn.run(app, host="0.0.0.0", port=8002)
+    uvicorn.run(app, host="0.0.0.0", port=port)
