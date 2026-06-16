@@ -361,7 +361,8 @@ GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&d
 | `expand` | string | 否 | `0` 时仅选中不展开；默认展开 |
 | `m` | int | 否 | 初始展开广度（每层邻居数），独立于 UI 滑块 |
 | `n` | int | 否 | 初始展开深度（间接层数），独立于 UI 滑块 |
-| `api` | string | 否 | 指定后端接口地址，优先级高于 `app-config.json` 中的 `apiBaseUrl`，如 `?api=http://other-server:9000` |
+| `api-base` | string | 否 | 替换 API 基础地址（主机+端口），优先级高于 `app-config.json` 中的 `apiBaseUrl`，如 `?api-base=http://other-server:9000` |
+| `api-path` | string | 否 | 在确定后的 baseURL 后面拼接路径前缀，如 `?api-path=/v2`。也可直接将完整路径纳入 `api-base` 参数，二者等价 |
 
 ### 4.2 示例
 
@@ -375,11 +376,17 @@ http://localhost:4173/?node=人员/person-00022&expand=0
 # 仅指定广度，n 走默认
 http://localhost:4173/?node=人员/person-00022&m=5
 
-# 指定后端地址（覆盖 app-config.json 中的 apiBaseUrl）
-http://localhost:4173/?api=http://localhost:8002
+# 替换 API 基础地址（覆盖 app-config.json 中的 apiBaseUrl）
+http://localhost:4173/?api-base=http://localhost:8002
 
-# 完整组合：指定节点 + 后端地址 + 展开参数
-http://localhost:4173/?domain=demo-core&node=人员/person-00022&m=5&n=2&api=http://localhost:8002
+# 拼接路径（在 app-config.json 的 apiBaseUrl 后添加路径前缀）
+http://localhost:4173/?api-path=/v2
+
+# 同时使用：替换基础地址 + 拼接路径 → baseURL = http://a.com:9000/v2
+http://localhost:4173/?api-base=http://a.com:9000&api-path=/v2
+
+# 完整组合（旧 ?api= 无需修改，直接改用 ?api-base= 即可带完整路径）
+http://localhost:4173/?domain=demo-core&node=人员/person-00022&m=5&n=2&api-base=http://localhost:8002&api-path=/v2
 ```
 
 ### 4.3 首屏加载流程

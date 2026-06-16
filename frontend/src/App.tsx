@@ -32,15 +32,23 @@ function AppContent() {
         return res.json();
       })
       .then((cfg) => {
-        // 优先级：URL 参数 ?api= > app-config.json 中的 apiBaseUrl
+        // 优先级：app-config.json → ?api-base= → (拼接 ?api-path=)
+        let baseUrl = cfg?.apiBaseUrl || '';
         if (cfg?.apiBaseUrl) {
           setApiBaseUrl(cfg.apiBaseUrl);
           console.log('[config] 已设置 API base URL:', cfg.apiBaseUrl);
         }
-        const apiUrlParam = new URLSearchParams(window.location.search).get('api');
-        if (apiUrlParam) {
-          setApiBaseUrl(apiUrlParam);
-          console.log('[config] URL 参数 ?api= 覆盖 API base URL:', apiUrlParam);
+        const apiBaseParam = new URLSearchParams(window.location.search).get('api-base');
+        if (apiBaseParam) {
+          baseUrl = apiBaseParam.replace(/\/+$/, '');
+          setApiBaseUrl(baseUrl);
+          console.log('[config] URL 参数 ?api-base= 覆盖 API base URL:', baseUrl);
+        }
+        const apiPathParam = new URLSearchParams(window.location.search).get('api-path');
+        if (apiPathParam) {
+          const finalUrl = baseUrl.replace(/\/+$/, '') + '/' + apiPathParam.replace(/^\/+/, '');
+          setApiBaseUrl(finalUrl);
+          console.log('[config] URL 参数 ?api-path= 拼接路径，最终 base URL:', finalUrl);
         }
         if (cfg?.explore) {
           updateExploreConfig(cfg.explore);
