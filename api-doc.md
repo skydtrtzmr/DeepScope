@@ -376,10 +376,10 @@ http://localhost:4173/?node=人员/person-00022&expand=0
 http://localhost:4173/?node=人员/person-00022&m=5
 
 # 指定后端地址（覆盖 app-config.json 中的 apiBaseUrl）
-http://localhost:4173/?api=http://192.168.1.100:8002
+http://localhost:4173/?api=http://localhost:8002
 
 # 完整组合：指定节点 + 后端地址 + 展开参数
-http://localhost:4173/?domain=demo-core&node=人员/person-00022&m=5&n=2&api=http://192.168.1.100:8002
+http://localhost:4173/?domain=demo-core&node=人员/person-00022&m=5&n=2&api=http://localhost:8002
 ```
 
 ### 4.3 首屏加载流程
