@@ -347,7 +347,7 @@ GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&d
 
 ## 4. 前端 URL 参数
 
-前端支持通过 URL 查询参数直接指定首屏节点。
+前端支持通过 URL 查询参数直接指定首屏节点，同时也支持通过 URL 参数覆盖 API 基础地址和各个接口的端点路径。
 
 ### 4.1 参数说明
 
@@ -358,22 +358,28 @@ GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&d
 | `expand` | string | 否 | `0` 时仅选中不展开；默认展开 |
 | `m` | int | 否 | 初始展开广度（每层邻居数），独立于 UI 滑块 |
 | `n` | int | 否 | 初始展开深度（间接层数），独立于 UI 滑块 |
-| `api-base` | string | 否 | 替换 API 基础地址（主机+端口），优先级高于 `app-config.json` 中的 `apiBaseUrl`，如 `?api-base=http://other-server:9000` |
-| `api-path` | string | 否 | 在确定后的 baseURL 后面拼接路径前缀，如 `?api-path=/v2`。也可直接将完整路径纳入 `api-base` 参数，二者等价 |
+| `api` | string | 否 | 替换 API 基础地址（可带路径前缀），优先级高于 `app-config.json` 中的 `apiBaseUrl`，如 `?api=http://other-server:9000` 或 `?api=http://other-server:9000/api/v2` |
+| `api-domains` | string | 否 | 覆盖 domains 端点路径，如 `?api-domains=/v2/domains` |
+| `api-initial` | string | 否 | 覆盖 initial 图谱加载端点路径，如 `?api-initial=/v2/graph/initial` |
+| `api-expand` | string | 否 | 覆盖 expand 节点展开端点路径，如 `?api-expand=/v2/graph/expand` |
+| `api-neighbors` | string | 否 | 覆盖 neighbors 邻居分页端点路径，如 `?api-neighbors=/v2/graph/neighbors` |
+| `api-nodes` | string | 否 | 覆盖 nodes 节点查询端点路径，如 `?api-nodes=/v2/graph/nodes` |
 
-#### api-base 与 api-path 组合逻辑
+#### 优先级链
 
-`最终 baseURL = api-base + api-path`
+```
+代码默认路径 → app-config.json apiEndpoints → URL 参数 ?api-xxx=
+```
 
-| 参数组合 | 最终 baseURL | 等价写法 |
-|----------|-------------|---------|
-| 仅 `?api-base=http://a.com:9000` | `http://a.com:9000` | — |
-| 仅 `?api-path=/v2` | `(config baseUrl)/v2` | — |
-| `?api-base=http://a.com:9000&api-path=/v2` | `http://a.com:9000/v2` | `?api-base=http://a.com:9000/v2`（不传 api-path） |
-| `?api-base=http://a.com:9000/v2` | `http://a.com:9000/v2` | `?api-base=http://a.com:9000&api-path=/v2` |
+最终请求 URL = `api 基础地址 + 端点路径`
 
-> 优先级顺序：`app-config.json` 的 `apiBaseUrl` → `?api-base=`（完整替换`apiBaseUrl`）→ `?api-path=`（拼接在`base`后面）。  
-> `api-path` 是作为可选后缀，直接往 `api-base` 里写完整地址也完全等价。
+| 参数组合 | 最终请求 URL |
+|----------|-------------|
+| 无任何 api 参数 | `(config apiBaseUrl) + (config apiEndpoints 默认路径)` |
+| 仅 `?api=http://a.com:9000` | `http://a.com:9000 + (config apiEndpoints 默认路径)` |
+| 仅 `?api-expand=/v2/expand` | `(config apiBaseUrl) + /v2/expand` |
+| `?api=http://a.com:9000&api-expand=/v2/expand` | `http://a.com:9000/v2/expand` |
+| `?api=http://a.com:9000/api/v2` | `http://a.com:9000/api/v2 + (config apiEndpoints 默认路径)` |
 
 ### 4.2 示例
 
@@ -384,29 +390,28 @@ http://localhost:4173/?domain=demo-region&node=人员/person-00022&m=10&n=2
 # 仅指定节点（不展开，适合嵌入场景）
 http://localhost:4173/?node=人员/person-00022&expand=0
 
-# 仅指定广度，n 走默认
-http://localhost:4173/?node=人员/person-00022&m=5
-
 # 替换 API 基础地址（覆盖 app-config.json 中的 apiBaseUrl）
-http://localhost:4173/?api-base=http://localhost:8002
+http://localhost:4173/?api=http://localhost:8002
 
-# 拼接路径（在 app-config.json 的 apiBaseUrl 后添加路径前缀）
-http://localhost:4173/?api-path=/v2
+# 替换基础地址并包含路径前缀
+http://localhost:4173/?api=http://localhost:8002/api/v2
 
-# 同时使用：替换基础地址 + 拼接路径 → baseURL = http://a.com:9000/v2
-http://localhost:4173/?api-base=http://a.com:9000&api-path=/v2
+# 单独覆盖 expand 端点路径
+http://localhost:4173/?api-expand=/v2/graph/expand
 
-# 完整组合（旧 ?api= 无需修改，直接改用 ?api-base= 即可带完整路径）
-http://localhost:4173/?domain=demo-core&node=人员/person-00022&m=5&n=2&api-base=http://localhost:8002&api-path=/v2
+# 完整组合：替换基础地址 + 覆盖多个端点
+http://localhost:4173/?domain=demo-core&node=人员/person-00022&m=5&n=2&api=http://a.com:9000&api-expand=/v2/graph/expand&api-nodes=/v2/graph/nodes
 ```
 
 ### 4.3 首屏加载流程
 
-1. URL 含 `?node=` → 前端调用 `GET /api/graph/nodes?ids=...` 获取节点
+1. URL 含 `?node=` → 前端调用 `GET {nodes接口路径}?ids=...` 获取节点
 2. 渲染中心节点，约 300ms 后自动 `selectNode`
-3. 若 `expand !== '0'` 或 URL 含 `m`/`n` → 调用 `POST /api/graph/expand`（BFS 多层展开）
+3. 若 `expand !== '0'` 或 URL 含 `m`/`n` → 调用 `POST {expand接口路径}`（BFS 多层展开）
 
 > `m`/`n` 仅影响首屏初始展开，与操作界面中用户可调的滑块配置互不干扰。
+
+> 接口路径完全可配置：基础地址由 `?api=` 或 `app-config.json` 中的 `apiBaseUrl` 决定，每个端点路径由 `?api-xxx=` 或 `app-config.json` 中的 `apiEndpoints` 决定。
 
 ---
 

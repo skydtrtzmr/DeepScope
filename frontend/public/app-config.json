@@ -1,5 +1,12 @@
 {
   "apiBaseUrl": "http://localhost:8002",
+  "apiEndpoints": {
+    "domains": "/api/domains",
+    "initial": "/api/graph/initial",
+    "expand": "/api/graph/expand",
+    "neighbors": "/api/graph/neighbors",
+    "nodes": "/api/graph/nodes"
+  },
   "explore": {
     "m": 5,
     "n": 3,

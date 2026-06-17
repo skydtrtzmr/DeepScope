@@ -4,7 +4,7 @@ import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { fetchDomains, fetchInitialGraph, fetchNodesByIds, setApiBaseUrl } from '@/lib/api';
+import { fetchDomains, fetchInitialGraph, fetchNodesByIds, setApiBaseUrl, setEndpointPaths } from '@/lib/api';
 import type { GraphData, SliderLimits } from '@/types/graph';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,23 +32,36 @@ function AppContent() {
         return res.json();
       })
       .then((cfg) => {
-        // 优先级：app-config.json → ?api-base= → (拼接 ?api-path=)
+        // —— 1. API base URL ——
+        // 优先级：app-config.json → ?api=
         let baseUrl = cfg?.apiBaseUrl || '';
         if (cfg?.apiBaseUrl) {
           setApiBaseUrl(cfg.apiBaseUrl);
           console.log('[config] 已设置 API base URL:', cfg.apiBaseUrl);
         }
-        const apiBaseParam = new URLSearchParams(window.location.search).get('api-base');
-        if (apiBaseParam) {
-          baseUrl = apiBaseParam.replace(/\/+$/, '');
+        const apiParam = new URLSearchParams(window.location.search).get('api');
+        if (apiParam) {
+          baseUrl = apiParam.replace(/\/+$/, '');
           setApiBaseUrl(baseUrl);
-          console.log('[config] URL 参数 ?api-base= 覆盖 API base URL:', baseUrl);
+          console.log('[config] URL 参数 ?api= 覆盖 API base URL:', baseUrl);
         }
-        const apiPathParam = new URLSearchParams(window.location.search).get('api-path');
-        if (apiPathParam) {
-          const finalUrl = baseUrl.replace(/\/+$/, '') + '/' + apiPathParam.replace(/^\/+/, '');
-          setApiBaseUrl(finalUrl);
-          console.log('[config] URL 参数 ?api-path= 拼接路径，最终 base URL:', finalUrl);
+
+        // —— 2. 端点路径 ——
+        // 优先级：代码默认值 → app-config.json apiEndpoints → URL 参数 ?api-xxx=
+        if (cfg?.apiEndpoints) {
+          setEndpointPaths(cfg.apiEndpoints);
+          console.log('[config] 已加载 API 端点配置:', cfg.apiEndpoints);
+        }
+        const params = new URLSearchParams(window.location.search);
+        const urlOverrides: Record<string, string> = {};
+        const endpointNames = ['domains', 'initial', 'expand', 'neighbors', 'nodes'];
+        for (const name of endpointNames) {
+          const val = params.get(`api-${name}`);
+          if (val) urlOverrides[name] = val;
+        }
+        if (Object.keys(urlOverrides).length > 0) {
+          setEndpointPaths(urlOverrides);
+          console.log('[config] URL 参数覆盖端点路径:', urlOverrides);
         }
         if (cfg?.explore) {
           updateExploreConfig(cfg.explore);

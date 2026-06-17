@@ -19,17 +19,31 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// 可配置端点路径（代码内默认值 → app-config.json → URL 参数覆盖）
+const _endpoints: Record<string, string> = {
+  domains: '/api/domains',
+  initial: '/api/graph/initial',
+  expand: '/api/graph/expand',
+  neighbors: '/api/graph/neighbors',
+  nodes: '/api/graph/nodes',
+};
+
+/** 批量设置端点路径（可从 app-config.json 或 URL 参数中读取） */
+export function setEndpointPaths(paths: Record<string, string>) {
+  Object.assign(_endpoints, paths);
+}
+
 // 获取可用 domain 列表
 export type { DomainItem };
 
 export async function fetchDomains(): Promise<DomainItem[]> {
-  const { data } = await api.get('/api/domains');
+  const { data } = await api.get(_endpoints.domains);
   return Array.isArray(data) ? data : [];
 }
 
 // 初始加载
 export async function fetchInitialGraph(domain: string): Promise<GraphData> {
-  const { data } = await api.get('/api/graph/initial', { params: { domain } });
+  const { data } = await api.get(_endpoints.initial, { params: { domain } });
   return data;
 }
 
@@ -58,7 +72,7 @@ export interface ExpandGraphResponse {
 
 // 按 ID 查询节点（仅返回节点，无边）
 export async function fetchNodesByIds(ids: string[], domain: string): Promise<GraphData> {
-  const { data } = await api.get('/api/graph/nodes', {
+  const { data } = await api.get(_endpoints.nodes, {
     params: { ids: ids.join(','), domain },
   });
   return data;
@@ -66,7 +80,7 @@ export async function fetchNodesByIds(ids: string[], domain: string): Promise<Gr
 
 // BFS 多层展开（POST）
 export async function expandGraph(params: ExpandGraphParams): Promise<ExpandGraphResponse> {
-  const { data } = await api.post('/api/graph/expand', {
+  const { data } = await api.post(_endpoints.expand, {
     nodeId: params.nodeId,
     m: params.m,
     n: params.n,
@@ -77,7 +91,7 @@ export async function expandGraph(params: ExpandGraphParams): Promise<ExpandGrap
 
 // 分页加载直接邻居（POST）
 export async function fetchNeighbors(params: NeighborParams): Promise<ExpandGraphResponse> {
-  const { data } = await api.post('/api/graph/neighbors', {
+  const { data } = await api.post(_endpoints.neighbors, {
     nodeId: params.nodeId,
     limit: params.limit,
     excludeIds: params.excludeIds,
