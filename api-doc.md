@@ -364,6 +364,20 @@ GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&d
 | `api-base` | string | 否 | 替换 API 基础地址（主机+端口），优先级高于 `app-config.json` 中的 `apiBaseUrl`，如 `?api-base=http://other-server:9000` |
 | `api-path` | string | 否 | 在确定后的 baseURL 后面拼接路径前缀，如 `?api-path=/v2`。也可直接将完整路径纳入 `api-base` 参数，二者等价 |
 
+#### api-base 与 api-path 组合逻辑
+
+`最终 baseURL = api-base + api-path`
+
+| 参数组合 | 最终 baseURL | 等价写法 |
+|----------|-------------|---------|
+| 仅 `?api-base=http://a.com:9000` | `http://a.com:9000` | — |
+| 仅 `?api-path=/v2` | `(config baseUrl)/v2` | — |
+| `?api-base=http://a.com:9000&api-path=/v2` | `http://a.com:9000/v2` | `?api-base=http://a.com:9000/v2`（不传 api-path） |
+| `?api-base=http://a.com:9000/v2` | `http://a.com:9000/v2` | `?api-base=http://a.com:9000&api-path=/v2` |
+
+> 优先级顺序：`app-config.json` 的 `apiBaseUrl` → `?api-base=`（完整替换`apiBaseUrl`）→ `?api-path=`（拼接在`base`后面）。  
+> `api-path` 是作为可选后缀，直接往 `api-base` 里写完整地址也完全等价。
+
 ### 4.2 示例
 
 ```
