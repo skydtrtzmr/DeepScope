@@ -53,9 +53,10 @@ function createGraph(
       manyBody: { strength: -80 },
       collide: { radius: 40, strength: 1 },
       center: { strength: 0.05 },
-      alphaDecay: 0.02,
+      alphaMin: 0.002,
+      alphaDecay: 0.03,
       // 收敛衰减率，值越小，图节点越有足够时间完成布局
-      velocityDecay: 0.4,
+      velocityDecay: 0.5,
     },
     node: {
       type: 'circle',
