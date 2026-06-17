@@ -151,7 +151,7 @@
 |------|------|------|
 | `nodes` | array | 新增节点列表 |
 | `edges` | array | 新增边列表 |
-| `totalNeighbors` | int | 根节点的**全部直接邻居总数** |
+| `totalNeighbors` | int | 根节点的全部邻居总数 |
 
 > Bruno 测试：`节点展开.bru`
 
@@ -319,9 +319,7 @@ GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&d
 | 属性 | 类型 | 说明 |
 |------|------|------|
 | `fill` | string | 填充颜色 |
-| `stroke` | string | 描边颜色 |
 | `radius` | number | 节点半径（仅圆形节点） |
-| `size` | number | 节点大小 |
 
 ---
 
@@ -342,7 +340,6 @@ GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&d
 |------|------|------|
 | `stroke` | string | 线条颜色 |
 | `lineWidth` | number | 线条宽度 |
-| `lineDash` | number[] | 虚线模式（如 `[5, 5]`） |
 
 > **边去重**：前端按 `source+target` 合并，同一对节点之间只保留一条边。
 
