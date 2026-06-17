@@ -1,6 +1,6 @@
 # DeepScope API 文档
 
-本文档描述 DeepScope 后端需实现的全部 HTTP 接口、数据模型及前端 URL 入参规范。
+本文档描述图谱追踪应用 DeepScope 的后端需实现的全部 HTTP 接口、数据模型及前端 URL 入参规范。
 
 > 前端配置相关（`apiBaseUrl`、探索/高亮/显示默认值等）请参见 [`frontend/Readme.md`](./frontend/Readme.md)。
 
