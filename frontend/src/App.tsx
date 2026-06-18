@@ -4,7 +4,7 @@ import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { fetchDomains, fetchInitialGraph, fetchNodesByIds, setApiBaseUrl, setEndpointPaths, setTokenConfig, setToken } from '@/lib/api';
+import { fetchDomains, fetchInitialGraph, fetchNodesByIds, setApiBaseUrl, setEndpointPaths, setTokenConfig, setToken, onTokenExpired } from '@/lib/api';
 import type { GraphData, SliderLimits } from '@/types/graph';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +22,7 @@ function AppContent() {
   const [importJson, setImportJson] = useState('');
   const [importError, setImportError] = useState('');
   const [configReady, setConfigReady] = useState(false);
+  const [tokenExpired, setTokenExpired] = useState(false);
   const initializedRef = useRef(false);
 
   // 加载外部配置文件
@@ -76,6 +77,7 @@ function AppContent() {
             tokenEndpoint: cfg.auth.tokenEndpoint,
             refreshGraceSeconds: cfg.auth.refreshGraceSeconds,
           });
+          onTokenExpired(() => setTokenExpired(true));
           console.log('[config] 已加载 auth 配置:', cfg.auth);
         }
         const tokenParam = new URLSearchParams(window.location.search).get('token');
@@ -229,6 +231,13 @@ function AppContent() {
 
   return (
     <div className="relative flex flex-col h-screen bg-background">
+      {/* Token 过期提示 */}
+      {tokenExpired && (
+        <div className="bg-destructive/10 text-destructive text-sm text-center py-2 px-4 border-b border-destructive/20">
+          Token 已过期，请关闭页面重新打开！
+        </div>
+      )}
+
       {/* 工具栏 */}
       <GraphToolbar
         onImportData={() => setImportDialogOpen(true)}

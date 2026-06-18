@@ -19,15 +19,22 @@ from pathlib import Path
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import jwt
+from datetime import datetime, timedelta, timezone
 
 # ── 配置 ────────────────────────────────────────────────
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = SCRIPT_DIR
 INIT_CONFIG_PATH = os.path.join(SCRIPT_DIR, "mock_graph.json")
+
+# Token 测试配置（仅测试用，生产环境请使用真实的签发服务）
+AUTH_TEST_SECRET = "deepscope-test-key"
+AUTH_ALGORITHM = "HS256"
+AUTH_EXPIRY_HOURS = 24
 
 
 def _discover_domains() -> dict[str, str]:
@@ -280,6 +287,39 @@ async def paginate_neighbors(req: NeighborRequest):
     domain = req.domain or DEFAULT_DOMAIN
     with get_db(domain) as conn:
         return _paginate_direct_neighbors(conn, req.nodeId, req.limit, req.excludeIds, domain)
+
+
+# ── Token 测试端点（仅开发/测试用） ─────────────────────
+
+@app.get("/api/Auth/testToken")
+async def generate_test_token():
+    """生成一个 24 小时有效的测试 token，方便复制到 ?token= 使用。"""
+    payload = {
+        "sub": "test-user",
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=AUTH_EXPIRY_HOURS),
+    }
+    token = jwt.encode(payload, AUTH_TEST_SECRET, algorithm=AUTH_ALGORITHM)
+    return {"token": token}
+
+
+@app.post("/api/Auth/replaceToken")
+async def replace_token(authorization: str = Header(...)):
+    """
+    测试用 token 刷新端点。
+    接受任意有效 JWT，用相同的 payload 签发一个新 token（延长过期时间）。
+    """
+    token = authorization.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token")
+    try:
+        # 不验证签名，只读 payload（测试目的）
+        payload = jwt.decode(token, options={"verify_signature": False})
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    payload["exp"] = datetime.now(timezone.utc) + timedelta(hours=AUTH_EXPIRY_HOURS)
+    new_token = jwt.encode(payload, AUTH_TEST_SECRET, algorithm=AUTH_ALGORITHM)
+    return {"Success": True, "StatusCode": None, "Message": None, "Data": new_token}
 
 
 # ── 内部函数 ────────────────────────────────────────────

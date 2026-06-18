@@ -1,0 +1,49 @@
+meta {
+  name: U4：testToken
+  type: http
+  seq: 7
+}
+
+get {
+  url: http://127.0.0.1:8002/api/Auth/testToken
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+
+example {
+  name: example (1)
+  
+  request: {
+    url: http://127.0.0.1:8002/api/Auth/testToken
+    method: GET
+    mode: none
+  }
+  
+  response: {
+    headers: {
+      date: Thu, 18 Jun 2026 06:24:58 GMT
+      server: uvicorn
+      content-length: 164
+      content-type: application/json
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE3ODE3NjM4OTgsImV4cCI6MTc4MTg1MDI5OH0.e-pYl5GFp3IFobxhifBcpFcjbUwRgDquIKr8YLMIqu0"
+        }
+      '''
+    }
+  }
+}

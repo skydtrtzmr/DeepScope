@@ -21,6 +21,12 @@ let _tokenEnabled = false;
 let _tokenEndpoint = '/api/Auth/replaceToken';
 let _refreshGraceSeconds = 300; // token 过期前多少秒开始主动刷新
 let _refreshPromise: Promise<string | null> | null = null;
+let _onTokenExpiredCallback: (() => void) | null = null;
+
+/** 注册 token 过期回调（刷新失败时触发，UI 层可用于显示提示） */
+export function onTokenExpired(cb: () => void) {
+  _onTokenExpiredCallback = cb;
+}
 
 export interface TokenConfig {
   enabled: boolean;
@@ -162,6 +168,7 @@ api.interceptors.response.use(
       if (!newToken) {
         _isRefreshing = false;
         _pendingRequests = [];
+        _onTokenExpiredCallback?.();
         return Promise.reject(error);
       }
       // 重试所有排队的请求

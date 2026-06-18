@@ -5,13 +5,13 @@ meta {
 }
 
 post {
-  url: http://192.168.254.221:8081/api/Auth/replaceToken
+  url: http://127.0.0.1:8002/api/Auth/replaceToken
   body: none
   auth: inherit
 }
 
 headers {
-  authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoi566h55CG5ZGYIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiQUpfOTksY2VzaGkwMixDUzAwNCxDUzAwNSxDUzAwNixDUzAxMSxDUzAxMixDU0owMSxHTlhaLEdOWkosU1lTLFRFU1QiLCJqdGkiOiJTWVMiLCJpYXQiOiIxNzgxNzUwMTY5IiwibmJmIjoiMTc4MTc1MDE2OSIsImV4cCI6IjE3ODE4MzY1NjkiLCJpc3MiOiJVYW51ZS5Db3JlLm93bmVyIiwiYXVkIjoiVWFudWUuQ29yZSJ9.hcDr5K4s_Iuaoc1B60Tw3PXLA-lc_gJdnoxTbtn2wAU
+  authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE3ODE3NTA1NzIsImV4cCI6MTc4MTgzNjk3Mn0.test-token-payload
 }
 
 settings {
@@ -20,25 +20,23 @@ settings {
 }
 
 example {
-  name: example
+  name: example (1)
   
   request: {
-    url: 192.168.254.221:8081/api/Auth/replaceToken
+    url: http://127.0.0.1:8002/api/Auth/replaceToken
     method: POST
     mode: none
     headers: {
-      authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoi566h55CG5ZGYIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiQUpfOTksY2VzaGkwMixDUzAwNCxDUzAwNSxDUzAwNixDUzAxMSxDUzAxMixDU0owMSxHTlhaLEdOWkosU1lTLFRFU1QiLCJqdGkiOiJTWVMiLCJpYXQiOiIxNzgxNzUwMTY5IiwibmJmIjoiMTc4MTc1MDE2OSIsImV4cCI6IjE3ODE4MzY1NjkiLCJpc3MiOiJVYW51ZS5Db3JlLm93bmVyIiwiYXVkIjoiVWFudWUuQ29yZSJ9.hcDr5K4s_Iuaoc1B60Tw3PXLA-lc_gJdnoxTbtn2wAU
+      authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE3ODE3NTA1NzIsImV4cCI6MTc4MTgzNjk3Mn0.test-token-payload
     }
   }
   
   response: {
     headers: {
-      transfer-encoding: chunked
-      content-type: application/json; charset=utf-8
-      vary: Accept-Encoding
-      server: Microsoft-IIS/10.0
-      x-powered-by: ASP.NET
-      date: Thu, 18 Jun 2026 02:42:52 GMT
+      date: Thu, 18 Jun 2026 06:25:22 GMT
+      server: uvicorn
+      content-length: 211
+      content-type: application/json
     }
   
     status: {
@@ -53,8 +51,7 @@ example {
           "Success": true,
           "StatusCode": null,
           "Message": null,
-          "EncryptMessage": null,
-          "Data": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoi566h55CG5ZGYIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiQUpfOTksY2VzaGkwMixDUzAwNCxDUzAwNSxDUzAwNixDUzAxMSxDUzAxMixDU0owMSxHTlhaLEdOWkosU1lTLFRFU1QiLCJqdGkiOiJTWVMiLCJpYXQiOiIxNzgxNzUwNTcyIiwibmJmIjoiMTc4MTc1MDU3MiIsImV4cCI6IjE3ODE4MzY5NzIiLCJpc3MiOiJVYW51ZS5Db3JlLm93bmVyIiwiYXVkIjoiVWFudWUuQ29yZSJ9.Rcu-r0Uesimo-eG-3KGuNVx4MjLtiYJSftpvByICKiY"
+          "Data": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE3ODE3NTA1NzIsImV4cCI6MTc4MTg1MDMyMn0.ms6OysImjA3ztihG-NWsKsjQUrdfIBQCVBGJHRkPFr8"
         }
       '''
     }
