@@ -77,6 +77,8 @@ function AppContent() {
         if (tokenParam) {
           setToken(tokenParam);
           console.log('[config] URL 参数 ?token= 已设置');
+        } else if (cfg?.auth?.enabled) {
+          console.warn('[config] auth 已启用但未提供 token，请通过 ?token=<JWT> URL 参数传入');
         }
 
         if (cfg?.explore) {

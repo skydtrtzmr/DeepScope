@@ -78,6 +78,9 @@ api.interceptors.request.use((config) => {
   }
   if (_token && _tokenEnabled) {
     config.headers.Authorization = `Bearer ${_token}`;
+    console.log('[api] 请求添加 Authorization 头, token 前缀:', _token.substring(0, 8));
+  } else {
+    console.log('[api] 未添加 Authorization, _token:', JSON.stringify(_token), '_tokenEnabled:', _tokenEnabled);
   }
   return config;
 });
@@ -125,6 +128,9 @@ api.interceptors.response.use(
     }
   }
 );
+
+// 调试辅助：在控制台输入 __getToken() 查看当前 token
+(globalThis as any).__getToken = getToken;
 
 // 可配置端点路径（代码内默认值 → app-config.json → URL 参数覆盖）
 const _endpoints: Record<string, string> = {

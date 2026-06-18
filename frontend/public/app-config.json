@@ -8,7 +8,7 @@
     "nodes": "/api/graph/nodes"
   },
   "auth": {
-    "enabled": false,
+    "enabled": true,
     "tokenEndpoint": "/api/Auth/replaceToken",
     "tokenParam": "token"
   },
