@@ -70,6 +70,7 @@ function AppContent() {
           setTokenConfig({
             enabled: cfg.auth.enabled !== false,
             tokenEndpoint: cfg.auth.tokenEndpoint,
+            refreshGraceSeconds: cfg.auth.refreshGraceSeconds,
           });
           console.log('[config] 已加载 auth 配置:', cfg.auth);
         }

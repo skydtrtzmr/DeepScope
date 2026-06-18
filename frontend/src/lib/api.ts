@@ -19,10 +19,14 @@ export function setApiBaseUrl(url: string) {
 let _token = '';
 let _tokenEnabled = false;
 let _tokenEndpoint = '/api/Auth/replaceToken';
+let _refreshGraceSeconds = 300; // token 过期前多少秒开始主动刷新
+let _refreshPromise: Promise<string | null> | null = null;
 
 export interface TokenConfig {
   enabled: boolean;
   tokenEndpoint?: string;
+  /** token 过期前多少秒开始主动刷新，默认 300（5 分钟） */
+  refreshGraceSeconds?: number;
 }
 
 /** 获取当前存储的 token */
@@ -40,12 +44,35 @@ export function clearToken() {
   _token = '';
 }
 
-/** 配置 token 认证（enabled + 可选端点路径） */
+/** 配置 token 认证（enabled + 可选端点路径 + 宽限期） */
 export function setTokenConfig(config: TokenConfig) {
   _tokenEnabled = config.enabled;
   if (config.tokenEndpoint) {
     _tokenEndpoint = config.tokenEndpoint;
   }
+  if (typeof config.refreshGraceSeconds === 'number' && config.refreshGraceSeconds >= 0) {
+    _refreshGraceSeconds = config.refreshGraceSeconds;
+  }
+}
+
+/** 从 JWT payload 解析 exp（秒级时间戳），解析失败返回 0 */
+function _getJwtExp(token: string): number {
+  try {
+    const payload = token.split('.')[1];
+    const decoded = JSON.parse(atob(payload));
+    return typeof decoded.exp === 'number' ? decoded.exp : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** 检查 token 是否即将过期（剩余时间 < 宽限期），需要主动刷新 */
+function _shouldRefresh(): boolean {
+  if (!_token || !_tokenEnabled) return false;
+  const exp = _getJwtExp(_token);
+  if (exp === 0) return false; // 无 exp 字段，跳过主动刷新
+  const now = Math.floor(Date.now() / 1000);
+  return exp - now < _refreshGraceSeconds;
 }
 
 /** 刷新 token：POST 到 token 端点，用当前 token 换取新 token */
@@ -70,13 +97,22 @@ export async function refreshToken(): Promise<string | null> {
   }
 }
 
-// ========== 请求拦截器 ==========
+// ========== 请求拦截器（主动刷新：过期前预先换 token） ==========
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   if (_baseURL) {
     config.baseURL = _baseURL;
   }
   if (_token && _tokenEnabled) {
+    // token 即将过期 → 主动刷新，确保请求始终带上有效 token
+    if (_shouldRefresh()) {
+      if (!_refreshPromise) {
+        _refreshPromise = refreshToken().finally(() => {
+          _refreshPromise = null;
+        });
+      }
+      await _refreshPromise;
+    }
     config.headers.Authorization = `Bearer ${_token}`;
     console.log('[api] 请求添加 Authorization 头, token 前缀:', _token.substring(0, 8));
   } else {

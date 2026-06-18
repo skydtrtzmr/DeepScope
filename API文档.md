@@ -439,13 +439,14 @@ Authorization: Bearer <JWT token>
 
 ### 5.3 Token 刷新机制
 
-1. 所有请求统一在 axios 请求拦截器中添加 `Authorization` 头
-2. 若收到 `401` 响应，自动触发 token 刷新：
+1. **主动刷新（优先）**：每次请求发出前，解析 JWT payload 中的 `exp` 字段：
+   - 若当前时间距离 `exp` 不足 `refreshGraceSeconds`（默认 300 秒 = 5 分钟），则提前调用 `tokenEndpoint` 换取新 token
+   - 新 token 替换内存中的旧 token，再用新 token 发送原始请求
+   - 并发请求仅触发一次刷新，其余排队等待
+2. **被动保底（备用）**：若 token 不含 `exp` 字段或主动刷新未覆盖到，收到 `401` 时触发：
    - 向 `tokenEndpoint` 发送 `POST` 请求，请求头携带当前 token
    - 期望响应格式：`{ "Data": "<new JWT token>" }`
-   - 新 token 替换内存中的旧 token
-   - 原始请求自动重试
-3. 并发请求的 401 会排队等待，**仅触发一次** token 刷新
+   - 原始请求自动重试（同一时间段多个 401 仅触发一次刷新）
 
 ### 5.4 示例
 

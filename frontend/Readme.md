@@ -143,14 +143,15 @@ npm run preview  # 预览构建产物
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `auth.enabled` | boolean | `false` | 是否启用 Bearer Token 认证 |
-| `auth.tokenEndpoint` | string | `"/api/Auth/replaceToken"` | Token 刷新端点路径（POST），用于 401 时自动换新 token |
+| `auth.tokenEndpoint` | string | `"/api/Auth/replaceToken"` | Token 刷新端点路径（POST），用于 token 即将过期时主动换新 |
 | `auth.tokenParam` | string | `"token"` | URL 参数名，外部跳转时通过该参数传入 JWT token |
+| `auth.refreshGraceSeconds` | int | `300` | Token 过期前多少秒开始主动刷新（设为 `0` 禁用主动刷新，仅保留 401 保底） |
 
 **认证流程**：
 1. Token 可通过 URL 参数（如 `?token=xxx`）传入，前端会自动携带 `Authorization: Bearer <token>` 请求头
-2. 若收到 401 响应，自动向 `tokenEndpoint` 发送 POST 请求（携带当前 token）换取新 token
-3. 新 token 刷新后自动重试原始请求
-4. 并发请求的 401 会排队等待，仅触发一次刷新
+2. **主动刷新**：每次请求前解析 JWT 的 `exp` 字段，若剩余时间 < `refreshGraceSeconds`（默认 300 秒 = 5 分钟），则提前调用 `tokenEndpoint` 换取新 token，确保请求始终携带有效 token
+3. 并发请求仅触发一次刷新，其余排队等待
+4. **被动保底**：若主动刷新未覆盖到（如无 `exp` 字段的 token），收到 401 时仍会触发刷新并重试
 
 > 若 `enabled: false`（默认），则所有认证逻辑跳过，与现有行为一致。
 

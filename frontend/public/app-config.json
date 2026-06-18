@@ -10,7 +10,8 @@
   "auth": {
     "enabled": true,
     "tokenEndpoint": "/api/Auth/replaceToken",
-    "tokenParam": "token"
+    "tokenParam": "token",
+    "refreshGraceSeconds": 300
   },
   "explore": {
     "m": 5,
