@@ -1,0 +1,116 @@
+meta {
+  name: U3：testToken (生成)
+  type: http
+  seq: 7
+}
+
+get {
+  url: http://127.0.0.1:8002/api/Auth/testToken
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+
+example {
+  name: fail=true (返回无效token)
+  
+  request: {
+    url: http://127.0.0.1:8002/api/Auth/testToken?fail=true
+    method: GET
+    mode: none
+  }
+  
+  response: {
+    headers: {
+      server: uvicorn
+      content-type: application/json
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "token": "INVALID_TOKEN_FOR_TESTING"
+        }
+      '''
+    }
+  }
+}
+
+example {
+  name: minutes=3 (3分钟短期token)
+  
+  request: {
+    url: http://127.0.0.1:8002/api/Auth/testToken?minutes=3
+    method: GET
+    mode: none
+    params:query: {
+      minutes: 3
+    }
+  }
+  
+  response: {
+    headers: {
+      date: Thu, 18 Jun 2026 06:53:52 GMT
+      server: uvicorn
+      content-length: 164
+      content-type: application/json
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE3ODE3NjU2MzMsImV4cCI6MTc4MTc2NTgxM30.6ywH-zjAeO3OVDffqPjvSlLsQj9AV1wyKzzN6a6iZmk"
+        }
+      '''
+    }
+  }
+}
+
+example {
+  name: default (24h token)
+  
+  request: {
+    url: http://127.0.0.1:8002/api/Auth/testToken
+    method: GET
+    mode: none
+  }
+  
+  response: {
+    headers: {
+      date: Thu, 18 Jun 2026 07:20:18 GMT
+      server: uvicorn
+      content-length: 164
+      content-type: application/json
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE3ODE3NjcyMTksImV4cCI6MTc4MTg1MzYxOX0.syKNkJ-RQ812_FIf3o_eHJozxHSIeQRy98sQNcvWxYY"
+        }
+      '''
+    }
+  }
+}

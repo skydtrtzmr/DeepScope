@@ -65,7 +65,9 @@ export function setTokenConfig(config: TokenConfig) {
 function _getJwtExp(token: string): number {
   try {
     const payload = token.split('.')[1];
-    const decoded = JSON.parse(atob(payload));
+    // JWT 使用 base64url（- → +, _ → /），atob 只能解析标准 base64，先转换
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = JSON.parse(atob(base64));
     const exp = decoded.exp;
     if (typeof exp === 'number') return exp;
     if (typeof exp === 'string') {

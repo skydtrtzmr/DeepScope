@@ -292,23 +292,35 @@ async def paginate_neighbors(req: NeighborRequest):
 # ── Token 测试端点（仅开发/测试用） ─────────────────────
 
 @app.get("/api/Auth/testToken")
-async def generate_test_token():
-    """生成一个 24 小时有效的测试 token，方便复制到 ?token= 使用。"""
-    payload = {
-        "sub": "test-user",
-        "iat": datetime.now(timezone.utc),
-        "exp": datetime.now(timezone.utc) + timedelta(hours=AUTH_EXPIRY_HOURS),
-    }
+async def generate_test_token(
+    minutes: int = Query(default=0, description="token 有效分钟数。传 0 或省略 = 24h；传 3 = 3 分钟后过期"),
+    fail: bool = Query(default=False, description="设为 true 模拟 replaceToken 端点的 401 错误"),
+):
+    """生成一个测试用 JWT token，支持自定义有效期和模拟失败。"""
+    if fail:
+        # 直接返回一个非 JWT 字符串，让前端 replaceToken 调用失败
+        return {"token": "INVALID_TOKEN_FOR_TESTING"}
+    if minutes > 0:
+        exp = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+    else:
+        exp = datetime.now(timezone.utc) + timedelta(hours=AUTH_EXPIRY_HOURS)
+    payload = {"sub": "test-user", "iat": datetime.now(timezone.utc), "exp": exp}
     token = jwt.encode(payload, AUTH_TEST_SECRET, algorithm=AUTH_ALGORITHM)
     return {"token": token}
 
 
 @app.post("/api/Auth/replaceToken")
-async def replace_token(authorization: str = Header(...)):
+async def replace_token(
+    authorization: str = Header(...),
+    fail: bool = Query(default=False, description="设为 true 模拟刷新失败（返回 401）"),
+):
     """
     测试用 token 刷新端点。
     接受任意有效 JWT，用相同的 payload 签发一个新 token（延长过期时间）。
+    传 ?fail=true 模拟刷新失败，用于测试前端 token 过期提示。
     """
+    if fail:
+        raise HTTPException(status_code=401, detail="Simulated refresh failure for testing")
     token = authorization.removeprefix("Bearer ").strip()
     if not token:
         raise HTTPException(status_code=401, detail="Missing token")
