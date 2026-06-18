@@ -11,7 +11,7 @@
     "enabled": true,
     "tokenEndpoint": "/api/Auth/replaceToken",
     "tokenParam": "token",
-    "refreshGraceSeconds": 300
+    "refreshGraceSeconds": 86300
   },
   "explore": {
     "m": 5,

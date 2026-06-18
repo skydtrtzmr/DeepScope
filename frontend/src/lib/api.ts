@@ -60,7 +60,13 @@ function _getJwtExp(token: string): number {
   try {
     const payload = token.split('.')[1];
     const decoded = JSON.parse(atob(payload));
-    return typeof decoded.exp === 'number' ? decoded.exp : 0;
+    const exp = decoded.exp;
+    if (typeof exp === 'number') return exp;
+    if (typeof exp === 'string') {
+      const n = Number(exp);
+      return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
   } catch {
     return 0;
   }
@@ -70,16 +76,20 @@ function _getJwtExp(token: string): number {
 function _shouldRefresh(): boolean {
   if (!_token || !_tokenEnabled) return false;
   const exp = _getJwtExp(_token);
-  if (exp === 0) return false; // 无 exp 字段，跳过主动刷新
   const now = Math.floor(Date.now() / 1000);
-  return exp - now < _refreshGraceSeconds;
+  const remaining = exp - now;
+  const needRefresh = exp !== 0 && remaining < _refreshGraceSeconds;
+  console.log(`[auth] exp=${exp}, now=${now}, remaining=${remaining}s, grace=${_refreshGraceSeconds}s, refresh=${needRefresh}`);
+  return needRefresh;
 }
 
 /** 刷新 token：POST 到 token 端点，用当前 token 换取新 token */
 export async function refreshToken(): Promise<string | null> {
   if (!_token || !_tokenEnabled) return null;
   try {
-    const { data } = await api.post(_tokenEndpoint, null, {
+    // 直接使用 raw axios（不走 api 的拦截器，避免循环死锁）
+    const url = (_baseURL || '') + _tokenEndpoint;
+    const { data } = await axios.post(url, null, {
       headers: { Authorization: `Bearer ${_token}` },
     });
     // 响应格式：{ Success, StatusCode, Message, Data }，Data 为新 token 字符串

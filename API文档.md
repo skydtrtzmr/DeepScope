@@ -358,7 +358,7 @@ GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&d
 | `expand` | string | 否 | `0` 时仅选中不展开；默认展开 |
 | `m` | int | 否 | 初始展开广度（每层邻居数），独立于 UI 滑块 |
 | `n` | int | 否 | 初始展开深度（间接层数），独立于 UI 滑块 |
-| `api` | string | 否 | 替换 API 基础地址（可带路径前缀），优先级高于 `app-config.json` 中的 `apiBaseUrl`，如 `?api=http://other-server:9000` 或 `?api=http://other-server:9000/api/v2` |
+| `api` | string | 否 | 替换 API 基础地址（可带路径前缀）。缺 `http://` 时自动补全，优先级高于 `app-config.json` 中的 `apiBaseUrl`，如 `?api=192.168.1.7:9000`（自动补为 `http://192.168.1.7:9000`）或 `?api=http://other-server:9000/api/v2` |
 | `api-domains` | string | 否 | 覆盖 domains 端点路径，如 `?api-domains=/v2/domains` |
 | `api-initial` | string | 否 | 覆盖 initial 图谱加载端点路径，如 `?api-initial=/v2/graph/initial` |
 | `api-expand` | string | 否 | 覆盖 expand 节点展开端点路径，如 `?api-expand=/v2/graph/expand` |

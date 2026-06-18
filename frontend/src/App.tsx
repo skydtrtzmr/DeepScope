@@ -42,6 +42,10 @@ function AppContent() {
         const apiParam = new URLSearchParams(window.location.search).get('api');
         if (apiParam) {
           baseUrl = apiParam.replace(/\/+$/, '');
+          // 自动补协议头（避免被浏览器当成相对路径）
+          if (!/^https?:\/\//i.test(baseUrl)) {
+            baseUrl = 'http://' + baseUrl;
+          }
           setApiBaseUrl(baseUrl);
           console.log('[config] URL 参数 ?api= 覆盖 API base URL:', baseUrl);
         }
