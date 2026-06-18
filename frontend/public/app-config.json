@@ -7,6 +7,11 @@
     "neighbors": "/api/graph/neighbors",
     "nodes": "/api/graph/nodes"
   },
+  "auth": {
+    "enabled": false,
+    "tokenEndpoint": "/api/Auth/replaceToken",
+    "tokenParam": "token"
+  },
   "explore": {
     "m": 5,
     "n": 3,

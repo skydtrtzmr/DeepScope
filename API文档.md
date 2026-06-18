@@ -364,6 +364,7 @@ GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&d
 | `api-expand` | string | 否 | 覆盖 expand 节点展开端点路径，如 `?api-expand=/v2/graph/expand` |
 | `api-neighbors` | string | 否 | 覆盖 neighbors 邻居分页端点路径，如 `?api-neighbors=/v2/graph/neighbors` |
 | `api-nodes` | string | 否 | 覆盖 nodes 节点查询端点路径，如 `?api-nodes=/v2/graph/nodes` |
+| `token` | string | 否 | 设置 JWT token，所有 API 请求自动携带 `Authorization: Bearer <token>` 头。优先级高于 `app-config.json` 中的 `auth` 配置 |
 
 #### 优先级链
 
@@ -415,7 +416,52 @@ http://localhost:4173/?domain=demo-core&node=人员/person-00022&m=5&n=2&api=htt
 
 ---
 
-## 5. 通用规则
+## 5. Token 认证
+
+DeepScope 前端支持 Bearer Token 认证，适用于部署在需要身份验证环境下的图谱 API。
+
+### 5.1 配置方式
+
+| 方式 | 说明 |
+|------|------|
+| `app-config.json` → `auth.enabled` | 启用/禁用 token 认证（默认禁用） |
+| `app-config.json` → `auth.tokenEndpoint` | Token 刷新端点路径（默认 `/api/Auth/replaceToken`） |
+| URL 参数 `?token=<JWT>` | 传入 JWT token，优先级高于配置文件 |
+| `app-config.json` → `auth.tokenParam` | URL 参数名（默认 `token`），外部跳转时可通过该参数传入 token |
+
+### 5.2 请求头
+
+启用后，每个 API 请求自动添加：
+
+```
+Authorization: Bearer <JWT token>
+```
+
+### 5.3 Token 刷新机制
+
+1. 所有请求统一在 axios 请求拦截器中添加 `Authorization` 头
+2. 若收到 `401` 响应，自动触发 token 刷新：
+   - 向 `tokenEndpoint` 发送 `POST` 请求，请求头携带当前 token
+   - 期望响应格式：`{ "Data": "<new JWT token>" }`
+   - 新 token 替换内存中的旧 token
+   - 原始请求自动重试
+3. 并发请求的 401 会排队等待，**仅触发一次** token 刷新
+
+### 5.4 示例
+
+```bash
+# 启用 token 认证 + 传入 token
+http://localhost:4173/?token=eyJhbGciOiJIUzI1NiIs...
+
+# 完整示例：指定节点 + token
+http://localhost:4173/?domain=demo-core&node=人员/person-00022&m=5&n=2&token=eyJhbGciOiJIUzI1NiIs...
+```
+
+> Token 仅存储在内存中（`_token` 变量），页面刷新后丢失，需通过 URL 参数重新传入。
+
+---
+
+## 6. 通用规则
 
 - **去重**：`/api/graph/expand` 全量返回，由前端负责去重合并；`/api/graph/neighbors` 由后端根据 `excludeIds` 排除
 - **总数**：`totalNeighbors`（当前实现）= 层1直接邻居总数，前端用 `(已加载 / totalNeighbors)` 显示和按钮禁用判断；未来多层支持后，该字段语义扩展为后端 BFS 范围内的全部可达邻居总数，字段名不变

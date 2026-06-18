@@ -138,7 +138,23 @@ npm run preview  # 预览构建产物
 
 > 设为 `0` 或不传则不限制。生产建议设置合理上限（如 200），防止画布性能问题。
 
-### 2.6 配置生效方式
+### 2.6 `auth` — Token 认证配置
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `auth.enabled` | boolean | `false` | 是否启用 Bearer Token 认证 |
+| `auth.tokenEndpoint` | string | `"/api/Auth/replaceToken"` | Token 刷新端点路径（POST），用于 401 时自动换新 token |
+| `auth.tokenParam` | string | `"token"` | URL 参数名，外部跳转时通过该参数传入 JWT token |
+
+**认证流程**：
+1. Token 可通过 URL 参数（如 `?token=xxx`）传入，前端会自动携带 `Authorization: Bearer <token>` 请求头
+2. 若收到 401 响应，自动向 `tokenEndpoint` 发送 POST 请求（携带当前 token）换取新 token
+3. 新 token 刷新后自动重试原始请求
+4. 并发请求的 401 会排队等待，仅触发一次刷新
+
+> 若 `enabled: false`（默认），则所有认证逻辑跳过，与现有行为一致。
+
+### 2.7 配置生效方式
 
 | 操作 | 生效 |
 |------|------|

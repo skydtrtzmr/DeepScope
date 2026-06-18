@@ -4,7 +4,7 @@ import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { fetchDomains, fetchInitialGraph, fetchNodesByIds, setApiBaseUrl, setEndpointPaths } from '@/lib/api';
+import { fetchDomains, fetchInitialGraph, fetchNodesByIds, setApiBaseUrl, setEndpointPaths, setTokenConfig, setToken } from '@/lib/api';
 import type { GraphData, SliderLimits } from '@/types/graph';
 import { Button } from '@/components/ui/button';
 import {
@@ -63,6 +63,22 @@ function AppContent() {
           setEndpointPaths(urlOverrides);
           console.log('[config] URL 参数覆盖端点路径:', urlOverrides);
         }
+
+        // —— 3. Token 认证 ——
+        // 优先级：app-config.json auth → URL 参数 ?token=
+        if (cfg?.auth) {
+          setTokenConfig({
+            enabled: cfg.auth.enabled !== false,
+            tokenEndpoint: cfg.auth.tokenEndpoint,
+          });
+          console.log('[config] 已加载 auth 配置:', cfg.auth);
+        }
+        const tokenParam = new URLSearchParams(window.location.search).get('token');
+        if (tokenParam) {
+          setToken(tokenParam);
+          console.log('[config] URL 参数 ?token= 已设置');
+        }
+
         if (cfg?.explore) {
           updateExploreConfig(cfg.explore);
           console.log('[config] 已加载探索配置:', cfg.explore);
