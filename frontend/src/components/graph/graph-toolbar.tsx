@@ -11,7 +11,7 @@ interface GraphToolbarProps {
 }
 
 export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) {
-  const { fullData, domains, currentDomain, setCurrentDomain, displaySettings, updateDisplaySettings } = useGraphStore();
+  const { fullData, displaySettings, updateDisplaySettings } = useGraphStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -35,24 +35,6 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
     <div className="flex items-center justify-between px-4 py-3 border-b bg-card gap-3">
       <div className="flex items-center gap-4 min-w-0">
         <h2 className="font-semibold text-base shrink-0">知识图谱</h2>
-
-        {/* 域选择器 */}
-        {domains.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground shrink-0">业务域</span>
-            <select
-              value={currentDomain}
-              onChange={(e) => setCurrentDomain(e.target.value)}
-              className="text-xs border rounded-md px-2 py-1 bg-background text-foreground max-w-40 focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              {domains.map((d) => (
-                <option key={d.name} value={d.name}>
-                  {d.name} ({d.nodeCount})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
 
         {fullData && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">

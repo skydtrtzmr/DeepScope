@@ -4,7 +4,7 @@ import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { fetchDomains, fetchInitialGraph, fetchNodesByIds, setApiBaseUrl, setEndpointPaths, setTokenConfig, setToken, onTokenExpired } from '@/lib/api';
+import { fetchInitialGraph, fetchNodesByIds, setApiBaseUrl, setEndpointPaths, setTokenConfig, setToken, onTokenExpired } from '@/lib/api';
 import type { GraphData, SliderLimits } from '@/types/graph';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 
 function AppContent() {
-  const { setGraphData, fullData, setDomains, setCurrentDomain, currentDomain, selectNode, bfsExpandNode, updateExploreConfig, updateBatchLoadConfig, updateConfig, updateDisplaySettings, setMaxTotalNodes, setSliderLimits } = useGraphStore();
+  const { setGraphData, fullData, selectNode, bfsExpandNode, updateExploreConfig, updateBatchLoadConfig, updateConfig, updateDisplaySettings, setMaxTotalNodes, setSliderLimits } = useGraphStore();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [importError, setImportError] = useState('');
@@ -59,7 +59,7 @@ function AppContent() {
         }
         const params = new URLSearchParams(window.location.search);
         const urlOverrides: Record<string, string> = {};
-        const endpointNames = ['domains', 'initial', 'expand', 'neighbors', 'nodes'];
+        const endpointNames = ['initial', 'expand', 'neighbors', 'nodes'];
         for (const name of endpointNames) {
           const val = params.get(`api-${name}`);
           if (val) urlOverrides[name] = val;
@@ -137,20 +137,10 @@ function AppContent() {
       });
   }, [updateExploreConfig]);
 
-  // 加载 domain 列表（必须在配置加载完成后，确保 apiBaseUrl 已设置）
+  // domain 变化时加载初始图谱数据
+  // 注意：configReady 后触发初始加载，domain 不再强制传递（后端使用默认值）
   useEffect(() => {
     if (!configReady) return;
-    fetchDomains().then((domains) => {
-      setDomains(domains);
-      if (domains.length > 0) {
-        setCurrentDomain(domains[0].name);
-      }
-    }).catch(console.error);
-  }, [configReady, setDomains, setCurrentDomain]);
-
-  // domain 变化时加载初始图谱数据
-  useEffect(() => {
-    if (!currentDomain) return;
 
     // 尝试从 URL 参数获取数据（仅首次）
     const params = new URLSearchParams(window.location.search);
@@ -174,7 +164,7 @@ function AppContent() {
       const urlN = params.get('n') ? parseInt(params.get('n')!, 10) : undefined;
       // URL 带 m/n → 必定展开（用 URL 参数）；无 m/n → 按 expand 标识决定
       const hasUrlOverride = urlM !== undefined || urlN !== undefined;
-      fetchNodesByIds([nodeParam], currentDomain)
+      fetchNodesByIds([nodeParam])
         .then((data) => {
           setGraphData(data);
           initializedRef.current = true;
@@ -192,13 +182,13 @@ function AppContent() {
     }
 
     setGraphData({ nodes: [], edges: [] });
-    fetchInitialGraph(currentDomain)
+    fetchInitialGraph()
       .then((data) => {
         setGraphData(data);
         initializedRef.current = true;
       })
       .catch(console.error);
-  }, [currentDomain, setGraphData, selectNode, bfsExpandNode]);
+  }, [configReady, setGraphData, selectNode, bfsExpandNode]);
 
   // 导入数据
   const handleImport = useCallback(() => {

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { GraphData, GraphNode, GraphEdge, DomainItem } from '@/types/graph';
+import type { GraphData, GraphNode, GraphEdge } from '@/types/graph';
 
 const api = axios.create({
   timeout: 10000,
@@ -189,7 +189,6 @@ api.interceptors.response.use(
 
 // 可配置端点路径（代码内默认值 → app-config.json → URL 参数覆盖）
 const _endpoints: Record<string, string> = {
-  domains: '/api/domains',
   initial: '/api/graph/initial',
   expand: '/api/graph/expand',
   neighbors: '/api/graph/neighbors',
@@ -201,17 +200,11 @@ export function setEndpointPaths(paths: Record<string, string>) {
   Object.assign(_endpoints, paths);
 }
 
-// 获取可用 domain 列表
-export type { DomainItem };
-
-export async function fetchDomains(): Promise<DomainItem[]> {
-  const { data } = await api.get(_endpoints.domains);
-  return Array.isArray(data) ? data : [];
-}
-
 // 初始加载
-export async function fetchInitialGraph(domain: string): Promise<GraphData> {
-  const { data } = await api.get(_endpoints.initial, { params: { domain } });
+export async function fetchInitialGraph(domain?: string): Promise<GraphData> {
+  const params: Record<string, string> = {};
+  if (domain) params.domain = domain;
+  const { data } = await api.get(_endpoints.initial, { params });
   return data;
 }
 
@@ -220,7 +213,7 @@ export interface ExpandGraphParams {
   nodeId: string;
   m: number;
   n: number;
-  domain: string;
+  domain?: string;
 }
 
 // 分页加载直接邻居参数
@@ -228,7 +221,7 @@ export interface NeighborParams {
   nodeId: string;
   limit: number;
   excludeIds: string[];
-  domain: string;
+  domain?: string;
 }
 
 // 节点展开/邻居接口响应（共用）
@@ -239,31 +232,33 @@ export interface ExpandGraphResponse {
 }
 
 // 按 ID 查询节点（仅返回节点，无边）
-export async function fetchNodesByIds(ids: string[], domain: string): Promise<GraphData> {
-  const { data } = await api.get(_endpoints.nodes, {
-    params: { ids: ids.join(','), domain },
-  });
+export async function fetchNodesByIds(ids: string[], domain?: string): Promise<GraphData> {
+  const params: Record<string, string> = { ids: ids.join(',') };
+  if (domain) params.domain = domain;
+  const { data } = await api.get(_endpoints.nodes, { params });
   return data;
 }
 
 // BFS 多层展开（POST）
 export async function expandGraph(params: ExpandGraphParams): Promise<ExpandGraphResponse> {
-  const { data } = await api.post(_endpoints.expand, {
+  const body: Record<string, unknown> = {
     nodeId: params.nodeId,
     m: params.m,
     n: params.n,
-    domain: params.domain,
-  });
+  };
+  if (params.domain) body.domain = params.domain;
+  const { data } = await api.post(_endpoints.expand, body);
   return data;
 }
 
 // 分页加载直接邻居（POST）
 export async function fetchNeighbors(params: NeighborParams): Promise<ExpandGraphResponse> {
-  const { data } = await api.post(_endpoints.neighbors, {
+  const body: Record<string, unknown> = {
     nodeId: params.nodeId,
     limit: params.limit,
     excludeIds: params.excludeIds,
-    domain: params.domain,
-  });
+  };
+  if (params.domain) body.domain = params.domain;
+  const { data } = await api.post(_endpoints.neighbors, body);
   return data;
 }

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { toast } from 'sonner';
 import type {
   GraphData, GraphNode, GraphEdge, GraphConfig, ExploreConfig, BatchLoadConfig,
-  NeighborButtonState, RelatedNodeDetail, DomainItem, DisplaySettings,
+  NeighborButtonState, RelatedNodeDetail, DisplaySettings,
   SliderLimits,
 } from '@/types/graph';
 import { expandGraph, fetchNeighbors } from '@/lib/api';
@@ -50,10 +50,6 @@ interface GraphState {
   // 待增量添加到 G6 的数据
   pendingAddition: { nodes: GraphNode[]; edges: GraphEdge[] } | null;
 
-  // Domain
-  domains: DomainItem[];
-  currentDomain: string;
-
   // 安全上限
   maxTotalNodes: number;
 
@@ -76,8 +72,6 @@ interface GraphState {
   getNeighborButtonState: (nodeId: string) => NeighborButtonState;
   goBack: () => void;
   reset: () => void;
-  setDomains: (domains: DomainItem[]) => void;
-  setCurrentDomain: (domain: string) => void;
 }
 
 const DEFAULT_CONFIG: GraphConfig = {
@@ -308,8 +302,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   pendingAddition: null,
   expandingNodeId: null,
   rebuildTrigger: 0,
-  domains: [],
-  currentDomain: '',
   maxTotalNodes: 0,
   sliderLimits: DEFAULT_SLIDER_LIMITS,
 
@@ -426,7 +418,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   bfsExpandNode: async (nodeId, overrides) => {
-    const { fullData, expansionStates, exploreConfig, expandingNodeId, currentDomain } = get();
+    const { fullData, expansionStates, exploreConfig, expandingNodeId } = get();
     if (!fullData) return;
     if (expandingNodeId === nodeId) return;
 
@@ -438,7 +430,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const existingNodeIds = new Set(fullData.nodes.map((n) => n.id));
 
     try {
-      const result = await expandGraph({ nodeId, m, n, domain: currentDomain });
+      const result = await expandGraph({ nodeId, m, n });
 
       mergeExpansionResult('bfs', nodeId, result, existingNodeIds, expansionStates, get, set);
     } catch (err) {
@@ -448,7 +440,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   loadMoreNeighbors: async (nodeId) => {
-    const { fullData, expansionStates, batchLoadConfig, expandingNodeId, currentDomain } = get();
+    const { fullData, expansionStates, batchLoadConfig, expandingNodeId } = get();
     if (!fullData) return;
     if (expandingNodeId === nodeId) return;
 
@@ -468,7 +460,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         nodeId,
         limit,
         excludeIds: getLoadedDirectNeighborIds(fullData, nodeId),
-        domain: currentDomain,
       });
 
       mergeExpansionResult('neighbors', nodeId, result, existingNodeIds, expansionStates, get, set);
@@ -539,11 +530,4 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     });
   },
 
-  setDomains: (domains) => {
-    set({ domains });
-  },
-
-  setCurrentDomain: (domain) => {
-    set({ currentDomain: domain });
-  },
 }));

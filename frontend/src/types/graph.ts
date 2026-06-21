@@ -95,13 +95,6 @@ export interface RelatedNodeDetail {
   data?: Record<string, unknown>;
 }
 
-// Domain 信息
-export interface DomainItem {
-  name: string;
-  nodeCount: number;
-  edgeCount: number;
-}
-
 // 基于字符串哈希生成确定性 HSL 颜色（同一 category 始终同一颜色）
 export function getNodeColor(category?: string): string {
   if (!category) return '#94a3b8';
