@@ -6,6 +6,7 @@ import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { fetchInitialGraph, fetchNodesByIds, setApiBaseUrl, setEndpointPaths, setTokenConfig, setToken, onTokenExpired } from '@/lib/api';
 import type { GraphData, SliderLimits } from '@/types/graph';
+import { setCategoryColorConfig } from '@/lib/graph-color';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -110,6 +111,10 @@ function AppContent() {
         if (cfg?.batchLoad) {
           updateBatchLoadConfig({ pageSize: cfg.batchLoad.pageSize ?? undefined });
           console.log('[config] 已加载分批加载配置:', cfg.batchLoad);
+        }
+        if (cfg?.categoryColors) {
+          setCategoryColorConfig(cfg.categoryColors);
+          console.log('[config] 已加载 Category 颜色配置:', cfg.categoryColors);
         }
         // 滑块上限（从 explore、highlight、batchLoad 中提取上限字段）
         const limits: Partial<SliderLimits> = {};

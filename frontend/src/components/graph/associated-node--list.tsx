@@ -1,7 +1,8 @@
 import { useRef, useCallback, useState, useMemo, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { getNodeColor, buildCategoryColorMap, type RelatedNodeDetail } from '@/types/graph';
+import { getNodeColor, buildCategoryColorMap } from '@/lib/graph-color';
+import type { RelatedNodeDetail } from '@/types/graph';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ArrowUpDown, ArrowUp, ArrowDown, Check } from 'lucide-react';

@@ -7,7 +7,7 @@ type G6EdgeStyle = Partial<BaseEdgeStyleProps> & { [key: string]: unknown };
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { GraphControl } from './graph-control';
 import type { GraphNode, GraphEdge, DisplaySettings } from '@/types/graph';
-import { getNodeColor, buildCategoryColorMap } from '@/types/graph';
+import { getNodeColor, buildCategoryColorMap } from '@/lib/graph-color';
 
 interface GraphContainerProps {
   className?: string;

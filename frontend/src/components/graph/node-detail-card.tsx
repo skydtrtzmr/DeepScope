@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import Markdown from 'react-markdown';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { getNodeColor, buildCategoryColorMap } from '@/types/graph';
+import { getNodeColor, buildCategoryColorMap } from '@/lib/graph-color';
 
 export function NodeDetail() {
   const [showDebug, setShowDebug] = useState(false);

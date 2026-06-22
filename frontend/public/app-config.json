@@ -35,5 +35,9 @@
     "pageSize": 5,
     "pageSizeMax": 10
   },
+  "categoryColors": {
+    "usePalette": false,
+    "paletteThreshold": 20
+  },
   "maxTotalNodes": 100
 }
