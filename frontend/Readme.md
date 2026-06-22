@@ -42,6 +42,19 @@ npm run preview  # 预览构建产物
 ```json
 {
   "apiBaseUrl": "http://localhost:8002",
+  "apiEndpoints": {
+    "domains": "/api/domains",
+    "initial": "/api/graph/initial",
+    "expand": "/api/graph/expand",
+    "neighbors": "/api/graph/neighbors",
+    "nodes": "/api/graph/nodes"
+  },
+  "auth": {
+    "enabled": true,
+    "tokenEndpoint": "/api/Auth/replaceToken",
+    "tokenParam": "token",
+    "refreshGraceSeconds": 300
+  },
   "explore": {
     "m": 5,
     "n": 3,
@@ -58,11 +71,16 @@ npm run preview  # 预览构建产物
     "showEdgeArrows": true,
     "showEdgeLabels": false,
     "trackSelectedNode": true,
-    "expandTrigger": "dblclick"
+    "expandTrigger": "rightclick",
+    "showCategoryLabel": true
   },
   "batchLoad": {
-    "pageSize": 10,
-    "pageSizeMax": 30
+    "pageSize": 5,
+    "pageSizeMax": 10
+  },
+  "categoryColors": {
+    "usePalette": true,
+    "paletteThreshold": 20
   },
   "maxTotalNodes": 100
 }
@@ -119,6 +137,7 @@ npm run preview  # 预览构建产物
 | `showEdgeArrows` | boolean | false | 是否显示边箭头 |
 | `showEdgeLabels` | boolean | false | 是否显示边标签 |
 | `trackSelectedNode` | boolean | true | 选中节点时是否自动聚焦 |
+| `showCategoryLabel` | boolean | true | 是否在节点标签前显示类别（格式：`类别：名称`） |
 | `expandTrigger` | string | `"dblclick"` | 节点展开触发方式 |
 
 `expandTrigger` 可选值：

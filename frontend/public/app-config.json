@@ -29,7 +29,8 @@
     "showEdgeArrows": true,
     "showEdgeLabels": false,
     "trackSelectedNode": true,
-    "expandTrigger": "rightclick"
+    "expandTrigger": "rightclick",
+    "showCategoryLabel": true
   },
   "batchLoad": {
     "pageSize": 5,

@@ -48,6 +48,7 @@ export interface DisplaySettings {
   showEdgeLabels: boolean;    // 是否显示边标签
   trackSelectedNode: boolean; // 是否自动跟踪聚焦选中节点
   expandTrigger: 'dblclick' | 'rightclick' | 'both' | 'none'; // 节点展开触发方式
+  showCategoryLabel: boolean; // 是否在节点标签前显示类别
 }
 
 // 图谱配置（高亮范围：控制 BFS 从已加载数据中筛选可见节点）

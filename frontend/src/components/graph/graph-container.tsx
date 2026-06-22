@@ -13,7 +13,13 @@ interface GraphContainerProps {
   className?: string;
 }
 
-// 第 6 行之后插入
+/** 根据 displaySettings 计算节点 labelText（含可选的类别前缀） */
+function getLabelText(d: NodeData, showCategoryLabel: boolean): string {
+  const label = (d.data?.label as string) || d.id;
+  const cat = d.data?.category as string | undefined;
+  return showCategoryLabel && cat ? `${cat}：${label}` : label;
+}
+
 /** hover-activate 的 enable 回调事件对象 */
 interface G6PointerEvent {
   targetType: 'node' | 'edge' | 'canvas';
@@ -62,7 +68,7 @@ function createGraph(
     node: {
       type: 'circle',
       style: {
-        labelText: (d: NodeData) => (d.data?.label as string) || d.id,
+        labelText: (d: NodeData) => getLabelText(d, displaySettings.showCategoryLabel),
         labelPlacement: 'bottom',
         labelFontSize: 11,
         labelFill: '#0f172a',
@@ -518,11 +524,18 @@ export function GraphContainer({ className }: GraphContainerProps) {
     };
   }, [rebuildTrigger]);
 
-  // displaySettings 变化时动态更新所有边的箭头和标签样式（不重建图）
+  // displaySettings 变化时动态更新所有节点标签和边样式（不重建图）
   useEffect(() => {
     const graph = graphRef.current;
     if (!graph) return;
     if (!graphReadyRef.current) return;
+
+    // 更新节点标签（类别前缀开关）
+    graph.setNode({
+      style: {
+        labelText: (d: NodeData) => getLabelText(d, displaySettings.showCategoryLabel),
+      },
+    });
 
     // 使用 setEdge 更新全局边样式映射（优先级最高），
     // 再用 draw() 仅重绘不重排布局，让样式变更生效
