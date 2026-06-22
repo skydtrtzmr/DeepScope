@@ -1,0 +1,58 @@
+server {
+    listen 80;
+    server_name your-domain.com;  # 替换为你的域名或 IP
+
+    # --------------------------------------------------
+    # 1. 前端静态文件（dist 目录）
+    # --------------------------------------------------
+    root D:/CodeProjects/DeepScope/frontend/dist;  # Windows 路径
+    # 如果是 Linux 部署，把上面这一行换成：
+    # root /path/to/DeepScope/frontend/dist;
+
+    index index.html;
+
+    # --------------------------------------------------
+    # 2. 静态资源缓存策略
+    # --------------------------------------------------
+
+    # app-config.json 不可缓存，保证每次改动立即生效
+    location = /app-config.json {
+        add_header Cache-Control "no-cache, must-revalidate";
+        try_files $uri =404;
+    }
+
+    # JS/CSS/图片等哈希资源（文件名带 hash），长期缓存
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # 其他静态文件（favicon, icons 等）
+    location ~* \.(svg|ico|png|jpg|webp)$ {
+        expires 1M;
+        add_header Cache-Control "public";
+    }
+
+    # --------------------------------------------------
+    # 3. SPA 路由回退（history 模式）
+    #    所有非文件、非 API 的请求返回 index.html
+    # --------------------------------------------------
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # --------------------------------------------------
+    # 4. 后端 API 反向代理
+    # --------------------------------------------------
+    location /api/ {
+        proxy_pass http://localhost:8002;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # 可选：超时设置
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}

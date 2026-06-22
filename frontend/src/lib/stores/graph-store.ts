@@ -94,6 +94,7 @@ const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   trackSelectedNode: true,
   expandTrigger: 'dblclick',
   showCategoryLabel: true,
+  showNodePopup: true,
 };
 
 const DEFAULT_SLIDER_LIMITS: SliderLimits = {
