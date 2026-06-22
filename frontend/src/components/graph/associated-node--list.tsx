@@ -1,7 +1,7 @@
 import { useRef, useCallback, useState, useMemo, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { getNodeColor, type RelatedNodeDetail } from '@/types/graph';
+import { getNodeColor, buildCategoryColorMap, type RelatedNodeDetail } from '@/types/graph';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ArrowUpDown, ArrowUp, ArrowDown, Check } from 'lucide-react';
@@ -36,8 +36,14 @@ function sortNodes(nodes: RelatedNodeDetail[], field: SortField, asc: boolean): 
 
 export function AssociatedNodeList() {
   const parentRef = useRef<HTMLDivElement>(null);
-  const { relatedNodes, selectedNodeId, highlightedNodeId, selectNode, highlightNode } =
+  const { fullData, relatedNodes, selectedNodeId, highlightedNodeId, selectNode, highlightNode } =
     useGraphStore();
+
+  // 从全量数据构建无碰撞 category 颜色映射
+  const categoryColorMap = useMemo(
+    () => fullData ? buildCategoryColorMap(fullData.nodes.map((n) => n.category)) : new Map<string, string>(),
+    [fullData]
+  );
 
   const [sortField, setSortField] = useState<SortField>('depth');
   const [sortAsc, setSortAsc] = useState(true);
@@ -188,7 +194,7 @@ export function AssociatedNodeList() {
                     {/* 节点颜色指示器 */}
                     <div
                       className="w-3 h-3 rounded-full mt-1 shrink-0"
-                      style={{ backgroundColor: (node.style?.fill as string) || getNodeColor(node.category) }}
+                      style={{ backgroundColor: (node.style?.fill as string) || categoryColorMap.get(node.category || '') || getNodeColor(node.category) }}
                     />
 
                     <div className="flex-1 min-w-0">

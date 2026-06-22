@@ -7,7 +7,7 @@ type G6EdgeStyle = Partial<BaseEdgeStyleProps> & { [key: string]: unknown };
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { GraphControl } from './graph-control';
 import type { GraphNode, GraphEdge, DisplaySettings } from '@/types/graph';
-import { getNodeColor } from '@/types/graph';
+import { getNodeColor, buildCategoryColorMap } from '@/types/graph';
 
 interface GraphContainerProps {
   className?: string;
@@ -32,6 +32,7 @@ function createGraph(
   dblClickExpandingRef: React.MutableRefObject<boolean>,
   g6Data: Record<string, unknown>,
   displaySettings: DisplaySettings,
+  categoryColorMapRef: React.MutableRefObject<Map<string, string>>,
 ) {
   const options: GraphOptions = {
     container,
@@ -70,7 +71,13 @@ function createGraph(
         labelBackgroundOpacity: 0.6,
         labelBackgroundRadius: 4,
         labelPadding: [2, 6],
-        fill: (d: NodeData) => (d.style as Record<string, unknown>)?.fill as string || getNodeColor(d.data?.category as string),
+        fill: (d: NodeData) => {
+          const explicit = (d.style as Record<string, unknown>)?.fill as string | undefined;
+          if (explicit) return explicit;
+          const cat = d.data?.category as string | undefined;
+          if (!cat) return '#94a3b8';
+          return categoryColorMapRef.current.get(cat) || getNodeColor(cat);
+        },
         size: (d: NodeData) => ((d.style as Record<string, unknown>)?.radius as number) || 28,
         stroke: '#334155',
         lineWidth: 2,
@@ -360,6 +367,14 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const fullDataRef = useRef(fullData);
   fullDataRef.current = fullData;
 
+  // Category 颜色映射表：随 fullData 更新，通过 ref 供 G6 渲染回调使用
+  const categoryColorMapRef = useRef(new Map<string, string>());
+  if (fullData) {
+    categoryColorMapRef.current = buildCategoryColorMap(
+      fullData.nodes.map((n) => n.category)
+    );
+  }
+
   const selectNodeRef = useRef(selectNode);
   selectNodeRef.current = selectNode;
 
@@ -491,6 +506,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       dblClickExpandingRef,
       g6Data,
       displaySettings,
+      categoryColorMapRef,
     );
     graphRef.current = graph;
 
