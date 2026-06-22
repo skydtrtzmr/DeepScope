@@ -1,0 +1,24 @@
+meta {
+  name: 请求节点
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://192.168.254.7:9991/api/FYJZ/GraphNodes?ids=日志/20260325000001
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ids: 日志/20260325000001
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoi566h55CG5ZGYIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiQUpfOTksY2VzaGkwMixDUzAwNCxDUzAwNSxDUzAwNixDUzAxMSxDUzAxMixDU0owMSxHTlhaLEdOWkosU1lTLFRFU1QiLCJqdGkiOiJTWVMiLCJpYXQiOiIxNzgyMDkyODQwIiwibmJmIjoiMTc4MjA5Mjg0MCIsImV4cCI6IjE3ODIxNzkyNDAiLCJpc3MiOiJVYW51ZS5Db3JlLm93bmVyIiwiYXVkIjoiVWFudWUuQ29yZSJ9.fGaSy-nwb1hxvOmCHUpEiiW0XZb6c96MuF7WJc4NLbo
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

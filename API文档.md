@@ -401,7 +401,7 @@ http://localhost:4173/?api=http://localhost:8002/api/v2
 http://localhost:4173/?api-expand=/v2/graph/expand
 
 # 完整组合：替换基础地址 + 覆盖多个端点
-http://localhost:4173/?domain=demo-core&node=人员/person-00022&m=5&n=2&api=http://a.com:9000&api-expand=/v2/graph/expand&api-nodes=/v2/graph/nodes
+http://localhost:4173/?node=日志/20260325000001&m=5&n=2&api=http://a.com:9000&api-expand=/v2/graph/expand&api-nodes=/v2/graph/nodes
 ```
 
 ### 4.3 首屏加载流程
