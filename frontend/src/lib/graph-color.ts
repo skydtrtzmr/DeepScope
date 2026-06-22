@@ -25,6 +25,16 @@ export function setCategoryColorConfig(config: Partial<CategoryColorConfig>) {
   if (_config.paletteThreshold > PALETTE_SIZE) _config.paletteThreshold = PALETTE_SIZE;
 }
 
+/** 获取当前颜色分配配置（调试用） */
+export function getCategoryColorConfig(): CategoryColorConfig {
+  return { ..._config };
+}
+
+/** 判断一个颜色字符串是否来自预设调色板 */
+export function isPaletteColor(color: string): boolean {
+  return COLOR_PALETTE.includes(color);
+}
+
 /**
  * 从一组 category 构建颜色映射表。
  * - usePalette=true 且唯一 category 数 ≤ paletteThreshold 时：每个 category 获得唯一 palette 颜色
@@ -57,8 +67,22 @@ function _hashColor(category: string): string {
   const hue = hash % 360;
   const sat = 55 + ((hash >>> 8) % 25);
   const light = 48 + ((hash >>> 16) % 22);
-  return `hsl(${hue}, ${sat}%, ${light}%)`;
+  return _hslToHex(hue, sat, light);
 }
+
+/** HSL → 十六进制颜色，与调色板格式统一 */
+function _hslToHex(h: number, s: number, l: number): string {
+  s /= 100;
+  l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    return Math.round(255 * (l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)));
+  };
+  const r = f(0), g = f(8), b = f(4);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
 
 /**
  * 获取单个 category 的颜色（哈希 fallback 版本）。

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import Markdown from 'react-markdown';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { getNodeColor, buildCategoryColorMap } from '@/lib/graph-color';
+import { getNodeColor, buildCategoryColorMap, isPaletteColor } from '@/lib/graph-color';
 
 export function NodeDetail() {
   const [showDebug, setShowDebug] = useState(false);
@@ -26,9 +26,14 @@ export function NodeDetail() {
     ? (categoryColorMap.get(node.category) || getNodeColor(node.category))
     : '#94a3b8';
   const renderedColor = explicitFill || categoryColor;
-  const colorSource = explicitFill
-    ? 'style.fill'
-    : (node.category ? 'buildCategoryColorMap → palette' : '默认灰色');
+  let colorSource: string;
+  if (explicitFill) {
+    colorSource = 'style.fill';
+  } else if (!node.category) {
+    colorSource = '默认灰色';
+  } else {
+    colorSource = isPaletteColor(categoryColor) ? '调色板' : 'FNV-1a 哈希';
+  }
 
   // 统计直接关联节点数
   const directNeighborCount = fullData.edges.filter(
