@@ -82,7 +82,7 @@ export function NodeDetail() {
           <div className="pt-2 border-t">
             <span className="text-xs text-muted-foreground">描述:</span>
             <div className="text-xs mt-1 leading-relaxed max-h-60 overflow-y-auto [&_h2]:text-xs [&_h2]:font-semibold [&_h2]:mt-2 [&_h2]:mb-1 [&_ul]:list-disc [&_ul]:ml-3 [&_li]:mt-0.5">
-              <Markdown>{node.description}</Markdown>
+              <Markdown>{node.description.replace(/\r\n/g, '  \n')}</Markdown>
             </div>
           </div>
         )}
