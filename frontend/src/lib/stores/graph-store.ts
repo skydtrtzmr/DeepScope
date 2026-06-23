@@ -56,6 +56,9 @@ interface GraphState {
   // 滑块上限配置（可从 app-config.json 覆盖默认值）
   sliderLimits: SliderLimits;
 
+  // 类别过滤：空数组表示不过滤，选中时仅展示/高亮所选类别的节点
+  categoryFilter: string[];
+
   // 请求过滤条件（从 URL ?filter=ENCODED_JSON 解析，传给 expand/neighbors 接口）
   requestFilters: Record<string, unknown>;
 
@@ -72,6 +75,7 @@ interface GraphState {
   updateBatchLoadConfig: (config: Partial<BatchLoadConfig>) => void;
   setMaxTotalNodes: (n: number) => void;
   setSliderLimits: (limits: Partial<SliderLimits>) => void;
+  setCategoryFilter: (categories: string[]) => void;
   setRequestFilters: (filters: Record<string, unknown>) => void;
   getNeighborButtonState: (nodeId: string) => NeighborButtonState;
   goBack: () => void;
@@ -311,6 +315,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   maxTotalNodes: 0,
   sliderLimits: DEFAULT_SLIDER_LIMITS,
   requestFilters: {},
+  categoryFilter: [],
 
   setGraphData: (data) => {
     let clean = sanitizeGraphData(data);
@@ -346,6 +351,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         visibleData: fullData,
         relatedNodes: [],
         highlightedEdgeIds: new Set(),
+        categoryFilter: [],
       });
       return;
     }
@@ -356,6 +362,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         visibleData: fullData,
         relatedNodes: [],
         highlightedEdgeIds: new Set(),
+        categoryFilter: [],
       });
       return;
     }
@@ -414,6 +421,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   setSliderLimits: (limits) => {
     const { sliderLimits } = get();
     set({ sliderLimits: { ...sliderLimits, ...limits } });
+  },
+
+  setCategoryFilter: (categories) => {
+    set({ categoryFilter: categories });
   },
 
   setRequestFilters: (filters) => {

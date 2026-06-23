@@ -116,12 +116,12 @@ function createGraph(
     ],
     layout: {
       type: 'd3-force',
-      link: { distance: 250, strength: 0.6 },
+      link: { distance: 180, strength: 0.6 },
       manyBody: { strength: -80 },
-      collide: { radius: 120, strength: 1 },
-      center: { strength: 0.05 },
+      collide: { radius: 100, strength: 1 },
+      center: { strength: 0.1 },
       alphaMin: 0.002,
-      alphaDecay: 0.03,
+      alphaDecay: 0.05,
       // 收敛衰减率，值越小，图节点越有足够时间完成布局
       velocityDecay: 0.5,
     },
@@ -331,7 +331,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const {
     fullData, visibleData, selectedNodeId, highlightedNodeId, highlightedEdgeIds,
     selectNode, bfsExpandNode, pendingAddition, commitAddition, rebuildTrigger,
-    displaySettings,
+    displaySettings, categoryFilter,
   } = useGraphStore();
 
   // 应用节点/边的选中高亮状态
@@ -344,6 +344,11 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     const visibleNodeIds = new Set(visibleData.nodes.map((n) => n.id));
     const hasSelection = !!selectedNodeId;
+
+    // 类别过滤：当设置了 categoryFilter 时，仅选中节点和匹配类别的节点保持高亮
+    const categoryFilter = useGraphStore.getState().categoryFilter;
+    const nodeCategoryMap = new Map<string, string | undefined>();
+    fullData.nodes.forEach((n) => nodeCategoryMap.set(n.id, n.category));
 
     const nodeStateUpdates: { id: string; states: string[] }[] = [];
     const nodeStyleUpdates: { id: string; style: { opacity: number } }[] = [];
@@ -358,7 +363,9 @@ export function GraphContainer({ className }: GraphContainerProps) {
       }
       nodeStateUpdates.push({ id: node.id, states });
       // 设置非高亮节点透明度（越小越淡）
-      const dimmed = hasSelection && !visibleNodeIds.has(node.id);
+      const dimmedByBFS = hasSelection && !visibleNodeIds.has(node.id);
+      const matchesCategory = categoryFilter.length === 0 || node.id === selectedNodeId || (node.category != null && categoryFilter.includes(node.category));
+      const dimmed = dimmedByBFS || (!matchesCategory);
       nodeStyleUpdates.push({ id: node.id, style: { opacity: dimmed ? 0.2 : 1 } });
     });
 
@@ -374,10 +381,20 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     fullData.edges.forEach((edge) => {
       if (!graph.getEdgeData(edge.id)) return;
-      const isActive = selectedNodeId && highlightedEdgeIds.has(edge.id);
+      let isActive = selectedNodeId && highlightedEdgeIds.has(edge.id);
+      // 类别过滤下，仅另一端也在筛选列表中才保持边高亮
+      if (isActive && categoryFilter.length > 0) {
+        const otherId = edge.source === selectedNodeId ? edge.target : edge.source;
+        const otherCat = nodeCategoryMap.get(otherId);
+        isActive = otherCat != null && categoryFilter.includes(otherCat);
+      }
       edgeStateUpdates.push({ id: edge.id, states: isActive ? ['active'] : [] });
-      // 设置非高亮边透明度
-      const dimmed = hasSelection && !isActive;
+      // 边暗化：BFS 不可见 或 类别过滤中任一端点不匹配（仅两端都高亮的边才保留）
+      const dimmedByBFS = hasSelection && !isActive;
+      const srcCatMatch = categoryFilter.length === 0 || edge.source === selectedNodeId || (nodeCategoryMap.get(edge.source) != null && categoryFilter.includes(nodeCategoryMap.get(edge.source)!));
+      const tgtCatMatch = categoryFilter.length === 0 || edge.target === selectedNodeId || (nodeCategoryMap.get(edge.target) != null && categoryFilter.includes(nodeCategoryMap.get(edge.target)!));
+      const dimmedByCategory = categoryFilter.length > 0 && (!srcCatMatch || !tgtCatMatch);
+      const dimmed = dimmedByBFS || dimmedByCategory;
       edgeStyleUpdates.push({ id: edge.id, style: { opacity: dimmed ? 0.2 : 1 } });
     });
 
@@ -624,6 +641,12 @@ export function GraphContainer({ className }: GraphContainerProps) {
     if (isDraggingRef.current) return;
     applyNodeStates();
   }, [applyNodeStates]);
+
+  // categoryFilter 变化时重新应用节点/边状态（筛选不经过 applyNodeStates 的 deps，需要独立响应）
+  useEffect(() => {
+    if (isDraggingRef.current) return;
+    applyNodeStatesRef.current();
+  }, [categoryFilter]);
 
   // 选中节点变化时，自动将画布聚焦到该节点（双击展开时跳过，由 afterlayout 统一处理）
   useEffect(() => {

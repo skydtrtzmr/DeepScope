@@ -5,7 +5,7 @@ import { getNodeColor, buildCategoryColorMap } from '@/lib/graph-color';
 import type { RelatedNodeDetail } from '@/types/graph';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { ArrowUpDown, ArrowUp, ArrowDown, Check } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Check, Filter } from 'lucide-react';
 
 type SortField = 'depth' | 'label' | 'category';
 
@@ -37,7 +37,7 @@ function sortNodes(nodes: RelatedNodeDetail[], field: SortField, asc: boolean): 
 
 export function AssociatedNodeList() {
   const parentRef = useRef<HTMLDivElement>(null);
-  const { fullData, relatedNodes, selectedNodeId, highlightedNodeId, selectNode, highlightNode } =
+  const { fullData, relatedNodes, selectedNodeId, highlightedNodeId, selectNode, highlightNode, categoryFilter, setCategoryFilter } =
     useGraphStore();
 
   // 从全量数据构建无碰撞 category 颜色映射
@@ -46,25 +46,44 @@ export function AssociatedNodeList() {
     [fullData]
   );
 
+  // 从全量节点中提取所有不重复的类别（作为筛选选项，不因切节点而变化）
+  const categoryOptions = useMemo(() => {
+    if (!fullData) return [];
+    const cats = new Set<string>();
+    fullData.nodes.forEach((n) => { if (n.category) cats.add(n.category); });
+    return [...cats].sort((a, b) => a.localeCompare(b, 'zh'));
+  }, [fullData]);
+
   const [sortField, setSortField] = useState<SortField>('depth');
   const [sortAsc, setSortAsc] = useState(true);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [catMenuOpen, setCatMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
+  const catMenuRef = useRef<HTMLDivElement>(null);
 
-  // 点击外部关闭排序菜单
+  // 点击外部关闭菜单
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
         setSortMenuOpen(false);
       }
+      if (catMenuRef.current && !catMenuRef.current.contains(e.target as Node)) {
+        setCatMenuOpen(false);
+      }
     }
-    if (sortMenuOpen) document.addEventListener('mousedown', handleClickOutside);
+    if (sortMenuOpen || catMenuOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [sortMenuOpen]);
+  }, [sortMenuOpen, catMenuOpen]);
+
+  // 过滤 + 排序
+  const filteredNodes = useMemo(
+    () => categoryFilter.length > 0 ? relatedNodes.filter((n) => n.category != null && categoryFilter.includes(n.category)) : relatedNodes,
+    [relatedNodes, categoryFilter]
+  );
 
   const sortedNodes = useMemo(
-    () => sortNodes(relatedNodes, sortField, sortAsc),
-    [relatedNodes, sortField, sortAsc]
+    () => sortNodes(filteredNodes, sortField, sortAsc),
+    [filteredNodes, sortField, sortAsc]
   );
 
   const virtualizer = useVirtualizer({
@@ -96,21 +115,73 @@ export function AssociatedNodeList() {
     );
   }
 
-  if (sortedNodes.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        当前节点没有关联节点
-      </div>
-    );
-  }
-
   const SortIcon = sortAsc ? ArrowUp : ArrowDown;
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-        <h3 className="font-semibold text-sm">关联节点 <span className="font-normal text-muted-foreground ml-4">数量：{sortedNodes.length}</span></h3>
+        <h3 className="font-semibold text-sm">关联节点 <span className="font-normal text-muted-foreground ml-4">数量：{filteredNodes.length}</span></h3>
         <div className="flex items-center gap-1.5">
+          {/* 类别过滤 */}
+          {categoryOptions.length > 1 && (
+            <div className="relative" ref={catMenuRef}>
+              <button
+                className={cn(
+                  'p-1 rounded-full border hover:bg-accent transition-colors',
+                  categoryFilter.length > 0 && 'bg-primary/10 border-primary/30'
+                )}
+                onClick={() => setCatMenuOpen(!catMenuOpen)}
+                title="按类别过滤（多选）"
+              >
+                <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+              {catMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-40 rounded-md border bg-card shadow-lg z-50 py-1 max-h-60 overflow-y-auto">
+                  <button
+                    className={cn(
+                      'flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-accent transition-colors',
+                      categoryFilter.length === 0 && 'font-medium'
+                    )}
+                    onClick={() => { setCategoryFilter([]); setCatMenuOpen(false); }}
+                  >
+                    <span className="w-3.5 flex items-center justify-center">
+                      {categoryFilter.length === 0 && <Check className="h-3 w-3" />}
+                    </span>
+                    全部
+                  </button>
+                  {categoryOptions.map((cat) => {
+                    const selected = categoryFilter.includes(cat);
+                    return (
+                      <button
+                        key={cat}
+                        className={cn(
+                          'flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-accent transition-colors',
+                          selected && 'font-medium'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const next = selected
+                            ? categoryFilter.filter((c) => c !== cat)
+                            : [...categoryFilter, cat];
+                          setCategoryFilter(next);
+                        }}
+                      >
+                        <span className="w-3.5 flex items-center justify-center">
+                          {selected && <Check className="h-3 w-3" />}
+                        </span>
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: categoryColorMap.get(cat) || getNodeColor(cat) }}
+                        />
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <span className="text-xs text-muted-foreground">{SORT_OPTIONS.find(o => o.value === sortField)?.label}</span>
 
           <div className="relative" ref={sortMenuRef}>
@@ -156,15 +227,20 @@ export function AssociatedNodeList() {
         </div>
       </div>
 
-      <div ref={parentRef} className="flex-1 overflow-auto">
-        <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {virtualizer.getVirtualItems().map((virtualRow) => {
+      {sortedNodes.length === 0 ? (
+        <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+          当前节点没有关联节点
+        </div>
+      ) : (
+        <div ref={parentRef} className="flex-1 overflow-auto">
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
             const node = sortedNodes[virtualRow.index];
             const isHighlighted = highlightedNodeId === node.id;
 
@@ -233,6 +309,7 @@ export function AssociatedNodeList() {
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }

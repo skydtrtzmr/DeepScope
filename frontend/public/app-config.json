@@ -20,9 +20,9 @@
     "nMax": 6
   },
   "highlight": {
-    "directRelations": 5,
-    "depth": 1,
-    "directRelationsMax": 20,
+    "directRelations": 99,
+    "depth": 2,
+    "directRelationsMax": 99,
     "depthMax": 3
   },
   "display": {
