@@ -30,7 +30,8 @@
     "showEdgeLabels": false,
     "trackSelectedNode": true,
     "expandTrigger": "rightclick",
-    "showCategoryLabel": true
+    "showCategoryLabel": true,
+    "showNodePopup": false
   },
   "batchLoad": {
     "pageSize": 5,

@@ -72,6 +72,9 @@ function createGraph(
         labelPlacement: 'bottom',
         labelFontSize: 11,
         labelFill: '#0f172a',
+        labelWordWrap: true,       // 开启自动换行
+        labelMaxWidth: '400%',        // 像素值，或 '150%'（相对节点宽度百分比）
+        labelMaxLines: 3,        // 最大行数
         labelBackground: true,
         labelBackgroundFill: '#ffffff',
         labelBackgroundOpacity: 0.6,
@@ -645,7 +648,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
   return (
     <div className="relative w-full h-full" style={{ minHeight: 400 }}>
       <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
-      <GraphControl />
+      {displaySettings.showNodePopup && <GraphControl />}
     </div>
   );
 }
