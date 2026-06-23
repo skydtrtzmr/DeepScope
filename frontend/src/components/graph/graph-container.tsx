@@ -25,6 +25,66 @@ interface G6PointerEvent {
   targetType: 'node' | 'edge' | 'canvas';
 }
 
+/** 构建节点全局样式配置（用于 createGraph 和 displaySettings effect，保持一份定义） */
+function getNodeStyleConfig(
+  displaySettings: DisplaySettings,
+  categoryColorMapRef: React.MutableRefObject<Map<string, string>>,
+): Record<string, unknown> {
+  return {
+    labelText: (d: NodeData) => getLabelText(d, displaySettings.showCategoryLabel),
+    labelPlacement: 'bottom',
+    labelFontSize: 11,
+    labelFill: '#0f172a',
+    labelWordWrap: true,
+    labelMaxWidth: '400%',
+    labelMaxLines: 3,
+    labelBackground: true,
+    labelBackgroundFill: '#ffffff',
+    labelBackgroundOpacity: 0.6,
+    labelBackgroundRadius: 4,
+    labelPadding: [2, 6],
+    fill: (d: NodeData) => {
+      const explicit = (d.style as Record<string, unknown>)?.fill as string | undefined;
+      if (explicit) return explicit;
+      const cat = d.data?.category as string | undefined;
+      if (!cat) return '#94a3b8';
+      return categoryColorMapRef.current.get(cat) || getNodeColor(cat);
+    },
+    size: (d: NodeData) => ((d.style as Record<string, unknown>)?.radius as number) || 28,
+    stroke: '#334155',
+    lineWidth: 2,
+    lineDash: [],
+    lineCap: 'butt',
+    lineJoin: 'miter',
+    shadowColor: 'rgba(0,0,0,0.08)',
+    shadowBlur: 4,
+    cursor: 'grab',
+  };
+}
+
+
+/** 构建节点全局 state 配置（用于 createGraph 和 displaySettings effect，保持一份定义） */
+function getNodeStateConfig() {
+  return {
+    selected: { stroke: '#6366f1', lineWidth: 4 },
+    highlighted: {
+      stroke: '#6366f1',
+      lineWidth: 3,
+      halo: true,
+      haloLineWidth: 16,
+      haloStroke: '#6366f1',
+      haloStrokeOpacity: 0.15,
+    },
+    hovered: {
+      stroke: '#6366f1',
+      lineWidth: 3,
+      halo: true,
+      haloLineWidth: 16,
+      haloStroke: '#6366f1',
+      haloStrokeOpacity: 0.15,
+    },
+  };
+}
 
 // 创建图谱实例并绑定事件
 function createGraph(
@@ -67,68 +127,8 @@ function createGraph(
     },
     node: {
       type: 'circle',
-      style: {
-        labelText: (d: NodeData) => getLabelText(d, displaySettings.showCategoryLabel),
-        labelPlacement: 'bottom',
-        labelFontSize: 11,
-        labelFill: '#0f172a',
-        labelWordWrap: true,       // 开启自动换行
-        labelMaxWidth: '400%',        // 像素值，或 '150%'（相对节点宽度百分比）
-        labelMaxLines: 3,        // 最大行数
-        labelBackground: true,
-        labelBackgroundFill: '#ffffff',
-        labelBackgroundOpacity: 0.6,
-        labelBackgroundRadius: 4,
-        labelPadding: [2, 6],
-        fill: (d: NodeData) => {
-          const explicit = (d.style as Record<string, unknown>)?.fill as string | undefined;
-          if (explicit) return explicit;
-          const cat = d.data?.category as string | undefined;
-          if (!cat) return '#94a3b8';
-          return categoryColorMapRef.current.get(cat) || getNodeColor(cat);
-        },
-        size: (d: NodeData) => ((d.style as Record<string, unknown>)?.radius as number) || 28,
-        stroke: '#334155',
-        lineWidth: 2,
-        lineDash: [],
-        lineCap: 'butt',
-        lineJoin: 'miter',
-        shadowColor: 'rgba(0,0,0,0.08)',
-        shadowBlur: 4,
-        cursor: 'grab',
-      },
-      state: {
-        selected: { stroke: '#6366f1', lineWidth: 4 },
-        // 注意：在 G6 的默认主题文件 base.ts 中（第 122-131 行），selected 状态的内置主题样式定义如下：
-        // selected: {
-        //   halo: true,
-        //   haloLineWidth: 24,
-        //   haloStrokeOpacity: nodeHaloStrokeOpacitySelected,
-        //   labelFontSize: 12,
-        //   labelFontWeight: 'bold',
-        //   lineWidth: 4,
-        //   stroke: nodeStroke,
-        // },
-        // themeStateStyle 是主题内置的状态样式，它包含了 halo: true, haloLineWidth: 24。
-        // 所以如果要关掉Halo，则需要显式设置 halo: false。
-
-        highlighted: {
-          stroke: '#6366f1',
-          lineWidth: 3,
-          halo: true,
-          haloLineWidth: 16,           // 调整光晕宽度
-          haloStroke: '#6366f1',       // 光晕颜色
-          haloStrokeOpacity: 0.15,
-        },
-        hovered: {
-          stroke: '#6366f1',
-          lineWidth: 3,
-          halo: true,
-          haloLineWidth: 16,           // 调整光晕宽度
-          haloStroke: '#6366f1',       // 光晕颜色
-          haloStrokeOpacity: 0.15,
-        },
-      },
+      style: getNodeStyleConfig(displaySettings, categoryColorMapRef),
+      state: getNodeStateConfig(),
     },
     edge: {
       type: 'line',
@@ -534,10 +534,10 @@ export function GraphContainer({ className }: GraphContainerProps) {
     if (!graphReadyRef.current) return;
 
     // 更新节点标签（类别前缀开关）
+    // 注意：setNode 是整体替换 style，使用共享配置函数保持完整
     graph.setNode({
-      style: {
-        labelText: (d: NodeData) => getLabelText(d, displaySettings.showCategoryLabel),
-      },
+      style: getNodeStyleConfig(displaySettings, categoryColorMapRef),
+      state: getNodeStateConfig(),
     });
 
     // 使用 setEdge 更新全局边样式映射（优先级最高），
@@ -565,6 +565,11 @@ export function GraphContainer({ className }: GraphContainerProps) {
       },
     });
     graph.draw();
+
+    // draw() 不会自动重设已有元素的 state 样式，需手动重新应用节点状态
+    if (!isDraggingRef.current) {
+      applyNodeStatesRef.current();
+    }
   }, [displaySettings]);
 
   // React 状态变化时更新节点状态（拖拽期间跳过，由 dragend 处理）

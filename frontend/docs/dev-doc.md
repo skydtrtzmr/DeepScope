@@ -23,7 +23,7 @@
 - 使用 `useQuery` 调用 `GET /api/graph/initial`，数据返回后渲染并布局（力导向布局）。
 
 ### 5.3 节点多层展开（BFS 累积增长）
-- 读取当前 `m`、`n`，调用 `POST /api/graph/expand`（参数：`nodeId`, `m`, `n`, `domain`）。
+- 读取当前 `m`、`n`，调用 `POST /api/graph/expand`（参数：`nodeId`, `m`, `n`, `domain`, 可选 `filter`）。
 - 后端全量返回 BFS 发现的所有节点和边（不接收 `excludeIds`），前端 `mergeExpansionResult` 负责去重。
 - 成功后合并到 fullData，并调用 G6 增量添加。
 - 新节点布局：保持原有节点位置不变，新节点围绕点击节点做放射状分布（角度均分，半径约 100px）。
@@ -31,7 +31,7 @@
 
 ### 5.4 加载更多（分页加载直接邻居）
 - 详情列表底部显示"加载更多"按钮（`已加载直接邻居数 < totalNeighbors`）。
-- 调用 `POST /api/graph/neighbors`（参数：`nodeId`, `limit`, `excludeIds`, `domain`）。
+- 调用 `POST /api/graph/neighbors`（参数：`nodeId`, `limit`, `excludeIds`, `domain`, 可选 `filter`）。
 - `excludeIds` 为已加载的直接邻居 ID 列表，后端排除后返回下一批未加载邻居。
 - `limit` 取自 `batchLoadConfig.limit`（前端可配置，默认 5）。
 - 成功后仅追加新节点和边，不影响已有节点位置。
@@ -82,6 +82,7 @@
 | `m` | int | 否 | 初始展开的广度（每层邻居数），独立于 UI 滑块配置 |
 | `n` | int | 否 | 初始展开的深度（间接层数），独立于 UI 滑块配置 |
 | `domain` | string | 否 | 指定 domain，不传时使用默认首个 domain |
+| `filter` | string | 否 | **必须编码**。JSON 筛选条件，如 `filter={"project":"aaa"}` 需编码为 `filter=%7B%22project%22%3A%22aaa%22%7D`。页面加载后解析存入 zustand 全局状态，仅对 `POST /api/graph/expand` 和 `POST /api/graph/neighbors` 的请求体中附加 `filter` 字段 |
 
 > **`m`/`n` 与 UI 滑块的分离设计**：URL 的 `m`/`n` 仅影响首屏初始展开，与操作界面中的可调滑块互不干扰。URL 未传 `m`/`n` 时，展开展走 UI 滑块配置；传了则用 URL 参数，后续用户的按钮/双击/右键探索仍走 UI 滑块配置。
 

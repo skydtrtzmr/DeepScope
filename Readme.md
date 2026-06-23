@@ -108,6 +108,13 @@ npm run preview
    ```
    - 预期：`/api/graph/nodes` 返回空数组，画布无节点，显示空白或 loading 状态。
 
+8. **通过 filter 参数传递筛选条件**
+   ```
+   http://localhost:4173/?filter=%7B%22project%22%3A%22aaa%22%2C%22type%22%3A%5B%22%E9%A1%B9%E7%9B%AE%22%5D%7D
+   ```
+   - 预期：页面加载后筛选条件解析存入全局状态，后续点击节点展开（`POST /api/graph/expand`）或加载更多邻居（`POST /api/graph/neighbors`）时，请求体自动附带 `filter` 字段。
+   - 编码前 JSON：`{"project":"aaa","type":["项目"]}`
+
 ### 5.2 Bruno API 测试
 
 项目内置 Bruno 测试集合，位于 `backend/bruno-api-test/DeepScope/`，覆盖所有 5 个接口。用 [Bruno](https://www.usebruno.com/) 打开该目录即可使用。

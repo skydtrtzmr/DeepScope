@@ -128,6 +128,7 @@
 | `m` | int | 是 | 每个节点每层最多取几个新邻居 |
 | `n` | int | 是 | 最大深度（迭代层数） |
 | `domain` | string | 否 | 查询的 domain |
+| `filter` | object | 否 | 筛选条件（JSON 对象）。由前端从 URL `?filter=` 参数解析后存入全局状态，调用时自动带入。后端自行解析内部结构，如 `{"type":["项目","人员"], "项目":{"id":["xxx"]}}` |
 
 ```json
 {
@@ -177,6 +178,7 @@
 | `limit` | int | 是 | 本批次最多返回几个新节点（跨层全局计数） |
 | `excludeIds` | string[] | 否 | 已加载的节点 ID 列表，后端响应中跳过这些（但作为 BFS 前沿继续遍历）。首次请求传空列表 `[]`，后续请求传入已加载邻居的 ID |
 | `domain` | string | 否 | 查询的 domain，如未指定则由后端确认默认 domain |
+| `filter` | object | 否 | 筛选条件（JSON 对象）。由前端从 URL `?filter=` 参数解析后存入全局状态，调用时自动带入。后端自行解析内部结构 |
 
 **首次请求**（无排除）：
 ```json
@@ -365,6 +367,7 @@ GET /api/graph/nodes?ids=项目/proj-00093,项目/proj-00171,项目/proj-00172&d
 | `api-neighbors` | string | 否 | 覆盖 neighbors 邻居分页端点路径，如 `?api-neighbors=/v2/graph/neighbors` |
 | `api-nodes` | string | 否 | 覆盖 nodes 节点查询端点路径，如 `?api-nodes=/v2/graph/nodes` |
 | `token` | string | 否 | 设置 JWT token，所有 API 请求自动携带 `Authorization: Bearer <token>` 头。优先级高于 `app-config.json` 中的 `auth` 配置 |
+| `filter` | string | 否 | URL播种的筛选条件，**必须经过 `encodeURIComponent` 编码**。编码前为 JSON 对象，如 `{"project":"aaa"}`。页面加载后解析存入 zustand 全局状态，仅 `POST /api/graph/expand` 和 `POST /api/graph/neighbors` 的请求体中附加 `filter` 字段传给后端。**格式举例**：`?filter=%7B%22project%22%3A%22aaa%22%7D`（对应 `filter={"project":"aaa"}`） |
 
 #### 优先级链
 
@@ -402,6 +405,10 @@ http://localhost:4173/?api-expand=/v2/graph/expand
 
 # 完整组合：替换基础地址 + 覆盖多个端点
 http://localhost:4173/?node=日志/20260325000001&m=5&n=2&api=http://a.com:9000&api-expand=/v2/graph/expand&api-nodes=/v2/graph/nodes
+
+# 带筛选条件（filter 参数需 encodeURIComponent 编码）
+http://localhost:4173/?filter=%7B%22project%22%3A%22aaa%22%2C%22type%22%3A%5B%22%E9%A1%B9%E7%9B%AE%22%2C%22%E4%BA%BA%E5%91%98%22%5D%7D
+# 解码后 filter={"project":"aaa","type":["项目","人员"]}
 ```
 
 ### 4.3 首屏加载流程

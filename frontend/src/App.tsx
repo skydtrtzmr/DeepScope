@@ -4,7 +4,7 @@ import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { fetchInitialGraph, fetchNodesByIds, setApiBaseUrl, setEndpointPaths, setTokenConfig, setToken, onTokenExpired } from '@/lib/api';
+import { fetchInitialGraph, fetchNodesByIds, expandGraph, setApiBaseUrl, setEndpointPaths, setTokenConfig, setToken, onTokenExpired } from '@/lib/api';
 import type { GraphData, SliderLimits } from '@/types/graph';
 import { setCategoryColorConfig } from '@/lib/graph-color';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 
 function AppContent() {
-  const { setGraphData, fullData, selectNode, bfsExpandNode, updateExploreConfig, updateBatchLoadConfig, updateConfig, updateDisplaySettings, setMaxTotalNodes, setSliderLimits } = useGraphStore();
+  const { setGraphData, fullData, selectNode, updateExploreConfig, updateBatchLoadConfig, updateConfig, updateDisplaySettings, setMaxTotalNodes, setSliderLimits } = useGraphStore();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [importError, setImportError] = useState('');
@@ -182,20 +182,58 @@ function AppContent() {
       const urlN = params.get('n') ? parseInt(params.get('n')!, 10) : undefined;
       // URL 带 m/n → 必定展开（用 URL 参数）；无 m/n → 按 expand 标识决定
       const hasUrlOverride = urlM !== undefined || urlN !== undefined;
-      fetchNodesByIds([nodeParam])
-        .then((data) => {
-          setGraphData(data);
-          initializedRef.current = true;
-          if (data.nodes.length > 0) {
-            setTimeout(() => {
-              selectNode(nodeParam);
-              if (hasUrlOverride || shouldExpand) {
-                bfsExpandNode(nodeParam, { m: urlM, n: urlN });
+
+      if (hasUrlOverride || shouldExpand) {
+        // 等待 node 查询和 expand 查询都完成，合并数据后一次性渲染
+        (async () => {
+          try {
+            const [initialData, expandResult] = await Promise.all([
+              fetchNodesByIds([nodeParam]),
+              expandGraph(
+                { nodeId: nodeParam, m: urlM ?? 3, n: urlN ?? 3 },
+                useGraphStore.getState().requestFilters,
+              ),
+            ]);
+
+            // 合并数据（去重）
+            const existingIds = new Set(initialData.nodes.map((n) => n.id));
+            const mergedNodes = [...initialData.nodes];
+            for (const node of expandResult.nodes) {
+              if (!existingIds.has(node.id)) {
+                mergedNodes.push(node);
               }
-            }, 300);
+            }
+            const mergedEdges = [...(initialData.edges || []), ...expandResult.edges];
+
+            setGraphData({ nodes: mergedNodes, edges: mergedEdges });
+            initializedRef.current = true;
+
+            if (mergedNodes.length > 0) {
+              selectNode(nodeParam);
+              // 更新 expansionStates，使后续的 loadMoreNeighbors 能正确获取节点已加载的邻居数
+              const store = useGraphStore.getState();
+              const newExpansionStates = new Map(store.expansionStates);
+              newExpansionStates.set(nodeParam, {
+                totalDirectCount: expandResult.totalNeighbors,
+              });
+              useGraphStore.setState({ expansionStates: newExpansionStates });
+            }
+          } catch (e) {
+            console.error('首屏加载失败:', e);
           }
-        })
-        .catch(console.error);
+        })();
+      } else {
+        // 仅加载初始节点，不展开
+        fetchNodesByIds([nodeParam])
+          .then((data) => {
+            setGraphData(data);
+            initializedRef.current = true;
+            if (data.nodes.length > 0) {
+              selectNode(nodeParam);
+            }
+          })
+          .catch(console.error);
+      }
       return;
     }
 
@@ -206,7 +244,7 @@ function AppContent() {
         initializedRef.current = true;
       })
       .catch(console.error);
-  }, [configReady, setGraphData, selectNode, bfsExpandNode]);
+  }, [configReady, setGraphData, selectNode]);
 
   // 导入数据
   const handleImport = useCallback(() => {
