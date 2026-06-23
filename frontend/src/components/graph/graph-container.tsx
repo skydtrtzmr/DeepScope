@@ -117,7 +117,7 @@ function createGraph(
     layout: {
       type: 'd3-force',
       link: { distance: 250, strength: 0.6 },
-      manyBody: { strength: -100 },
+      manyBody: { strength: -80 },
       collide: { radius: 120, strength: 1 },
       center: { strength: 0.05 },
       alphaMin: 0.002,
@@ -258,16 +258,36 @@ function createGraph(
   });
 
   graph.setData(g6Data);
+
+  // 选中节点通过 d3-force fx/fy 固定在画布中心，不参与力导向计算
+  const containerWidth = container.clientWidth || 800;
+  const containerHeight = container.clientHeight || 600;
+  const centerX = containerWidth / 2;
+  const centerY = containerHeight / 2;
+  const curSelectedId = useGraphStore.getState().selectedNodeId;
+  if (curSelectedId) {
+    try {
+      (graph as any).updateNodeData([{ id: curSelectedId, fx: centerX, fy: centerY }]);
+    } catch { /* ignore */ }
+  }
+
   // render 是异步的（d3-force 布局模拟可能数秒），但 canvas 上下文在 render 开始后很快初始化
   // 用 requestAnimationFrame 提前标记 ready，不等 render 完全结束，让高亮/暗化尽早可用
-  graph.render();
+  const renderPromise = graph.render();
   requestAnimationFrame(() => {
     graphReadyRef.current = true;
     console.log('[graph] render 首帧后标记 graphReady=true');
-    if (!isDraggingRef.current) applyNodeStatesRef.current();
+    if (!isDraggingRef.current) {
+      applyNodeStatesRef.current();
+      // 选中节点以画布中心为初始位置，首帧即可精准聚焦
+      const currentId = useGraphStore.getState().selectedNodeId;
+      if (currentId && useGraphStore.getState().displaySettings.trackSelectedNode) {
+        try { graph.focusElement(currentId, { duration: 200, easing: 'ease-in-out' }); } catch { /* ignore */ }
+      }
+    }
   });
 
-  return graph;
+  return { graph, renderPromise };
 }
 
 // 将业务节点/边数据转换为 G6 格式（过滤掉悬空边）
@@ -397,9 +417,6 @@ export function GraphContainer({ className }: GraphContainerProps) {
   // 增量渲染布局是否进行中：pendingAddition 处理时设为 true，afterlayout 后清为 false
   const hasPendingLayoutRef = useRef(false);
 
-  // 增量渲染聚焦延时定时器，用于在 generation 变化时清理
-  const focusTimerRef = useRef<number | null>(null);
-
   // 增量渲染：pendingAddition 变化时，用 G6 addData + render 追加节点
   // 注意：commitAddition 会更新 fullData 但不递增 rebuildTrigger，因此不会触发重建
   useEffect(() => {
@@ -446,33 +463,44 @@ export function GraphContainer({ className }: GraphContainerProps) {
 
     graph.stopLayout();
     graph.addData(g6Data);
+
+    // 固定当前选中节点的位置（通过 fx/fy 告诉 d3-force 该节点不受力导向影响）
+    if (currentNodeId) {
+      try {
+        const pos = graph.getElementPosition(currentNodeId);
+        (graph as any).updateNodeData([{ id: currentNodeId, fx: pos[0], fy: pos[1] }]);
+      } catch { /* 节点尚未渲染 */ }
+    }
+
     const gen = graphGenerationRef.current;
     hasPendingLayoutRef.current = true;
-    graph.render();
+    const renderPromise = graph.render();
 
-    // 延时 200ms 后聚焦：不等力导向完全收敛（afterlayout 太慢），只等初步稳定即可
-    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    focusTimerRef.current = window.setTimeout(() => {
+    // 布局首帧后的聚焦（选中节点已固定，位置从首帧起即准确）
+    renderPromise.then(() => {
       if (graphGenerationRef.current !== gen) return;
       hasPendingLayoutRef.current = false;
       dblClickExpandingRef.current = false;
       graphReadyRef.current = true;
       if (!isDraggingRef.current) {
         applyNodeStatesRef.current();
-        const currentNodeId = useGraphStore.getState().selectedNodeId;
-        if (currentNodeId && useGraphStore.getState().displaySettings.trackSelectedNode) {
-          try { graph.focusElement(currentNodeId, { duration: 200, easing: 'ease-in-out' }); } catch { /* ignore */ }
+        const currentFocusId = useGraphStore.getState().selectedNodeId;
+        if (currentFocusId && useGraphStore.getState().displaySettings.trackSelectedNode) {
+          try { graph.focusElement(currentFocusId, { duration: 200, easing: 'ease-in-out' }); } catch { /* ignore */ }
         }
       }
-      focusTimerRef.current = null;
-    }, 200);
+    });
 
-    // 首帧也先标记 ready（万一 afterlayout 不触发），但不聚焦
+    // 首帧立即聚焦，不等布局收敛（选中节点已通过 fx/fy 固定，首帧位置即正确）
     requestAnimationFrame(() => {
       if (graphGenerationRef.current !== gen) return;
-      if (!graphReadyRef.current) {
-        graphReadyRef.current = true;
-        if (!isDraggingRef.current) applyNodeStatesRef.current();
+      dblClickExpandingRef.current = false;
+      if (!isDraggingRef.current) {
+        applyNodeStatesRef.current();
+        const currentFocusId = useGraphStore.getState().selectedNodeId;
+        if (currentFocusId && useGraphStore.getState().displaySettings.trackSelectedNode) {
+          try { graph.focusElement(currentFocusId, { duration: 200, easing: 'ease-in-out' }); } catch { /* ignore */ }
+        }
       }
     });
 
@@ -499,12 +527,31 @@ export function GraphContainer({ className }: GraphContainerProps) {
     const gen = ++graphGenerationRef.current;
 
     const nodeIdSet = new Set(fullData.nodes.map((n) => n.id));
+
+    // 计算画布中心，用于节点初始位置散布
+    const container = containerRef.current;
+    const centerX = container ? container.clientWidth / 2 : 400;
+    const centerY = container ? container.clientHeight / 2 : 300;
+
+    // 构建节点：选中节点以画布中心为初始位置并固定 (fx/fy)，其他节点围绕中心预置初始位置
+    const rawNodes = toG6Nodes(fullData.nodes);
+    const g6Nodes = rawNodes.map((n, i) => {
+      const id = n.id as string;
+      const baseStyle = (n.style as Record<string, unknown>) || {};
+      if (id === selectedNodeId) {
+        return { ...n, style: { ...baseStyle, x: centerX, y: centerY } };
+      }
+      const angle = (i / Math.max(1, rawNodes.length - 1 || 1)) * 2 * Math.PI;
+      const radius = 120 + Math.random() * 60;
+      return { ...n, style: { ...baseStyle, x: centerX + Math.cos(angle) * radius, y: centerY + Math.sin(angle) * radius } };
+    });
+
     const g6Data = {
-      nodes: toG6Nodes(fullData.nodes),
+      nodes: g6Nodes,
       edges: toG6Edges(fullData.edges, nodeIdSet),
     };
 
-    const graph = createGraph(
+    const { graph } = createGraph(
       containerRef.current,
       fullDataRef,
       isDraggingRef,
