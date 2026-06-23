@@ -253,10 +253,6 @@ function createGraph(
     if (graphReadyRef.current) applyNodeStatesRef.current();
   });
 
-  graph.on('canvas:click', () => {
-    selectNode(null);
-  });
-
   graph.setData(g6Data);
 
   // 选中节点通过 d3-force fx/fy 固定在画布中心，不参与力导向计算
