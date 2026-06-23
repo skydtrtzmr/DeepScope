@@ -337,9 +337,9 @@ export function GraphContainer({ className }: GraphContainerProps) {
         states.push('highlighted');
       }
       nodeStateUpdates.push({ id: node.id, states });
-
+      // 设置非高亮节点透明度（越小越淡）
       const dimmed = hasSelection && !visibleNodeIds.has(node.id);
-      nodeStyleUpdates.push({ id: node.id, style: { opacity: dimmed ? 0.5 : 1 } });
+      nodeStyleUpdates.push({ id: node.id, style: { opacity: dimmed ? 0.2 : 1 } });
     });
 
     nodeStateUpdates.forEach(({ id, states }) => {
@@ -356,7 +356,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       if (!graph.getEdgeData(edge.id)) return;
       const isActive = selectedNodeId && highlightedEdgeIds.has(edge.id);
       edgeStateUpdates.push({ id: edge.id, states: isActive ? ['active'] : [] });
-
+      // 设置非高亮边透明度
       const dimmed = hasSelection && !isActive;
       edgeStyleUpdates.push({ id: edge.id, style: { opacity: dimmed ? 0.2 : 1 } });
     });
