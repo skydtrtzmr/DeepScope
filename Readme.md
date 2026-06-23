@@ -1,5 +1,7 @@
 # DeepScope 设计文档
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/skydtrtzmr/DeepScope)
+
 ## 1. 项目概述
 - **产品名称**：DeepScope  
 - **定位**：纯前端通用图谱可视化组件，支持累积式增长、可配置深度/广度、详情列表联动，可嵌入 U3 等外部系统。  
