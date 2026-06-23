@@ -56,6 +56,9 @@ interface GraphState {
   // 滑块上限配置（可从 app-config.json 覆盖默认值）
   sliderLimits: SliderLimits;
 
+  // 请求过滤条件（从 URL ?filter=ENCODED_JSON 解析，传给 expand/neighbors 接口）
+  requestFilters: Record<string, unknown>;
+
   // Actions
   setGraphData: (data: GraphData) => void;
   bfsExpandNode: (nodeId: string, overrides?: { m?: number; n?: number }) => Promise<void>;
@@ -69,6 +72,7 @@ interface GraphState {
   updateBatchLoadConfig: (config: Partial<BatchLoadConfig>) => void;
   setMaxTotalNodes: (n: number) => void;
   setSliderLimits: (limits: Partial<SliderLimits>) => void;
+  setRequestFilters: (filters: Record<string, unknown>) => void;
   getNeighborButtonState: (nodeId: string) => NeighborButtonState;
   goBack: () => void;
   reset: () => void;
@@ -306,6 +310,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   rebuildTrigger: 0,
   maxTotalNodes: 0,
   sliderLimits: DEFAULT_SLIDER_LIMITS,
+  requestFilters: {},
 
   setGraphData: (data) => {
     let clean = sanitizeGraphData(data);
@@ -411,6 +416,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ sliderLimits: { ...sliderLimits, ...limits } });
   },
 
+  setRequestFilters: (filters) => {
+    set({ requestFilters: { ...filters } });
+  },
+
   getNeighborButtonState: (nodeId) => {
     const { fullData, expansionStates } = get();
     const loaded = fullData ? countLoadedDirectNeighbors(fullData, nodeId) : 0;
@@ -432,7 +441,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const existingNodeIds = new Set(fullData.nodes.map((n) => n.id));
 
     try {
-      const result = await expandGraph({ nodeId, m, n });
+      const result = await expandGraph({ nodeId, m, n }, get().requestFilters);
 
       mergeExpansionResult('bfs', nodeId, result, existingNodeIds, expansionStates, get, set);
     } catch (err) {
@@ -462,7 +471,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         nodeId,
         limit,
         excludeIds: getLoadedDirectNeighborIds(fullData, nodeId),
-      });
+      }, get().requestFilters);
 
       mergeExpansionResult('neighbors', nodeId, result, existingNodeIds, expansionStates, get, set);
     } catch (err) {

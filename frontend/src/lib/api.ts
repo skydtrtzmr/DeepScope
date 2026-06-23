@@ -240,25 +240,35 @@ export async function fetchNodesByIds(ids: string[], domain?: string): Promise<G
 }
 
 // BFS 多层展开（POST）
-export async function expandGraph(params: ExpandGraphParams): Promise<ExpandGraphResponse> {
+export async function expandGraph(params: ExpandGraphParams, filters?: Record<string, unknown>): Promise<ExpandGraphResponse> {
   const body: Record<string, unknown> = {
     nodeId: params.nodeId,
     m: params.m,
     n: params.n,
   };
   if (params.domain) body.domain = params.domain;
+  // 携带请求过滤条件
+  if (filters && Object.keys(filters).length > 0) {
+    body.filter = filters;
+    console.log('[api] expandGraph 携带 filter:', filters);
+  }
   const { data } = await api.post(_endpoints.expand, body);
   return data;
 }
 
 // 分页加载直接邻居（POST）
-export async function fetchNeighbors(params: NeighborParams): Promise<ExpandGraphResponse> {
+export async function fetchNeighbors(params: NeighborParams, filters?: Record<string, unknown>): Promise<ExpandGraphResponse> {
   const body: Record<string, unknown> = {
     nodeId: params.nodeId,
     limit: params.limit,
     excludeIds: params.excludeIds,
   };
   if (params.domain) body.domain = params.domain;
+  // 携带请求过滤条件
+  if (filters && Object.keys(filters).length > 0) {
+    body.filter = filters;
+    console.log('[api] fetchNeighbors 携带 filter:', filters);
+  }
   const { data } = await api.post(_endpoints.neighbors, body);
   return data;
 }

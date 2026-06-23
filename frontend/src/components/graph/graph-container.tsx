@@ -56,8 +56,8 @@ function createGraph(
     ],
     layout: {
       type: 'd3-force',
-      link: { distance: 300, strength: 0.6 },
-      manyBody: { strength: -150 },
+      link: { distance: 250, strength: 0.6 },
+      manyBody: { strength: -100 },
       collide: { radius: 120, strength: 1 },
       center: { strength: 0.05 },
       alphaMin: 0.002,

@@ -133,6 +133,19 @@ function AppContent() {
           setSliderLimits(limits);
           console.log('[config] 已加载滑块上限:', limits);
         }
+
+        // —— 6. 请求过滤条件（从 URL 参数 ?filter=ENCODED_JSON 解析） ——
+        const filterParam = params.get('filter');
+        if (filterParam) {
+          try {
+            const filters = JSON.parse(decodeURIComponent(filterParam));
+            useGraphStore.getState().setRequestFilters(filters);
+            console.log('[config] 已设置请求过滤条件:', filters);
+          } catch (e) {
+            console.warn('[config] 解析 filter JSON 失败:', filterParam, e);
+          }
+        }
+
         setConfigReady(true);
         console.log('[config] 配置加载完成，apiBaseUrl 已就绪');
       })
