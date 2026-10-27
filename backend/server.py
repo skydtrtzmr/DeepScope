@@ -48,7 +48,15 @@ def _discover_domains() -> dict[str, str]:
 
 DOMAIN_DB_MAP = _discover_domains()
 DOMAIN_NAMES = sorted(DOMAIN_DB_MAP.keys())
-DEFAULT_DOMAIN = DOMAIN_NAMES[0] if DOMAIN_NAMES else ""
+
+# 默认业务域：前端未显式传 domain 时使用。
+# 可用环境变量 DEEPSCOPE_DEFAULT_DOMAIN 指定（如 demo-defect），
+# 未设置或指定的域不存在时，回退为排序后的第一个域（当前为 demo-core）。
+_ENV_DEFAULT_DOMAIN = os.environ.get("DEEPSCOPE_DEFAULT_DOMAIN", "").strip()
+if _ENV_DEFAULT_DOMAIN and _ENV_DEFAULT_DOMAIN not in DOMAIN_DB_MAP:
+    print(f"[warn] 环境变量 DEEPSCOPE_DEFAULT_DOMAIN={_ENV_DEFAULT_DOMAIN} 不存在，可用域: {DOMAIN_NAMES}")
+    _ENV_DEFAULT_DOMAIN = ""
+DEFAULT_DOMAIN = _ENV_DEFAULT_DOMAIN or (DOMAIN_NAMES[0] if DOMAIN_NAMES else "")
 
 app = FastAPI(title="DeepScope Graph API", version="0.1.0")
 
@@ -491,5 +499,6 @@ if __name__ == "__main__":
     print(f"端口: {port}")
     print(f"DB 目录: {DATA_DIR}")
     print(f"发现 domains: {DOMAIN_NAMES}")
+    print(f"默认域: {DEFAULT_DOMAIN}")
     print(f"初始节点配置: {INIT_CONFIG_PATH}")
     uvicorn.run(app, host="0.0.0.0", port=port)

@@ -9,5 +9,10 @@
       "项目/proj-00093",
       "项目/proj-00170"
     ]
+  },
+  "demo-defect": {
+    "initialNodeIds": [
+      "缺陷单/defect-0001"
+    ]
   }
 }
