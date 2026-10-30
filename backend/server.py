@@ -25,6 +25,13 @@ from pydantic import BaseModel
 import jwt
 from datetime import datetime, timedelta, timezone
 
+# 知识图谱聚合接口 v1 —— Mock 实现（内存固定样例，与真实图谱路由同服务挂载）
+from aggregate_mock import (
+    router as aggregate_router,
+    AGGREGATE_DEMO_NODES,
+    AGGREGATE_DEMO_EDGES,
+)
+
 # ── 配置 ────────────────────────────────────────────────
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -66,6 +73,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 挂载聚合 Mock 路由（/api/graph/aggregate*、/api/graph/aggregation/views、/api/graph/instances）
+app.include_router(aggregate_router)
 
 # ── 加载初始节点配置 ────────────────────────────────────
 
@@ -247,9 +257,18 @@ async def fetch_initial_graph(
             [*found_ids, *found_ids],
         ).fetchall()
 
+        # 追加聚合演示节点（员工/项目/任务）：T001-T003 与局部 P_A 聚合成员天然重叠，
+        # 用于验证「成员已存在于真实图谱」时前端防重复添加/防误删（仅 mock 演示场景）
+        existing_ids = {r["id"] for r in nodes}
+        demo_nodes = [n for n in AGGREGATE_DEMO_NODES if n["id"] not in existing_ids]
+        node_models = [row_to_node(r, domain) for r in nodes] + [GraphNode(**n) for n in demo_nodes]
+        demo_node_ids = {n["id"] for n in demo_nodes} | existing_ids
+        demo_edges = [e for e in AGGREGATE_DEMO_EDGES if e["source"] in demo_node_ids and e["target"] in demo_node_ids]
+        edge_models = [row_to_edge(r, domain) for r in edge_rows] + [GraphEdge(**e) for e in demo_edges]
+
         return GraphData(
-            nodes=[row_to_node(r, domain) for r in nodes],
-            edges=[row_to_edge(r, domain) for r in edge_rows],
+            nodes=node_models,
+            edges=edge_models,
         )
 
 
