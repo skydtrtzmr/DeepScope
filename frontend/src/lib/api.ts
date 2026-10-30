@@ -5,6 +5,9 @@ const api = axios.create({
   timeout: 10000,
 });
 
+// 导出实例供聚合 API 层（lib/api/aggregate.ts）复用同一 token/拦截链路
+export { api };
+
 // ========== Base URL ==========
 
 let _baseURL = '';

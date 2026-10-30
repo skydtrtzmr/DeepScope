@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { Download, Upload, Settings } from 'lucide-react';
+import { useAggregateStore } from '@/lib/stores/aggregate-store';
+import { Download, Upload, Settings, Layers } from 'lucide-react';
 import { DocHelpButton } from './doc-viewer';
 import { ToggleSwitch } from '@/components/ui/toggle-switch';
 
@@ -12,6 +13,9 @@ interface GraphToolbarProps {
 
 export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) {
   const { fullData, displaySettings, updateDisplaySettings } = useGraphStore();
+  const aggregatePanelOpen = useAggregateStore((s) => s.panelOpen);
+  const setAggregatePanelOpen = useAggregateStore((s) => s.setPanelOpen);
+  const hasAggregateLayer = useAggregateStore((s) => s.scope != null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -47,6 +51,22 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
 
       <div className="flex items-center gap-2">
         <DocHelpButton />
+
+        {/* 聚合分析入口：开启/关闭右侧聚合配置面板 */}
+        <Button
+          variant={aggregatePanelOpen || hasAggregateLayer ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setAggregatePanelOpen(!aggregatePanelOpen)}
+          title="聚合分析"
+        >
+          <Layers className="h-4 w-4" />
+          <span className="hidden sm:inline text-xs ml-1">聚合分析</span>
+          {hasAggregateLayer && (
+            <span className="ml-1 inline-flex items-center justify-center size-4 rounded-full bg-primary-foreground/20 text-[9px] leading-none">
+              聚
+            </span>
+          )}
+        </Button>
 
         <div className="relative" ref={settingsRef}>
           <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(!settingsOpen)} title="显示设置">

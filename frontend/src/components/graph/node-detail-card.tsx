@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import Markdown from 'react-markdown';
 import { useGraphStore } from '@/lib/stores/graph-store';
+import { useAggregateStore } from '@/lib/stores/aggregate-store';
+import { AggregateMemberCard } from '@/components/aggregate/aggregate-member-card';
 import { getNodeColor, buildCategoryColorMap, isPaletteColor } from '@/lib/graph-color';
 
 export function NodeDetail() {
@@ -10,6 +12,12 @@ export function NodeDetail() {
   const {
     fullData, selectedNodeId
   } = useGraphStore();
+  // 选中聚合节点时替换为聚合成员卡片（聚合节点不在 fullData，selectedNodeId 为空）
+  const selectedBucketId = useAggregateStore((s) => s.selectedBucketId);
+
+  if (selectedBucketId) {
+    return <AggregateMemberCard />;
+  }
 
   if (!selectedNodeId || !fullData) return null;
 

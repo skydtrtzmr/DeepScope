@@ -3,7 +3,10 @@ import { GraphContainer } from '@/components/graph/graph-container';
 import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
+import { AggregatePanel } from '@/components/aggregate/aggregate-panel';
 import { useGraphStore } from '@/lib/stores/graph-store';
+import { useAggregateStore } from '@/lib/stores/aggregate-store';
+import { setAggregateEndpointPaths } from '@/lib/api/aggregate';
 import { fetchInitialGraph, fetchNodesByIds, expandGraph, setApiBaseUrl, setEndpointPaths, setTokenConfig, setToken, onTokenExpired } from '@/lib/api';
 import type { GraphData, SliderLimits } from '@/types/graph';
 import { setCategoryColorConfig } from '@/lib/graph-color';
@@ -25,6 +28,7 @@ function AppContent() {
   const [configReady, setConfigReady] = useState(false);
   const [tokenExpired, setTokenExpired] = useState(false);
   const initializedRef = useRef(false);
+  const aggregatePanelOpen = useAggregateStore((s) => s.panelOpen);
 
   // 加载外部配置文件
   useEffect(() => {
@@ -56,6 +60,7 @@ function AppContent() {
         // 优先级：代码默认值 → app-config.json apiEndpoints → URL 参数 ?api-xxx=
         if (cfg?.apiEndpoints) {
           setEndpointPaths(cfg.apiEndpoints);
+          setAggregateEndpointPaths(cfg.apiEndpoints); // 聚合端点同样可覆盖（键：aggregate/aggregatePoll/aggregateExpand/aggregationViews/instances）
           console.log('[config] 已加载 API 端点配置:', cfg.apiEndpoints);
         }
         const params = new URLSearchParams(window.location.search);
@@ -111,6 +116,21 @@ function AppContent() {
         if (cfg?.batchLoad) {
           updateBatchLoadConfig({ pageSize: cfg.batchLoad.pageSize ?? undefined });
           console.log('[config] 已加载分批加载配置:', cfg.batchLoad);
+        }
+        // 聚合配置（memberPageSize 每页成员数默认 20；maxAggregateLayerNodes 聚合层可视节点上限默认 300；
+        // domain 聚合默认业务域；open 面板初始展开）
+        if (cfg?.aggregate) {
+          const aggStore = useAggregateStore.getState();
+          if (typeof cfg.aggregate.memberPageSize === 'number') {
+            aggStore.setMemberPageSize(cfg.aggregate.memberPageSize);
+          }
+          if (typeof cfg.aggregate.maxAggregateLayerNodes === 'number') {
+            aggStore.setMaxAggregateLayerNodes(cfg.aggregate.maxAggregateLayerNodes);
+          }
+          if (cfg.aggregate.open) {
+            aggStore.setPanelOpen(true);
+          }
+          console.log('[config] 已加载聚合配置:', cfg.aggregate);
         }
         if (cfg?.categoryColors) {
           setCategoryColorConfig(cfg.categoryColors);
@@ -308,6 +328,13 @@ function AppContent() {
 
         {/* 右侧面板 */}
         <div className="w-full lg:w-80 xl:w-96 flex flex-col h-[40vh] lg:h-full overflow-hidden">
+          {/* 聚合配置面板（工具栏「聚合分析」开关） */}
+          {aggregatePanelOpen && (
+            <div className="shrink-0 max-h-[60vh] overflow-y-auto">
+              <AggregatePanel />
+            </div>
+          )}
+
           {/* 控制面板 */}
           <div className="flex-1 shrink-0 p-3 border-b">
             <NodeDetail />
