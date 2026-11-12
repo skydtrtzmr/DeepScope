@@ -4,6 +4,8 @@ import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
 import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { AggregatePanel } from '@/components/aggregate/aggregate-panel';
+import { AggregationExplorer } from '@/components/aggregate/aggregation-explorer';
+import { DEMO_GRAPH_DATA } from '@/lib/demo-data';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { useAggregateStore } from '@/lib/stores/aggregate-store';
 import { setAggregateEndpointPaths } from '@/lib/api/aggregate';
@@ -183,6 +185,11 @@ function AppContent() {
     // 尝试从 URL 参数获取数据（仅首次）
     const params = new URLSearchParams(window.location.search);
     const dataParam = params.get('data');
+    if (params.get('example') === 'original') {
+      setGraphData(DEMO_GRAPH_DATA);
+      initializedRef.current = true;
+      return;
+    }
     const nodeParam = params.get('node');
 
     if (dataParam && !initializedRef.current) {
@@ -395,6 +402,7 @@ function LoadingFallback() {
 }
 
 export default function App() {
+  if (new URLSearchParams(window.location.search).get('aggregation') === 'preview') return <AggregationExplorer />;
   return (
     <Suspense fallback={<LoadingFallback />}>
       <AppContent />

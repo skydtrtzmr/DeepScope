@@ -1,0 +1,37 @@
+{
+  "entities": [
+    {"id":"person:zhang","label":"张三","type":"person","properties":{}},
+    {"id":"person:li","label":"李四","type":"person","properties":{}},
+    {"id":"project:dev","label":"研发平台","type":"project","properties":{"category":"研发类"}},
+    {"id":"project:delivery","label":"客户交付","type":"project","properties":{"category":"实施类"}},
+    {"id":"task:1","label":"登录模块设计","type":"task","properties":{"status":"进行中","region":"华东"}},
+    {"id":"task:2","label":"权限模型评审","type":"task","properties":{"status":"进行中","region":"华东"}},
+    {"id":"task:3","label":"接口联调","type":"task","properties":{"status":"已完成","region":"华东"}},
+    {"id":"task:4","label":"部署验收","type":"task","properties":{"status":"进行中","region":"华南"}},
+    {"id":"task:5","label":"数据迁移","type":"task","properties":{"status":"已完成","region":"华东"}},
+    {"id":"task:6","label":"临时排查","type":"task","properties":{"status":"待处理","region":"华东"}},
+    {"id":"task:7","label":"性能测试","type":"task","properties":{"status":"进行中","region":"华南"}},
+    {"id":"task:8","label":"监控接入","type":"task","properties":{"status":"进行中","region":"华东"}}
+  ],
+  "relations": [
+    {"id":"a1","source":"person:zhang","target":"task:1","type":"assigned"},
+    {"id":"a2","source":"person:zhang","target":"task:2","type":"assigned"},
+    {"id":"a3","source":"person:zhang","target":"task:3","type":"assigned"},
+    {"id":"a4","source":"person:zhang","target":"task:4","type":"assigned"},
+    {"id":"a6","source":"person:zhang","target":"task:6","type":"assigned"},
+    {"id":"a7","source":"person:zhang","target":"task:7","type":"assigned"},
+    {"id":"b2","source":"person:li","target":"task:2","type":"assigned"},
+    {"id":"b5","source":"person:li","target":"task:5","type":"assigned"},
+    {"id":"b8","source":"person:li","target":"task:8","type":"assigned"},
+    {"id":"p5","source":"person:zhang","target":"task:5","type":"participates"},
+    {"id":"p8","source":"person:zhang","target":"task:8","type":"participates"},
+    {"id":"j1","source":"task:1","target":"project:dev","type":"project"},
+    {"id":"j2","source":"task:2","target":"project:dev","type":"project"},
+    {"id":"j3","source":"task:3","target":"project:dev","type":"project"},
+    {"id":"j4","source":"task:4","target":"project:delivery","type":"project"},
+    {"id":"j5","source":"task:5","target":"project:delivery","type":"project"},
+    {"id":"j7","source":"task:7","target":"project:dev","type":"project"},
+    {"id":"j8","source":"task:8","target":"project:delivery","type":"project"},
+    {"id":"depends:1:2","source":"task:1","target":"task:2","type":"depends"}
+  ]
+}

@@ -51,6 +51,7 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
 
       <div className="flex items-center gap-2">
         <DocHelpButton />
+        <a className="text-xs px-2 py-1 border rounded" href={(() => { const url = new URL(window.location.href); url.searchParams.set('aggregation', 'preview'); return url.href; })()}>新版聚合预览</a>
 
         {/* 聚合分析入口：开启/关闭右侧聚合配置面板 */}
         <Button
