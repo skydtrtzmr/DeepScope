@@ -178,7 +178,7 @@ function createGraph(
     behaviors: [
       'drag-canvas',
       'zoom-canvas',
-      { type: 'drag-element-force', fixed: true }, {
+      { type: 'drag-element-force', fixed: false }, {
         type: 'hover-activate',
         state: 'hovered',      // 悬浮时给元素设置 'hovered' 状态
         inactiveState: 'dim',  // 非悬浮元素设置 'dim' 状态（可选，用于淡化其他节点）

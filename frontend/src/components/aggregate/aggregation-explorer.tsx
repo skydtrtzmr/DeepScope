@@ -98,7 +98,7 @@ function ExplorerCanvas({ view, contextId, onSelect, onToggle }: { view: Project
   useEffect(() => {
     if (!container.current) return;
     const instance = new Graph({ container: container.current, autoResize: true, animation: { duration: 250 },
-      behaviors: ['drag-canvas', 'zoom-canvas', { type: 'drag-element-force', fixed: true }],
+      behaviors: ['drag-canvas', 'zoom-canvas', { type: 'drag-element-force', fixed: false }],
       layout: {
         type: 'd3-force',
         link: { distance: 170, strength: 0.6 },
