@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { SINGLE_NODE_FORCE_DRAG } from '@/lib/single-node-force-drag';
 import { Graph, type GraphOptions, type NodeData, type EdgeData, type GraphData as G6GraphData, type BaseNodeStyleProps, type BaseEdgeStyleProps } from '@antv/g6';
 
 /** G6 spec 层的 NodeStyle/EdgeStyle 未导出，用 Base*StyleProps + 索引签名等价还原 */
@@ -178,7 +179,7 @@ function createGraph(
     behaviors: [
       'drag-canvas',
       'zoom-canvas',
-      { type: 'drag-element-force', fixed: false }, {
+      { type: SINGLE_NODE_FORCE_DRAG, fixed: false }, {
         type: 'hover-activate',
         state: 'hovered',      // 悬浮时给元素设置 'hovered' 状态
         inactiveState: 'dim',  // 非悬浮元素设置 'dim' 状态（可选，用于淡化其他节点）
