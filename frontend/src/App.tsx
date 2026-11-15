@@ -1,3 +1,4 @@
+import { SubjectGraphPreview } from '@/components/aggregate/subject-graph-preview';
 import { useEffect, useCallback, useState, useRef, Suspense } from 'react';
 import { GraphContainer } from '@/components/graph/graph-container';
 import { NodeDetail } from '@/components/graph/node-detail-card';
@@ -402,6 +403,7 @@ function LoadingFallback() {
 }
 
 export default function App() {
+  if (new URLSearchParams(window.location.search).get('graph') === 'subjects-preview') return <SubjectGraphPreview />;
   if (new URLSearchParams(window.location.search).get('aggregation') === 'preview') return <AggregationExplorer />;
   return (
     <Suspense fallback={<LoadingFallback />}>

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { candidates, project, collapseBranch } from '../src/lib/aggregation/explorer.ts';
+import { candidates, project, collapseBranch, mergeProjections } from '../src/lib/aggregation/explorer.ts';
 const data = JSON.parse(readFileSync(new URL('../src/lib/aggregation/demo.json', import.meta.url)));
 const category = { id: 'project.category', label: '项目类别', relation: 'project', field: 'category' };
 const status = { id: 'status', label: '任务状态', field: 'status' };
@@ -56,4 +56,26 @@ test('空集合、完全缺失字段和非法多值维度有明确行为', () =>
   assert.equal(missing.nodes.find(n => n.id === missing.rootId).shown, 3);
   const multiple = { ...data, relations: [...data.relations, { id: 'extra', source: 'task:1', target: 'project:delivery', type: 'project' }] };
   assert.throws(() => project(multiple, zhang, [category], new Set()), /多个值/);
+});
+
+test('共享画布按可见路径保留实体，收起最后一条路径才移除', () => {
+  const li = { ...zhang, anchorId: 'person:li' };
+  const open = context => {
+    const base = project(data, context, [category], new Set());
+    return project(data, context, [category], new Set(base.nodes.filter(n => n.kind === 'group').map(n => n.id)), {}, 100);
+  };
+  const a = open(zhang), b = open(li);
+  const merged = mergeProjections(data, [a, b]);
+  assert.equal(merged.nodes.filter(n => n.id === 'task:2').length, 1);
+  assert.equal(new Set(merged.edges.map(e => e.id)).size, merged.edges.length);
+  const closedA = project(data, zhang, [category], new Set());
+  const surviving = mergeProjections(data, [closedA, b]);
+  assert.ok(surviving.nodes.some(n => n.id === 'task:2'));
+  const closedB = project(data, li, [category], new Set());
+  const closed = mergeProjections(data, [closedA, closedB]);
+  assert.ok(!closed.nodes.some(n => n.id === 'task:2'));
+  for (const edge of surviving.edges) {
+    assert.ok(surviving.nodes.some(n => n.id === edge.source));
+    assert.ok(surviving.nodes.some(n => n.id === edge.target));
+  }
 });

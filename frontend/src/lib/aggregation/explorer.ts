@@ -15,8 +15,28 @@ export interface ViewNode {
   entity?: Entity; count?: number; shown?: number; expanded?: boolean;
   parentId?: string; depth: number; memberIds?: string[];
 }
-export interface ViewEdge { id: string; source: string; target: string; kind: 'membership' | 'relation' }
+export interface ViewEdge { id: string; source: string; target: string; kind: 'membership' | 'relation'; label?: string }
 export interface Projection { nodes: ViewNode[]; edges: ViewEdge[]; total: number; rootId: string }
+
+/** Merge visible paths only; a shared entity survives while any path references it. */
+export function mergeProjections(data: Dataset, projections: Projection[]): Projection {
+  const nodes = new Map<string, ViewNode>();
+  const edges = new Map<string, ViewEdge>();
+  for (const view of projections) {
+    for (const node of view.nodes) {
+      if (!nodes.has(node.id) || node.kind === 'anchor') nodes.set(node.id, node);
+    }
+    for (const edge of view.edges) edges.set(edge.id, edge);
+  }
+  // Include relations between entities revealed by different contexts.
+  for (const relation of data.relations) {
+    if (nodes.has(relation.source) && nodes.has(relation.target)) {
+      edges.set(relation.id, { ...relation, kind: 'relation' });
+    }
+  }
+  return { nodes: [...nodes.values()], edges: [...edges.values()],
+    total: nodes.size, rootId: projections[0]?.rootId ?? '' };
+}
 
 export function contextKey(context: Context, dimensions: Dimension[]): string {
   return JSON.stringify([context, dimensions.map(d => d.id)]);
