@@ -1,0 +1,45 @@
+{
+  "apiBaseUrl": "http://localhost:8002",
+  "apiEndpoints": {
+    "domains": "/api/domains",
+    "initial": "/api/graph/initial",
+    "expand": "/api/graph/expand",
+    "neighbors": "/api/graph/neighbors",
+    "nodes": "/api/graph/nodes"
+  },
+  "auth": {
+    "enabled": true,
+    "tokenEndpoint": "/api/Auth/replaceToken",
+    "tokenParam": "token",
+    "refreshGraceSeconds": 300
+  },
+  "explore": {
+    "m": 5,
+    "n": 3,
+    "mMax": 20,
+    "nMax": 6
+  },
+  "highlight": {
+    "directRelations": 99,
+    "depth": 2,
+    "directRelationsMax": 99,
+    "depthMax": 3
+  },
+  "display": {
+    "showEdgeArrows": true,
+    "showEdgeLabels": false,
+    "trackSelectedNode": true,
+    "expandTrigger": "rightclick",
+    "showCategoryLabel": true,
+    "showNodePopup": false
+  },
+  "batchLoad": {
+    "pageSize": 5,
+    "pageSizeMax": 10
+  },
+  "categoryColors": {
+    "usePalette": true,
+    "paletteThreshold": 20
+  },
+  "maxTotalNodes": 100
+}

@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { useAggregateStore } from '@/lib/stores/aggregate-store';
-import { Download, Upload, Settings, Layers } from 'lucide-react';
+import { Download, Upload, Settings, ExternalLink, Expand, Minimize } from 'lucide-react';
 import { DocHelpButton } from './doc-viewer';
 import { ToggleSwitch } from '@/components/ui/toggle-switch';
 
@@ -13,11 +12,23 @@ interface GraphToolbarProps {
 
 export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) {
   const { fullData, displaySettings, updateDisplaySettings } = useGraphStore();
-  const aggregatePanelOpen = useAggregateStore((s) => s.panelOpen);
-  const setAggregatePanelOpen = useAggregateStore((s) => s.setPanelOpen);
-  const hasAggregateLayer = useAggregateStore((s) => s.scope != null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen,setIsFullscreen]=useState(false);
+  useEffect(()=>{
+    let host=document;
+    try {host=window.frameElement?.ownerDocument||document;} catch { /* standalone view */ }
+    const sync=()=>setIsFullscreen(Boolean(host.fullscreenElement));
+    host.addEventListener('fullscreenchange',sync);sync();
+    return ()=>host.removeEventListener('fullscreenchange',sync);
+  },[]);
+  const toggleFullscreen=async()=>{
+    let target:HTMLElement=document.documentElement;
+    try {target=(window.frameElement?.parentElement as HTMLElement)||target;} catch { /* standalone view */ }
+    if(target.ownerDocument.fullscreenElement)await target.ownerDocument.exitFullscreen();
+    else await target.requestFullscreen();
+  };
+
 
   // 点击外部关闭设置面板
   useEffect(() => {
@@ -50,24 +61,9 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
       </div>
 
       <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={()=>window.open(window.location.href,'_blank','noopener')} title="独立打开图谱" aria-label="独立打开图谱"><ExternalLink className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="sm" onClick={toggleFullscreen} title={isFullscreen?'退出全屏':'全屏查看'} aria-label={isFullscreen?'退出全屏':'全屏查看'}>{isFullscreen?<Minimize className="h-4 w-4" />:<Expand className="h-4 w-4" />}</Button>
         <DocHelpButton />
-        <a className="text-xs px-2 py-1 border rounded" href={(() => { const url = new URL(window.location.href); url.searchParams.set('aggregation', 'preview'); return url.href; })()}>新版聚合预览</a>
-
-        {/* 聚合分析入口：开启/关闭右侧聚合配置面板 */}
-        <Button
-          variant={aggregatePanelOpen || hasAggregateLayer ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setAggregatePanelOpen(!aggregatePanelOpen)}
-          title="聚合分析"
-        >
-          <Layers className="h-4 w-4" />
-          <span className="hidden sm:inline text-xs ml-1">聚合分析</span>
-          {hasAggregateLayer && (
-            <span className="ml-1 inline-flex items-center justify-center size-4 rounded-full bg-primary-foreground/20 text-[9px] leading-none">
-              聚
-            </span>
-          )}
-        </Button>
 
         <div className="relative" ref={settingsRef}>
           <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(!settingsOpen)} title="显示设置">

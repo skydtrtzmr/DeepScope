@@ -1,147 +1,15 @@
-
 import { useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import Markdown from 'react-markdown';
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { useAggregateStore } from '@/lib/stores/aggregate-store';
-import { AggregateMemberCard } from '@/components/aggregate/aggregate-member-card';
-import { getNodeColor, buildCategoryColorMap, isPaletteColor } from '@/lib/graph-color';
-
-export function NodeDetail() {
-  const [showDebug, setShowDebug] = useState(false);
-  const {
-    fullData, selectedNodeId
-  } = useGraphStore();
-  // 选中聚合节点时替换为聚合成员卡片（聚合节点不在 fullData，selectedNodeId 为空）
-  const selectedBucketId = useAggregateStore((s) => s.selectedBucketId);
-
-  if (selectedBucketId) {
-    return <AggregateMemberCard />;
-  }
-
-  if (!selectedNodeId || !fullData) return null;
-
-  const node = fullData.nodes.find((n) => n.id === selectedNodeId);
-  if (!node) return null;
-
-  // 从全量数据构建无碰撞 category 颜色映射
-  const categoryColorMap = buildCategoryColorMap(
-    fullData.nodes.map((n) => n.category)
-  );
-  // 计算实际渲染颜色
-  const explicitFill = node.style?.fill as string | undefined;
-  const categoryColor = node.category
-    ? (categoryColorMap.get(node.category) || getNodeColor(node.category))
-    : '#94a3b8';
-  const renderedColor = explicitFill || categoryColor;
-  let colorSource: string;
-  if (explicitFill) {
-    colorSource = 'style.fill';
-  } else if (!node.category) {
-    colorSource = '默认灰色';
-  } else {
-    colorSource = isPaletteColor(categoryColor) ? '调色板' : 'FNV-1a 哈希';
-  }
-
-  // 统计直接关联节点数
-  const directNeighborCount = fullData.edges.filter(
-    (e) => e.source === selectedNodeId || e.target === selectedNodeId
-  ).length;
-
-  return (
-    <div className="flex flex-col p-2 bg-card">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-3 h-3 rounded-full shrink-0"
-            style={{ backgroundColor: renderedColor }}
-          />
-          <h3 className="font-semibold text-m">{node.label}</h3>
-        </div>
-        <button
-          onClick={() => setShowDebug(!showDebug)}
-          className="text-[10px] px-1.5 py-0.5 rounded border border-muted-foreground/30 text-muted-foreground hover:bg-accent hover:text-accent-foreground shrink-0"
-          title="显示调试信息"
-        >
-          调试
-        </button>
-      </div>
-      <div className="mt-3 space-y-2">
-        {node.category && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">类别:</span>
-            <Badge variant="secondary" className="text-xs">
-              {node.category}
-            </Badge>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">ID:</span>
-          <span className="text-xs font-mono">{node.id}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">关联数:</span>
-          <span className="text-xs">{directNeighborCount}</span>
-        </div>
-
-        {node.description && (
-          <div className="pt-2 border-t">
-            <span className="text-xs text-muted-foreground">描述:</span>
-            <div className="text-xs mt-1 leading-relaxed max-h-60 overflow-y-auto [&_h2]:text-xs [&_h2]:font-semibold [&_h2]:mt-2 [&_h2]:mb-1 [&_ul]:list-disc [&_ul]:ml-3 [&_li]:mt-0.5">
-              <Markdown>{node.description.replace(/\r\n/g, '  \n')}</Markdown>
-            </div>
-          </div>
-        )}
-
-        {/* 调试信息面板 */}
-        {showDebug && (
-          <div className="pt-2 border-t space-y-1.5">
-            <span className="text-xs font-semibold text-muted-foreground">调试信息</span>
-
-            {/* 实际渲染颜色 */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">渲染颜色:</span>
-              <div className="flex items-center gap-1.5">
-                <div
-                  className="w-3 h-3 rounded-full border border-border"
-                  style={{ backgroundColor: renderedColor }}
-                />
-                <span className="text-xs font-mono">{renderedColor}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">颜色来源:</span>
-              <span className="text-xs">{colorSource}</span>
-            </div>
-
-            {/* 原始属性 */}
-            <DebugRow label="label" value={node.label} />
-            <DebugRow label="category" value={node.category} />
-            <DebugRow label="type" value={node.type} />
-            <DebugRow label="url" value={node.url} />
-            <DebugRow label="style" value={JSON.stringify(node.style)} />
-            <DebugRow label="data" value={JSON.stringify(node.data)} />
-            {node.description && (
-              <DebugRow label="description" value={node.description.length > 80 ? node.description.slice(0, 80) + '...' : node.description} />
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** 调试信息单行：键值对 */
-function DebugRow({ label, value }: { label: string; value?: unknown }) {
-  const display = value === undefined || value === null
-    ? <span className="text-muted-foreground/50 italic">undefined</span>
-    : <span className="font-mono">{String(value)}</span>;
-  return (
-    <div className="flex items-start gap-2">
-      <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">{label}:</span>
-      <span className="text-[10px] break-all">{display}</span>
-    </div>
-  );
+type Column={name:string;title?:string;type?:string;description?:string;roles?:string[]};
+type Metadata={physicalName?:string;layer?:string;columns?:Column[];aggregationTime?:string;grain?:{description:string;columns:string[]}};
+export function NodeDetail(){
+ const [tab,setTab]=useState<'overview'|'fields'>('fields');
+ const {fullData,selectedNodeId,selectNode}=useGraphStore();
+ if(!fullData)return null;
+ const node=fullData.nodes.find(n=>n.id===selectedNodeId);
+ if(!node)return <section className="p-4 space-y-4"><h3 className="font-semibold text-base">业务模型</h3><p className="text-sm text-muted-foreground">选择模型，查看已有的表说明、字段和分析维度。</p><div className="space-y-2">{fullData.nodes.map(n=><button key={n.id} onClick={()=>selectNode(n.id)} className="w-full text-left rounded border px-3 py-2 hover:bg-accent"><span className="block font-medium text-sm">{n.label}</span><span className="text-xs text-muted-foreground">{n.category}</span></button>)}</div></section>;
+ const meta=(node.data||{}) as Metadata,columns=meta.columns||[];
+ return <section className="p-4 space-y-3"><div className="flex justify-between items-start gap-3"><div><p className="text-xs text-muted-foreground">{meta.layer} · {node.category}</p><h3 className="text-lg font-semibold mt-1">{node.label}</h3></div>{node.url&&<a href={node.url} target="_top" className="text-sm text-blue-700 whitespace-nowrap underline">打开模型</a>}</div><p className="text-xs text-muted-foreground break-all">{meta.physicalName}</p>{meta.grain&&<div className="border-l-2 border-blue-200 pl-3"><p className="text-xs text-muted-foreground">每行代表什么</p><p className="text-sm font-medium">{meta.grain.description}</p></div>}{node.description&&<p className="text-sm leading-relaxed">{node.description}</p>}
+ <div className="flex gap-4 border-b" role="tablist" aria-label="模型说明"><button role="tab" aria-selected={tab==='overview'} onClick={()=>setTab('overview')} className={`pb-2 text-sm ${tab==='overview'?'border-b-2 border-blue-600 font-semibold':''}`}>概览</button><button role="tab" aria-selected={tab==='fields'} onClick={()=>setTab('fields')} className={`pb-2 text-sm ${tab==='fields'?'border-b-2 border-blue-600 font-semibold':''}`}>字段与维度 · {columns.length}</button></div>
+ {tab==='overview'?<dl className="space-y-3 text-sm"><div><dt className="text-muted-foreground">字段数量</dt><dd>{columns.length}</dd></div><div><dt className="text-muted-foreground">默认聚合日期</dt><dd>{meta.aggregationTime||'未声明'}</dd></div><div><dt className="text-muted-foreground">直接关联</dt><dd>{fullData.edges.filter(e=>e.source===node.id||e.target===node.id).length} 个</dd></div></dl>:<div className="divide-y">{columns.map(c=><article key={c.name} className="py-3 space-y-1"><div className="flex justify-between gap-2"><strong className="text-sm">{c.title||c.name}</strong><span className="text-xs text-muted-foreground">{c.type}</span></div>{c.title&&<div className="text-xs text-muted-foreground break-all">{c.name}</div>}{c.description&&<p className="text-sm leading-relaxed">{c.description}</p>}{!!c.roles?.length&&<p className="text-xs text-teal-700">{c.roles.join(' · ')}</p>}</article>)}</div>}</section>;
 }

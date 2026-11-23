@@ -1,58 +1,23 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { SINGLE_NODE_FORCE_DRAG } from '@/lib/single-node-force-drag';
 import { Graph, type GraphOptions, type NodeData, type EdgeData, type GraphData as G6GraphData, type BaseNodeStyleProps, type BaseEdgeStyleProps } from '@antv/g6';
 
 /** G6 spec 层的 NodeStyle/EdgeStyle 未导出，用 Base*StyleProps + 索引签名等价还原 */
 type G6NodeStyle = Partial<BaseNodeStyleProps> & { [key: string]: unknown };
 type G6EdgeStyle = Partial<BaseEdgeStyleProps> & { [key: string]: unknown };
 import { useGraphStore } from '@/lib/stores/graph-store';
-import { useAggregateStore } from '@/lib/stores/aggregate-store';
 import { GraphControl } from './graph-control';
-import type { GraphNode, GraphEdge, DisplaySettings } from '@/types/graph';
+import type { GraphNode, GraphEdge, GraphData, DisplaySettings } from '@/types/graph';
 import { getNodeColor, buildCategoryColorMap } from '@/lib/graph-color';
 
 interface GraphContainerProps {
   className?: string;
+  overlay?: GraphData;
+  forceLayout?: boolean;
+  onGroupClick?: (id: string) => void;
 }
 
-// ── 聚合层样式常量 ────────────────────────────────────────
-const AGG_NODE_FILL = '#EEF2FF';      // 聚合节点底色（indigo-50）
-const AGG_NODE_STROKE = '#6366F1';    // 聚合节点描边（indigo-500）
-const AGG_ANCHOR_FILL = '#F8FAFC';    // 范围锚点底色（slate-50）
-const AGG_ANCHOR_STROKE = '#94A3B8';  // 范围锚点描边（slate-400）
-const AGG_EDGE_STROKE = '#A5B4FC';    // 聚合显示边（indigo-300）
-const AGG_MEMBER_EDGE_STROKE = '#C7D2FE'; // 成员边（更浅的 indigo-200）
-
-/** 判断 G6 NodeData 是否属于聚合层（kind 路由依据） */
-function isAggregateNodeData(d: NodeData): boolean {
-  const kind = d.data?.kind as string | undefined;
-  return kind === 'aggregate' || kind === 'scope';
-}
-
-/** 判断 G6 EdgeData 是否属于聚合层 */
-function isAggregateEdgeData(d: EdgeData): boolean {
-  // 聚合层边带 data.kind='aggregate'；真实层边无此标记
-  return (d.data?.kind as string | undefined) === 'aggregate';
-}
-
-/** 聚合分组节点的徽标文本（单指标摘要） */
-function getAggBadgeText(d: NodeData): string {
-  const data = d.data as Record<string, unknown> | undefined;
-  const status = data?.metricStatus as string | undefined;
-  if (status === 'failed') return '!';
-  if (status === 'running') return '⋯';
-  const metrics = data?.metrics as Record<string, number | null> | undefined;
-  if (!metrics) return '';
-  const first = Object.values(metrics)[0];
-  if (first == null) return '—';
-  return String(first);
-}
-
-/** 根据 displaySettings 计算节点 labelText（含可选的类别前缀）；聚合节点走独立样式 */
+/** 根据 displaySettings 计算节点 labelText（含可选的类别前缀） */
 function getLabelText(d: NodeData, showCategoryLabel: boolean): string {
-  if (isAggregateNodeData(d)) {
-    return (d.data?.label as string) || d.id; // 聚合节点 label 已含 count，不加类别前缀
-  }
   const label = (d.data?.label as string) || d.id;
   const cat = d.data?.category as string | undefined;
   return showCategoryLabel && cat ? `${cat}：${label}` : label;
@@ -69,64 +34,29 @@ function getNodeStyleConfig(
   categoryColorMapRef: React.MutableRefObject<Map<string, string>>,
 ): Record<string, unknown> {
   return {
-    type: (d: NodeData) => (isAggregateNodeData(d) ? 'rect' : 'circle'),
     labelText: (d: NodeData) => getLabelText(d, displaySettings.showCategoryLabel),
     labelPlacement: 'bottom',
-    labelFontSize: 11,
+    labelFontSize: 15,
     labelFill: '#0f172a',
     labelWordWrap: true,
     labelMaxWidth: '400%',
     labelMaxLines: 3,
     labelBackground: true,
     labelBackgroundFill: '#ffffff',
-    labelBackgroundOpacity: 0.6,
+    labelBackgroundOpacity: 0.95,
     labelBackgroundRadius: 4,
     labelPadding: [2, 6],
     fill: (d: NodeData) => {
-      const kind = (d.data?.kind as string | undefined);
-      if (kind === 'aggregate') return AGG_NODE_FILL;
-      if (kind === 'scope') return AGG_ANCHOR_FILL;
       const explicit = (d.style as Record<string, unknown>)?.fill as string | undefined;
       if (explicit) return explicit;
       const cat = d.data?.category as string | undefined;
       if (!cat) return '#94a3b8';
       return categoryColorMapRef.current.get(cat) || getNodeColor(cat);
     },
-    size: (d: NodeData) => {
-      const kind = (d.data?.kind as string | undefined);
-      if (kind === 'aggregate') return [120, 44];  // rect: [width, height]
-      if (kind === 'scope') return 36;
-      return ((d.style as Record<string, unknown>)?.radius as number) || 28;
-    },
-    // 聚合节点徽标（右上角指标摘要：⋯ / ! / — / 数值）
-    badge: true,
-    badgeText: (d: NodeData) => (isAggregateNodeData(d) ? getAggBadgeText(d) : ''),
-    badgePlacement: 'righttop',
-    badgeOffsetX: -4,
-    badgeOffsetY: 4,
-    badgeFontSize: 10,
-    badgeFill: (d: NodeData) => {
-      const status = (d.data as Record<string, unknown> | undefined)?.metricStatus as string | undefined;
-      if (status === 'failed') return '#EF4444';
-      return '#475569';
-    },
-    badgeBackground: '#F1F5F9',
-    badgePadding: [2, 4],
-    badgeRadius: 4,
-    stroke: (d: NodeData) => {
-      const kind = (d.data?.kind as string | undefined);
-      if (kind === 'aggregate') return AGG_NODE_STROKE;
-      if (kind === 'scope') return AGG_ANCHOR_STROKE;
-      return '#334155';
-    },
-    lineWidth: (d: NodeData) => {
-      const kind = (d.data?.kind as string | undefined);
-      if (kind === 'aggregate') return 2;
-      return 2;
-    },
-    // 聚合节点虚线描边（语义区分于真实实体节点）
-    lineDash: (d: NodeData) => (isAggregateNodeData(d) ? [6, 4] : []),
-    radius: (d: NodeData) => (isAggregateNodeData(d) ? 8 : undefined), // rect 圆角
+    size: (d: NodeData) => ((d.style as Record<string, unknown>)?.radius as number) || 28,
+    stroke: '#334155',
+    lineWidth: 2,
+    lineDash: [],
     lineCap: 'butt',
     lineJoin: 'miter',
     shadowColor: 'rgba(0,0,0,0.08)',
@@ -172,14 +102,18 @@ function createGraph(
   g6Data: Record<string, unknown>,
   displaySettings: DisplaySettings,
   categoryColorMapRef: React.MutableRefObject<Map<string, string>>,
+  forceLayout = false,
+  onGroupClick?: (id: string) => void,
 ) {
   const options: GraphOptions = {
     container,
-    padding: 40,
+    padding: 55,
+    autoFit: 'view',
+    zoomRange: [0.85, 2.5],
     behaviors: [
       'drag-canvas',
       'zoom-canvas',
-      { type: SINGLE_NODE_FORCE_DRAG, fixed: false }, {
+      'drag-element', {
         type: 'hover-activate',
         state: 'hovered',      // 悬浮时给元素设置 'hovered' 状态
         inactiveState: 'dim',  // 非悬浮元素设置 'dim' 状态（可选，用于淡化其他节点）
@@ -187,49 +121,29 @@ function createGraph(
         enable: (e: G6PointerEvent) => e.targetType === 'node',  // 只对节点生效
       },
     ],
-    layout: {
-      type: 'd3-force',
-      link: { distance: 180, strength: 0.6 },
-      manyBody: { strength: -80 },
-      collide: { radius: 100, strength: 1 },
-      center: { strength: 0.1 },
-      alphaMin: 0.002,
-      alphaDecay: 0.05,
-      // 收敛衰减率，值越小，图节点越有足够时间完成布局
-      velocityDecay: 0.5,
-    },
+    layout: forceLayout ? { type: 'd3-force', link: { distance: 200 }, manyBody: { strength: -400 }, collide: { radius: 80 } } : {type: 'antv-dagre', rankdir: 'LR', ranksep: 140, nodesep: 40},
     node: {
       type: 'circle',
       style: getNodeStyleConfig(displaySettings, categoryColorMapRef),
       state: getNodeStateConfig(),
     },
     edge: {
-      type: 'line',
+      type: 'cubic-horizontal',
       style: {
-        stroke: (d: EdgeData) => {
-          if (isAggregateEdgeData(d)) {
-            // 成员边（source 为聚合节点）更浅
-            const src = d.source as string;
-            return src.startsWith('agg::') ? AGG_MEMBER_EDGE_STROKE : AGG_EDGE_STROKE;
-          }
-          return (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8';
-        },
-        lineWidth: (d: EdgeData) => {
-          if (isAggregateEdgeData(d)) return 1;
-          return ((d.style as Record<string, unknown>)?.lineWidth as number) || 1;
-        },
-        lineDash: (d: EdgeData) => (isAggregateEdgeData(d) ? [4, 4] : []),
+        stroke: (d: EdgeData) => (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8',
+        lineWidth: (d: EdgeData) => ((d.style as Record<string, unknown>)?.lineWidth as number) || 1,
+        lineDash: [],
         lineCap: 'butt',
         lineJoin: 'miter',
         endArrow: displaySettings.showEdgeArrows,
         endArrowSize: 6,
         endArrowFill: (d: EdgeData) => (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8',
         labelText: displaySettings.showEdgeLabels ? (d: EdgeData) => (d.data?.label as string) || '' : () => '',
-        labelFontSize: 9,
+        labelFontSize: 12,
         labelFill: '#64748b',
         labelBackground: true,
         labelBackgroundFill: '#ffffff',
-        labelBackgroundOpacity: 0.6,
+        labelBackgroundOpacity: 0.95,
       },
       state: {
         active: { stroke: '#6366f1', lineWidth: 2 },
@@ -246,31 +160,6 @@ function createGraph(
       clickTimer = null;
       pendingClickNodeId = null;
     }
-
-    // ── 聚合节点：双击 = 展开/收起成员（切换） ──
-    const nodeData = graph.getNodeData(nodeId) as NodeData | undefined;
-    if (nodeData && isAggregateNodeData(nodeData)) {
-      const kind = nodeData.data?.kind;
-      if (kind === 'aggregate') {
-        const bucketId = nodeData.data?.bucketId as string | undefined;
-        if (!bucketId) return;
-        const aggStore = useAggregateStore.getState();
-        const st = aggStore.getBucketState(bucketId);
-        // 展开在途时忽略（防竞态）；已展开 → 收起；未展开 → 展开
-        if (st?.loading) return;
-        if (st?.expanded) {
-          aggStore.collapseBucket(bucketId);
-        } else {
-          aggStore.selectBucket(bucketId);
-          aggStore.expandBucket(bucketId);
-        }
-        return;
-      }
-      // kind=scope 范围锚点：不展开
-      return;
-    }
-
-    // ── 真实节点：原 BFS 展开逻辑（零改动） ──
     // 标记展开中，让 selectedNodeId useEffect 跳过立即聚焦
     dblClickExpandingRef.current = true;
     const currentSelected = useGraphStore.getState().selectedNodeId;
@@ -291,18 +180,7 @@ function createGraph(
   graph.on('node:click', (event) => {
     const nodeId = (event as { target: { id: string } }).target.id;
     if (!graph.getNodeData(nodeId)) return;
-
-    // ── 聚合节点：走 aggregate-store 的选中逻辑，不进 graph-store 的 BFS（会全图暗化） ──
-    const nodeData = graph.getNodeData(nodeId) as NodeData | undefined;
-    if (nodeData && isAggregateNodeData(nodeData)) {
-      if (nodeData.data?.kind === 'aggregate') {
-        const bucketId = nodeData.data?.bucketId as string | undefined;
-        if (bucketId) useAggregateStore.getState().selectBucket(bucketId);
-      } else {
-        useAggregateStore.getState().selectBucket(null); // 锚点：取消选中
-      }
-      return;
-    }
+    if (graph.getNodeData(nodeId).data?.kind === 'aggregate') { onGroupClick?.(nodeId); return; }
 
     if (needsDblClickTimer) {
       // dblclick/both 模式：延迟判定，给双击让路
@@ -435,50 +313,7 @@ function toG6Edges(edges: GraphEdge[], nodeIdSet: Set<string>) {
     }));
 }
 
-/** 业务节点 → G6 节点 data 字段（与 toG6Nodes 保持一致的结构） */
-function toG6Data(node: GraphNode): Record<string, unknown> {
-  return {
-    label: node.label,
-    category: node.category,
-    description: node.description,
-    ...node.data,
-  } as Record<string, unknown>;
-}
-
-/** 聚合层新增数据的 G6 格式：聚合层边统一打 data.kind='aggregate' 标记，
- *  新增节点以锚点为圆心散布初始位置（复用真实层 pendingAddition 的预置位置模式） */
-function buildAggG6Data(nodes: GraphNode[], edges: GraphEdge[], anchorX: number, anchorY: number): G6GraphData {
-  const nodeIdSet = new Set(nodes.map((n) => n.id));
-  const g6Nodes = nodes.map((n, i) => {
-    const angle = (i / Math.max(1, nodes.length)) * 2 * Math.PI;
-    const radius = 90 + Math.random() * 50;
-    return {
-      id: n.id,
-      style: {
-        ...((n.style || {}) as G6NodeStyle),
-        x: anchorX + Math.cos(angle) * radius,
-        y: anchorY + Math.sin(angle) * radius,
-      } as G6NodeStyle,
-      data: toG6Data(n),
-    };
-  });
-  const g6Edges = edges
-    .filter((e) => nodeIdSet.has(e.source) || nodeIdSet.has(e.target))
-    .map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      style: (edge.style || {}) as G6EdgeStyle,
-      data: {
-        label: edge.label,
-        kind: 'aggregate',
-        ...edge.data,
-      } as Record<string, unknown>,
-    }));
-  return { nodes: g6Nodes, edges: g6Edges };
-}
-
-export function GraphContainer({ className }: GraphContainerProps) {
+export function GraphContainer({ className, overlay, forceLayout = false, onGroupClick }: GraphContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
   const isDraggingRef = useRef(false);
@@ -486,15 +321,39 @@ export function GraphContainer({ className }: GraphContainerProps) {
   const graphReadyRef = useRef(false);
   // 图谱代数，每次销毁重建时递增，用于丢弃过期 render().then() 回调
   const graphGenerationRef = useRef(0);
+  const overlayRef = useRef(overlay);
+  overlayRef.current = overlay;
+  const onGroupClickRef = useRef(onGroupClick);
+  onGroupClickRef.current = onGroupClick;
+  const overlayIdsRef = useRef<{nodes:string[];edges:string[]}>({nodes:[],edges:[]});
+  // Aggregate cards are a rendering layer, never part of fullData/BFS/history.
+  const syncOverlay = useCallback(async () => {
+    const graph = graphRef.current;
+    if (!graph || !graphReadyRef.current) return;
+    const previous = overlayIdsRef.current;
+    const positions = new Map(previous.nodes.map(id => [id, graph.getElementPosition(id)]));
+    if (previous.nodes.length || previous.edges.length) graph.removeData(previous);
+    const data = overlayRef.current || {nodes:[],edges:[]};
+    const base = graph.getNodeData().filter(n => n.data?.kind !== 'aggregate');
+    const center = base.length ? graph.getElementPosition(base[0].id) : [400,300];
+    const nodes = toG6Nodes(data.nodes).map<NodeData>((n,i) => {
+      const angle = i / Math.max(data.nodes.length,1) * Math.PI * 2;
+      const p = positions.get(n.id) || [center[0] + Math.cos(angle)*290, center[1]+Math.sin(angle)*180];
+      return {...n, type:'rect', style:{...n.style, x:p[0],y:p[1],size:[210,100] as [number,number],radius:8,labelPlacement:'center',labelMaxWidth:190,labelMaxLines:5,labelWordWrap:true,labelBackground:false,labelFontSize:13,fill:'#edf5ff',stroke:'#4986ce'}};
+    });
+    const ids = new Set([...base.map(n=>n.id),...nodes.map(n=>n.id)]);
+    graph.addData({nodes,edges:toG6Edges(data.edges,ids)});
+    overlayIdsRef.current = {nodes:nodes.map(n=>n.id),edges:data.edges.map(e=>e.id)};
+    await graph.draw();
+    if (!previous.nodes.length && nodes.length) await graph.fitView();
+  }, []);
+  useEffect(() => { void syncOverlay(); }, [overlay,syncOverlay]);
 
   const {
     fullData, visibleData, selectedNodeId, highlightedNodeId, highlightedEdgeIds,
     selectNode, bfsExpandNode, pendingAddition, commitAddition, rebuildTrigger,
     displaySettings, categoryFilter,
   } = useGraphStore();
-
-  // 聚合层：订阅 layerRevision 触发 G6 增量同步
-  const layerRevision = useAggregateStore((s) => s.layerRevision);
 
   // 应用节点/边的选中高亮状态
   // 不使用 G6 state 的 opacity，改为用 updateNodeData/updateEdgeData 显式设置
@@ -602,21 +461,17 @@ export function GraphContainer({ className }: GraphContainerProps) {
     const graph = graphRef.current;
     if (!graph || !pendingAddition) return;
 
-    // 过滤 G6 已存在的节点（聚合成员先被加载、后 BFS 重复加载的场景，防重复 id 报错）
-    const g6ExistingIds = new Set(graph.getNodeData().map((n) => n.id as string));
-    const newNodeList = pendingAddition.nodes.filter((n) => !g6ExistingIds.has(n.id));
-
     // nodeIdSet 必须包含已有 + 新增节点，否则连接新旧节点的边会被过滤
     const existingNodeIds = fullData ? fullData.nodes.map((n) => n.id) : [];
-    const allNodeIds = [...existingNodeIds, ...newNodeList.map((n) => n.id)];
+    const allNodeIds = [...existingNodeIds, ...pendingAddition.nodes.map((n) => n.id)];
     const nodeIdSet = new Set(allNodeIds);
     const g6Data: G6GraphData = {
-      nodes: toG6Nodes(newNodeList),
+      nodes: toG6Nodes(pendingAddition.nodes),
       edges: toG6Edges(pendingAddition.edges, nodeIdSet),
     };
 
     console.log(
-      `[graph] 增量渲染 → addData ${newNodeList.length} 节点, ${pendingAddition.edges.length} 边（过滤 G6 已存在 ${pendingAddition.nodes.length - newNodeList.length} 个；rebuildTrigger=${rebuildTrigger}）`
+      `[graph] 增量渲染 → addData ${pendingAddition.nodes.length} 节点, ${pendingAddition.edges.length} 边（rebuildTrigger=${rebuildTrigger}）`
     );
 
     // 将新增节点散布在选中节点周围，避免默认 (0,0) 把力导向拽偏
@@ -690,124 +545,6 @@ export function GraphContainer({ className }: GraphContainerProps) {
     commitAddition(pendingAddition.nodes, pendingAddition.edges);
   }, [pendingAddition, commitAddition, rebuildTrigger]);
 
-  // ── 聚合层同步：订阅 layerRevision，将聚合节点/锚点/成员/成员边增量同步到 G6 ──
-  // 与真实层（fullData/pendingAddition）完全隔离；rebuildTrigger 变化（图销毁重建）后
-  // 首次同步走全量重放（G6 实例是新的，聚合层需要重新 addData）
-  useEffect(() => {
-    const graph = graphRef.current;
-    if (!graph) return;
-    if (!graphReadyRef.current) return;
-    if (layerRevision === 0) return;
-
-    const agg = useAggregateStore.getState();
-    const gen = graphGenerationRef.current;
-
-    // 计算当前聚合层应呈现的完整数据集
-    const layerNodes: GraphNode[] = [];
-    if (agg.anchorNode) layerNodes.push(agg.anchorNode);
-    layerNodes.push(...agg.layerNodes);
-
-    // 成员：仅统计仍被「展开中 bucket」引用的成员；且真实层已拥有的节点跳过（不重复 addData）
-    const realIds = new Set((useGraphStore.getState().fullData?.nodes ?? []).map((n) => n.id));
-    const expandedBuckets = new Set(
-      [...agg.bucketStates.entries()].filter(([, s]) => s.expanded).map(([id]) => id),
-    );
-    const memberNodes: GraphNode[] = [];
-    for (const entry of agg.memberRegistry.values()) {
-      const referenced = [...entry.buckets].some((b) => expandedBuckets.has(b));
-      if (!referenced) continue;
-      if (realIds.has(entry.node.id)) continue; // 真实层已有，只呈现成员边
-      memberNodes.push(entry.node);
-    }
-    const memberEdges = [...agg.memberEdges.values()].filter((e) =>
-      expandedBuckets.has(e.source),
-    );
-
-    // ── diff：对比 G6 当前数据与目标数据集，计算增删 ──
-    const targetNodes = new Map<string, GraphNode>();
-    for (const n of layerNodes) targetNodes.set(n.id, n);
-    for (const n of memberNodes) targetNodes.set(n.id, n);
-
-    const targetEdges = new Map<string, GraphEdge>();
-    for (const e of agg.displayEdges) targetEdges.set(e.id, e);
-    for (const e of memberEdges) targetEdges.set(e.id, e);
-
-    const g6NodeIds = new Set(graph.getNodeData().map((n) => n.id as string));
-    const g6EdgeIds = new Set(graph.getEdgeData().map((e) => e.id as string));
-
-    // G6 中存在但不属于真实层（fullData）也不属于目标集 → 聚合层残留，需删
-    const realNodeIds = new Set(realIds);
-    const realEdgeIds = new Set((useGraphStore.getState().fullData?.edges ?? []).map((e) => e.id));
-    const removeNodeIds: string[] = [];
-    for (const id of g6NodeIds) {
-      if (realNodeIds.has(id)) continue; // 真实层节点不动
-      if (targetNodes.has(id)) continue;
-      removeNodeIds.push(id);
-    }
-    const removeEdgeIds: string[] = [];
-    for (const id of g6EdgeIds) {
-      if (realEdgeIds.has(id)) continue;
-      if (targetEdges.has(id)) continue;
-      removeEdgeIds.push(id);
-    }
-
-    const addNodes = [...targetNodes.values()].filter((n) => !g6NodeIds.has(n.id));
-    const addEdges = [...targetEdges.values()].filter((e) => !g6EdgeIds.has(e.id));
-
-    // 指标/数量等数据变化（节点已存在但 data 变了）→ updateNodeData 局部刷新
-    const updateNodes: { id: string; data: Record<string, unknown> }[] = [];
-    for (const [id, node] of targetNodes) {
-      if (!g6NodeIds.has(id)) continue;
-      const cur = graph.getNodeData(id);
-      if (cur && JSON.stringify(cur.data) !== JSON.stringify(toG6Data(node))) {
-        updateNodes.push({ id, data: toG6Data(node) });
-      }
-    }
-
-    const hasStructuralChange = removeNodeIds.length > 0 || removeEdgeIds.length > 0
-      || addNodes.length > 0 || addEdges.length > 0;
-
-    console.log(
-      `[aggregate-sync] rev=${layerRevision} +${addNodes.length}n/+${addEdges.length}e -${removeNodeIds.length}n/-${removeEdgeIds.length}e ~${updateNodes.length}n`
-    );
-
-    try {
-      if (removeNodeIds.length > 0 || removeEdgeIds.length > 0) {
-        // G6 5.x removeData 接受 DataID：{ nodes: id[], edges: id[] }
-        graph.removeData({ nodes: removeNodeIds, edges: removeEdgeIds });
-      }
-      if (addNodes.length > 0 || addEdges.length > 0) {
-        // 新增节点以锚点（局部=真实锚点节点；全局=scope 锚点）为中心散布初始位置
-        const anchorId = agg.realAnchorNodeId ?? agg.anchorNode?.id ?? null;
-        let anchorX = 0, anchorY = 0;
-        if (anchorId) {
-          try {
-            const pos = graph.getElementPosition(anchorId);
-            anchorX = pos[0]; anchorY = pos[1];
-          } catch { /* 锚点可能尚未渲染 */ }
-        }
-        const g6Data = buildAggG6Data(addNodes, addEdges, anchorX, anchorY);
-        graph.addData(g6Data);
-      }
-      if (hasStructuralChange) {
-        // 结构变化（成员增删）→ render 重跑布局（与真实层 pendingAddition 先例一致）
-        // 已知限制：全局 d3-force 重算，真实节点位置可能移动
-        hasPendingLayoutRef.current = true;
-        graph.render().then(() => {
-          if (graphGenerationRef.current !== gen) return;
-          hasPendingLayoutRef.current = false;
-          if (!isDraggingRef.current) applyNodeStatesRef.current();
-        });
-      } else if (updateNodes.length > 0) {
-        // 纯数据更新（指标 complete）→ updateNodeData + draw 局部刷新，不重跑布局
-        graph.updateNodeData(updateNodes);
-        graph.draw();
-      }
-    } catch (err) {
-      console.error('[aggregate-sync] G6 同步失败:', err);
-    }
-  }, [layerRevision, rebuildTrigger]);
-
   // rebuildTrigger 变化时：真正销毁旧图并重建（仅 setGraphData 递增此值）
   useEffect(() => {
     if (!containerRef.current || !fullData) return;
@@ -822,9 +559,9 @@ export function GraphContainer({ className }: GraphContainerProps) {
       graphRef.current = null;
     }
     graphReadyRef.current = false;
+    overlayIdsRef.current = {nodes:[],edges:[]};
     dblClickExpandingRef.current = false;
     hasPendingLayoutRef.current = false;
-    const aggHadLayer = useAggregateStore.getState().scope != null;
 
     const gen = ++graphGenerationRef.current;
 
@@ -853,7 +590,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
       edges: toG6Edges(fullData.edges, nodeIdSet),
     };
 
-    const { graph } = createGraph(
+    const { graph, renderPromise } = createGraph(
       containerRef.current,
       fullDataRef,
       isDraggingRef,
@@ -865,16 +602,11 @@ export function GraphContainer({ className }: GraphContainerProps) {
       g6Data,
       displaySettings,
       categoryColorMapRef,
+      forceLayout,
+      id => onGroupClickRef.current?.(id),
     );
     graphRef.current = graph;
-
-    // rebuild 后聚合层需要重放：syncAggregateLayer effect 因 graphReady=false 跳过，
-    // 在首帧 ready 后强制同步一次（仅当聚合层存在时才会实际添加数据）
-    if (aggHadLayer) {
-      requestAnimationFrame(() => {
-        useAggregateStore.getState().requestSync();
-      });
-    }
+    void renderPromise.then(() => { if(graphRef.current === graph) void syncOverlay(); });
 
     return () => {
       graphGenerationRef.current = gen + 1; // 使所有进行中的 .then() 回调失效
@@ -902,29 +634,20 @@ export function GraphContainer({ className }: GraphContainerProps) {
     graph.setEdge({
       type: 'line',
       style: {
-        stroke: (d: EdgeData) => {
-          if (isAggregateEdgeData(d)) {
-            const src = d.source as string;
-            return src.startsWith('agg::') ? AGG_MEMBER_EDGE_STROKE : AGG_EDGE_STROKE;
-          }
-          return (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8';
-        },
-        lineWidth: (d: EdgeData) => {
-          if (isAggregateEdgeData(d)) return 1;
-          return ((d.style as Record<string, unknown>)?.lineWidth as number) || 1;
-        },
-        lineDash: (d: EdgeData) => (isAggregateEdgeData(d) ? [4, 4] : []),
+        stroke: (d: EdgeData) => (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8',
+        lineWidth: (d: EdgeData) => ((d.style as Record<string, unknown>)?.lineWidth as number) || 1,
+        lineDash: [],
         lineCap: 'butt',
         lineJoin: 'miter',
         endArrow: displaySettings.showEdgeArrows,
         endArrowSize: 6,
         endArrowFill: (d: EdgeData) => (d.style as Record<string, unknown>)?.stroke as string || '#94a3b8',
         labelText: displaySettings.showEdgeLabels ? (d: EdgeData) => (d.data?.label as string) || '' : () => '',
-        labelFontSize: 9,
+        labelFontSize: 12,
         labelFill: '#64748b',
         labelBackground: true,
         labelBackgroundFill: '#ffffff',
-        labelBackgroundOpacity: 0.6,
+        labelBackgroundOpacity: 0.95,
       },
       state: {
         active: { stroke: '#6366f1', lineWidth: 2 },
@@ -994,6 +717,7 @@ export function GraphContainer({ className }: GraphContainerProps) {
           const graph = graphRef.current;
           if (!graph) return;
           graph.resize(width, height);
+          if (!useGraphStore.getState().selectedNodeId) graph.fitView();
           console.log(`[graph] ResizeObserver → resize(${Math.round(width)}, ${Math.round(height)})`);
         }, 150);
       }

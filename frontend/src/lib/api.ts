@@ -1,12 +1,9 @@
 import axios from 'axios';
 import type { GraphData, GraphNode, GraphEdge } from '@/types/graph';
 
-const api = axios.create({
+export const api = axios.create({
   timeout: 10000,
 });
-
-// 导出实例供聚合 API 层（lib/api/aggregate.ts）复用同一 token/拦截链路
-export { api };
 
 // ========== Base URL ==========
 
