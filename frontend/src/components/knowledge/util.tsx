@@ -3,7 +3,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 
 export type Page = { id: string; title: string; folder_id: string; date?: string; tags?: string[] };
 export type Folder = { id: string; title: string; parent_id: string | null; kind?: string };
-export type Body = { id: string; title: string; type: string; body_md: string | null; folder_id?: string };
+export type Body = { id: string; title: string; type: string; body_md: string | null; folder_id?: string; frontmatter?: Record<string, unknown> };
 export type NeighborPage = { nodes: Body[]; edges: { source: string; target: string; type: string }[]; more: boolean };
 export type ChildrenResponse = { folder: string; folders: Folder[]; pages: Page[]; page_total: number; page_has_more: boolean };
 export type BacklinksResponse = { id: string; sources: { id: string; title: string; type: string }[] };
@@ -96,11 +96,11 @@ export function backlinksQuery(domain: string, id: string) {
   };
 }
 
-export function searchQuery(domain: string, q: string) {
+export function searchQuery(domain: string, q: string, limit = 12) {
   return {
-    queryKey: ['search', domain, q], staleTime: fresh,
+    queryKey: ['search', domain, q, limit], staleTime: fresh,
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      read<SearchResponse>(base + '/' + encodeURIComponent(domain) + '/search?' + new URLSearchParams({ q }), signal),
+      read<SearchResponse>(base + '/' + encodeURIComponent(domain) + '/search?' + new URLSearchParams({ q, limit: String(limit) }), signal),
   };
 }
 

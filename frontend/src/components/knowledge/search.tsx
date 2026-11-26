@@ -65,9 +65,10 @@ export function Marked({ text }: { text: string }) {
 }
 
 // Sidebar trigger: Quartz-style quiet search bar with the shortcut hint.
+// onClick wraps the handler so the click event is never passed on as a query.
 export function SearchButton({ onOpen }: { onOpen: () => void }) {
   return (
-    <button type="button" className="search-bar" onClick={onOpen}>
+    <button type="button" className="search-bar" onClick={() => onOpen()}>
       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
       <span>搜索知识库</span>
       <kbd>Ctrl K</kbd>
@@ -91,10 +92,11 @@ function Preview({ domain, hit, terms }: { domain: string; hit: SearchHit | null
   );
 }
 
-export function SearchOverlay({ domain, onClose }: { domain: string; onClose: () => void }) {
-  const [raw, setRaw] = useState('');
-  const [debounced, setDebounced] = useState('');
+export function SearchOverlay({ domain, initialQuery, onClose }: { domain: string; initialQuery?: string; onClose: () => void }) {
+  const [raw, setRaw] = useState(initialQuery ?? '');
+  const [debounced, setDebounced] = useState((initialQuery ?? '').trim());
   const [selected, setSelected] = useState(0);
+  const [limit, setLimit] = useState(12);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLUListElement>(null);
 
@@ -103,19 +105,20 @@ export function SearchOverlay({ domain, onClose }: { domain: string; onClose: ()
     const timer = setTimeout(() => setDebounced(raw.trim()), 300);
     return () => clearTimeout(timer);
   }, [raw]);
-  useEffect(() => { setSelected(0); }, [debounced]);
+  useEffect(() => { setSelected(0); setLimit(12); }, [debounced]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const query = useQuery({ ...searchQuery(domain, debounced), enabled: debounced !== '', placeholderData: keepPreviousData });
+  const query = useQuery({ ...searchQuery(domain, debounced, limit), enabled: debounced !== '', placeholderData: keepPreviousData });
   const results = debounced === '' ? [] : query.data?.results ?? [];
+  const total = query.data?.total ?? 0;
   const terms = useMemo(() => termsOf(debounced), [debounced]);
 
   useEffect(() => {
-    (list.current?.children[selected] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
+    (list.current?.querySelectorAll('.search-item')[selected] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
   }, [selected, results]);
 
   const open = (hit: SearchHit) => {
@@ -150,18 +153,31 @@ export function SearchOverlay({ domain, onClose }: { domain: string; onClose: ()
             {debounced === '' ? <li className="search-hint">输入关键词开始搜索</li>
               : query.isError ? <li className="search-empty" role="alert">{query.error.message}</li>
               : results.length === 0 ? query.isFetching ? <li className="search-hint">正在搜索…</li> : <li className="search-empty">未找到匹配</li>
-              : results.map((hit, i) => (
-                <li
-                  key={hit.kind + ':' + hit.id}
-                  className={i === selected ? 'search-item selected' : 'search-item'}
-                  onMouseEnter={() => setSelected(i)}
-                  onClick={() => open(hit)}
-                >
-                  <span className={'search-badge ' + hit.kind}>{hit.kind === 'folder' ? '目录' : '页面'}</span>
-                  <span className="search-item-title"><Marked text={hit.title_marked} /></span>
-                  {hit.excerpt && <span className="search-item-excerpt"><Marked text={hit.excerpt} /></span>}
-                </li>
-              ))}
+              : <>
+                {total > 0 && <li className="search-stats" aria-live="polite">显示 {results.length} / 共 {total} 条{total >= 1000 ? '+' : ''}</li>}
+                {results.map((hit, i) => (
+                  <li
+                    key={hit.kind + ':' + hit.id}
+                    className={i === selected ? 'search-item selected' : 'search-item'}
+                    onMouseEnter={() => setSelected(i)}
+                    onClick={() => open(hit)}
+                  >
+                    <span className={'search-badge ' + hit.kind}>{hit.kind === 'folder' ? '目录' : '页面'}</span>
+                    <span className="search-item-title"><Marked text={hit.title_marked} /></span>
+                    {hit.excerpt && <span className="search-item-excerpt"><Marked text={hit.excerpt} /></span>}
+                  </li>
+                ))}
+                {results.length < total && results.length < 100 && (
+                  <li
+                    className="search-load-more"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setLimit(l => Math.min(l + 12, 100))}
+                  >
+                    加载更多搜索结果（还有 {total - results.length} 条）
+                  </li>
+                )}
+              </>}
           </ul>
           <Preview domain={domain} hit={results[selected] ?? null} terms={terms} />
         </div>

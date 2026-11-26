@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, createElement, type ReactNode } from 'react';
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, createElement, type ReactNode } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -226,7 +226,72 @@ function Backlinks({ domain, page }: { domain: string; page: Body }) {
   </div>;
 }
 
-function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: () => void }) {
+// Frontmatter property list under the page title (Quartz note-properties panel).
+// Wiki links inside values reuse the page link resolver; tags open the search overlay as `#tag`.
+function NoteProperties({ frontmatter, domain, link, onSearchTag }: {
+  frontmatter: Record<string, unknown> | undefined;
+  domain: string;
+  link: (href: string) => string;
+  onSearchTag: (tag: string) => void;
+}) {
+  const panel = useRef<HTMLDetailsElement>(null);
+  const entries = Object.entries(frontmatter ?? {});
+  if (entries.length === 0) return null;
+
+  const renderText = (text: string): ReactNode => {
+    const parts: ReactNode[] = [];
+    let last = 0;
+    for (const match of text.matchAll(/\[\[([^\[\]|]+)(?:\|([^\[\]]+))?\]\]/g)) {
+      if (match.index! > last) parts.push(text.slice(last, match.index));
+      parts.push(<Link key={match.index} domain={domain} to={link(match[1].trim())}>{(match[2] ?? match[1]).trim()}</Link>);
+      last = match.index! + match[0].length;
+    }
+    parts.push(text.slice(last));
+    return parts;
+  };
+
+  const renderValue = (key: string, value: unknown): ReactNode => {
+    if (value == null) return <span className="note-properties-empty">—</span>;
+    if (typeof value === 'boolean') return <input type="checkbox" checked={value} readOnly />;
+    if (typeof value === 'number') return <code className="note-properties-number">{value}</code>;
+    if (Array.isArray(value)) {
+      if (key === 'tags') return <span className="note-properties-tags">{value.filter(t => typeof t === 'string').map((tag, i) => (
+        <button type="button" key={i} className="prop-tag" onClick={() => onSearchTag(String(tag))}>{String(tag)}</button>
+      ))}</span>;
+      return value.map((item, i) => (
+        <Fragment key={i}>{i > 0 && <span className="note-properties-separator">, </span>}{typeof item === 'string' ? renderText(item) : String(item)}</Fragment>
+      ));
+    }
+    if (typeof value === 'object') return <code>{JSON.stringify(value)}</code>;
+    return renderText(String(value));
+  };
+
+  return (
+    <details
+      className="note-properties"
+      ref={panel}
+      open={localStorage.getItem('note-properties-collapsed') !== 'true'}
+      onToggle={() => localStorage.setItem('note-properties-collapsed', String(!panel.current?.open))}
+    >
+      <summary className="note-properties-header">
+        <span>属性</span>
+        <span className="note-properties-count">{entries.length}</span>
+      </summary>
+      <table className="note-properties-table">
+        <tbody>
+          {entries.map(([key, value]) => (
+            <tr key={key} className="note-properties-row">
+              <td className="note-properties-key">{key}</td>
+              <td className="note-properties-value">{renderValue(key, value)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  );
+}
+
+function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: (query?: string) => void }) {
   const location = useLocation();
   const folder = !location.page;
   const id = (folder ? location.folder : location.page) || '/';
@@ -265,6 +330,7 @@ function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: () => 
     <main ref={main} aria-busy={loading}>
       {body.error ? <p role="alert">{body.error.message}</p> : !page ? <p>正在读取知识页…</p> : <>
         <h1 className="page-title">{page.title}</h1>
+        <NoteProperties frontmatter={page.frontmatter} domain={domain} link={link} onSearchTag={tag => onOpenSearch('#' + tag)} />
         <article>
           <Article source={prepared.source} domain={domain} link={link} ids={prepared.ids} />
         </article>
@@ -284,25 +350,32 @@ function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: () => 
 export function SnapshotReader() {
   const location = useLocation();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const domains = useQuery({ queryKey: ['snapshot-domains'], staleTime: fresh, queryFn: ({ signal }) => read<string[]>(base, signal) });
   const domain = location.knowledge || domains.data?.[0];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        setSearchQuery('');
         setSearchOpen(open => !open);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+  const openSearch = (query?: string) => {
+    // Runtime guard: a stray event object (e.g. passed through onClick) must not become the query.
+    setSearchQuery(typeof query === 'string' ? query : '');
+    setSearchOpen(true);
+  };
   return <div className="knowledge-reader">
     <header>
       <strong>DeepScope 知识库</strong>
       <select aria-label="业务域" value={domain || ''} onChange={e => navigate(address(e.target.value, '/', true))}>{domains.data?.map(d => <option key={d}>{d}</option>)}</select>
       <a href="?aggregation=live">业务数据图谱</a>
     </header>
-    {domains.error ? <p role="alert">{domains.error.message}</p> : domain ? <Reader domain={domain} onOpenSearch={() => setSearchOpen(true)} /> : <p>{domains.isLoading ? '正在读取业务域…' : '暂无已构建的知识库。'}</p>}
-    {searchOpen && domain && <SearchOverlay domain={domain} onClose={() => setSearchOpen(false)} />}
+    {domains.error ? <p role="alert">{domains.error.message}</p> : domain ? <Reader domain={domain} onOpenSearch={openSearch} /> : <p>{domains.isLoading ? '正在读取业务域…' : '暂无已构建的知识库。'}</p>}
+    {searchOpen && domain && <SearchOverlay domain={domain} initialQuery={searchQuery} onClose={() => setSearchOpen(false)} />}
   </div>;
 }
