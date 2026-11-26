@@ -24,7 +24,7 @@ export function SubjectGraphPreview() {
     </header>
     <div className="flex flex-col lg:flex-row flex-1 min-h-0">
       <main className="relative flex-1 min-h-[50vh] lg:min-h-0 min-w-0">
-        <ExplorerCanvas view={view} contextId="subject-scenes" onSelect={choose} onToggle={choose} />
+        <ExplorerCanvas selectedId={selected} onClear={() => setSelected('')} view={view} contextId="subject-scenes" onSelect={choose} onToggle={choose} />
       </main>
       <aside className="lg:w-96 p-4 border-t lg:border-t-0 lg:border-l space-y-4 overflow-auto">
         <h2 className="font-semibold">场景</h2>

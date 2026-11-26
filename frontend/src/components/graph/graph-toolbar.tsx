@@ -43,6 +43,9 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [settingsOpen]);
 
+  const aggregationPreviewUrl = new URL(window.location.href);
+  aggregationPreviewUrl.searchParams.set('aggregation', 'preview');
+
   const nodeCount = fullData?.nodes.length ?? 0;
   const edgeCount = fullData?.edges.length ?? 0;
 
@@ -64,6 +67,7 @@ export function GraphToolbar({ onImportData, onExportData }: GraphToolbarProps) 
         <Button variant="ghost" size="sm" onClick={()=>window.open(window.location.href,'_blank','noopener')} title="独立打开图谱" aria-label="独立打开图谱"><ExternalLink className="h-4 w-4" /></Button>
         <Button variant="ghost" size="sm" onClick={toggleFullscreen} title={isFullscreen?'退出全屏':'全屏查看'} aria-label={isFullscreen?'退出全屏':'全屏查看'}>{isFullscreen?<Minimize className="h-4 w-4" />:<Expand className="h-4 w-4" />}</Button>
         <DocHelpButton />
+        <a className="text-xs px-2 py-1 border rounded" href={aggregationPreviewUrl.href}>新版聚合预览</a>
 
         <div className="relative" ref={settingsRef}>
           <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(!settingsOpen)} title="显示设置">

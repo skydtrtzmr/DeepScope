@@ -54,12 +54,13 @@ export function AggregationExplorer() {
   return <div className="h-screen flex flex-col bg-background text-foreground">
     <header className="border-b px-4 py-3 flex items-center gap-4 bg-card">
       <h2 className="font-semibold text-base shrink-0">知识图谱</h2><span className="text-xs text-muted-foreground">{canvasView.nodes.length} 节点 / {canvasView.edges.length} 边 · 聚合示例</span>
-      <a className="ml-auto text-sm underline" href="?graph=subjects-preview">主体关系验证</a>
+      <a className="ml-auto text-sm underline" href="?aggregation=live">业务数据图谱</a>
+      <a className="text-sm underline" href="?graph=subjects-preview">主体关系验证</a>
       <a className="text-sm underline" href={back.href}>返回原图谱</a>
     </header>
     <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
       <main className="order-first flex-1 min-w-0 min-h-[50vh] lg:min-h-0 relative border-b lg:border-b-0 lg:border-r">
-        <ExplorerCanvas view={canvasView} contextId={Object.keys(pinned).length ? "shared" : key} onSelect={node => setSelectedId(node.id)} onToggle={toggle} />
+        <ExplorerCanvas selectedId={selectedId} onClear={() => setSelectedId(null)} view={canvasView} contextId={Object.keys(pinned).length ? "shared" : key} onSelect={node => setSelectedId(node.id)} onToggle={toggle} />
         {view.total === 0 && <div className="absolute top-5 left-5 rounded border bg-background p-4">当前范围没有任务，可切换主体或关系。</div>}
       </main>
       <aside className="w-full lg:w-80 xl:w-96 shrink-0 p-3 overflow-auto space-y-4 h-[40vh] lg:h-full bg-card">
@@ -119,11 +120,38 @@ export function AggregationExplorer() {
   </div>;
 }
 
-export function ExplorerCanvas({ view, contextId, onSelect, onToggle }: { view: Projection; contextId: string; onSelect: (node: ViewNode) => void; onToggle: (node: ViewNode) => void }) {
+function highlightStates(view: Projection, selectedId: string | null) {
+  const active = selectedId && view.nodes.some(n => n.id === selectedId);
+  const neighbors = new Set<string>();
+  const states: Record<string, string[]> = {};
+  for (const edge of view.edges) {
+    const related = active && (edge.source === selectedId || edge.target === selectedId);
+    if (related) {
+      neighbors.add(edge.source);
+      neighbors.add(edge.target);
+    }
+    states[edge.id] = active ? [related ? 'related' : 'muted'] : [];
+  }
+  for (const node of view.nodes) {
+    states[node.id] = active ? [node.id === selectedId ? 'selected' : neighbors.has(node.id) ? 'related' : 'muted'] : [];
+  }
+  return states;
+}
+
+// This G6 build fits "always" by default, which enlarges a sparse graph until it fills the canvas.
+// Only shrink an oversized graph; never zoom in past the designed label size.
+async function frame(instance: Graph) {
+  await instance.fitView({ when: 'overflow' }, false);
+  if (instance.getZoom() <= 1) return;
+  await instance.zoomTo(1, false);
+  await instance.fitCenter(false);
+}
+
+export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect, onToggle }: { selectedId: string | null; onClear: () => void; view: Projection; contextId: string; onSelect: (node: ViewNode) => void; onToggle: (node: ViewNode) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const graph = useRef<Graph | null>(null);
-  const current = useRef({ view, onSelect, onToggle });
-  current.current = { view, onSelect, onToggle };
+  const current = useRef({ view, selectedId, onClear, onSelect, onToggle });
+  current.current = { view, selectedId, onClear, onSelect, onToggle };
   const [error, setError] = useState('');
   const ready = useRef(false);
   const lastContext = useRef('');
@@ -139,8 +167,16 @@ export function ExplorerCanvas({ view, contextId, onSelect, onToggle }: { view: 
         center: { strength: 0.1 },
         alphaMin: 0.002, alphaDecay: 0.05, velocityDecay: 0.5,
       },
-      node: { type: 'circle', style: { size: 28, labelText: d => String(d.data?.label ?? ''), labelPlacement: 'bottom', labelFill: '#0f172a', labelFontSize: 11, labelBackground: true, labelBackgroundFill: '#ffffff', labelBackgroundOpacity: 0.6, labelPadding: [2, 6], shadowColor: 'rgba(0,0,0,0.08)', shadowBlur: 4, cursor: 'grab' }, state: { selected: { stroke: '#6366f1', lineWidth: 4 } } },
-      edge: { type: d => String(d.type ?? 'line') },
+      node: { type: 'circle', style: { size: 28, labelText: d => String(d.data?.label ?? ''), labelPlacement: 'bottom', labelFill: '#0f172a', labelFontSize: 11, labelBackground: true, labelBackgroundFill: '#ffffff', labelBackgroundOpacity: 0.6, labelPadding: [2, 6], shadowColor: 'rgba(0,0,0,0.08)', shadowBlur: 4, cursor: 'grab' }, state: { selected: { stroke: '#4338ca', lineWidth: 5 }, related: { stroke: '#6366f1', lineWidth: 3 }, muted: { opacity: 0.2 } } },
+      edge: { type: d => String(d.type ?? 'line'), state: { related: { stroke: '#4f46e5', lineWidth: 3, labelFill: '#312e81' }, muted: { opacity: 0.12 } } },
+    });
+    instance.once('afterdraw', () => {
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        container.current?.animate([
+          { opacity: 0, transform: 'scale(.92)' },
+          { opacity: 1, transform: 'scale(1)' },
+        ], { duration: 650, easing: 'ease-out' });
+      }
     });
     graph.current = instance;
     instance.on('beforerender', () => { ready.current = true; });
@@ -148,9 +184,9 @@ export function ExplorerCanvas({ view, contextId, onSelect, onToggle }: { view: 
       if (!('target' in event) || !event.target || !('id' in event.target)) return;
       const id = event.target.id;
       const node = current.current.view.nodes.find(n => n.id === id);
-      void instance.setElementState(Object.fromEntries(instance.getNodeData().map(n => [n.id, n.id === id ? ['selected'] : []])));
       if (node) current.current.onSelect(node);
     });
+    instance.on('canvas:click', () => current.current.onClear());
     instance.on('node:dblclick', event => {
       if (!('target' in event) || !event.target || !('id' in event.target)) return;
       const id = event.target.id;
@@ -183,28 +219,37 @@ export function ExplorerCanvas({ view, contextId, onSelect, onToggle }: { view: 
         positions.set(node.id, node.id === view.rootId ? center : { x: parent.x + Math.cos(angle) * 100, y: parent.y + Math.sin(angle) * 100 });
       }
       lastContext.current = contextId;
-      instance.setData({ nodes: view.nodes.map(n => ({ id: n.id, data: { label: n.label }, style: {
+      const states = highlightStates(view, current.current.selectedId);
+      instance.setData({ nodes: view.nodes.map(n => ({ id: n.id, states: states[n.id], data: { label: n.label }, style: {
         x: positions.get(n.id)!.x, y: positions.get(n.id)!.y,
         size: n.kind === 'group' ? 40 : n.kind === 'anchor' || n.kind === 'scope' ? 36 : 28,
-        fill: n.kind === 'group' ? '#eef2ff' : getNodeColor(n.entity?.type === 'employee' || n.kind === 'anchor' ? '人员' : n.kind === 'scope' ? '范围' : '任务'),
+        fill: n.kind === 'group' ? '#eef2ff' : getNodeColor(n.entity?.type ?? (n.kind === 'scope' ? '范围' : '任务')),
         stroke: n.kind === 'group' ? '#6366f1' : '#334155', lineWidth: 2,
         lineDash: n.kind === 'group' ? [4, 3] : [],
       } })), edges: view.edges.map(e => {
         const parallels = view.edges.filter(other => (other.source === e.source && other.target === e.target) || (other.source === e.target && other.target === e.source));
         const offset = (parallels.indexOf(e) - (parallels.length - 1) / 2) * 48;
-        return { id: e.id, source: e.source, target: e.target, type: parallels.length > 1 ? 'quadratic' : 'line', style: {
+        return { id: e.id, states: states[e.id], source: e.source, target: e.target, type: parallels.length > 1 ? 'quadratic' : 'line', style: {
         curveOffset: offset * (e.source < e.target ? 1 : -1),
         labelText: e.label ?? '', labelBackground: true, labelBackgroundFill: '#ffffff', labelPadding: [2, 4], labelFontSize: 12,
         stroke: e.kind === 'membership' ? '#a5b4fc' : '#64748b', lineDash: e.kind === 'membership' ? [5, 4] : [], endArrow: e.kind === 'relation',
       } }; }) });
       // G6 render starts entry/exit animation and force layout together. Do not await
       // its completion here: the next interaction must be free to interrupt the layout.
-      void instance.render().catch(e => {
+      void instance.render().then(async () => {
+        if (changedContext && !cancelled && graph.current === instance) await frame(instance);
+      }).catch(e => {
         if (!cancelled && graph.current === instance) setError(e instanceof Error ? e.message : '渲染失败');
       });
       if (!cancelled) setError('');
     }).catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : '画布渲染失败'); });
     return () => { cancelled = true; };
   }, [view, contextId]);
+  useEffect(() => {
+    const instance = graph.current;
+    if (instance && ready.current) {
+      void instance.setElementState(highlightStates(current.current.view, selectedId), false);
+    }
+  }, [selectedId]);
   return <><div ref={container} className="w-full h-full" />{error && <div role="alert" className="absolute bottom-4 left-4 bg-background border p-3 text-sm">{error}</div>}</>;
 }

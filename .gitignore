@@ -5,3 +5,4 @@ backend/.quartz-cache.db
 *.db
 *.db-shm
 *.db-wal
+/frontend/dist-workbench

@@ -1,0 +1,137 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronRight, FileText, Folder, FolderOpen } from 'lucide-react';
+import { address, Link, useChildren, type Folder as FolderNode, type Page } from './util';
+
+const storageKey = (domain: string) => `deepscope:dir-open:${domain}`;
+
+function loadOpen(domain: string): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(storageKey(domain)) || '[]');
+    return new Set(Array.isArray(raw) ? raw : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function ancestors(folder: string): string[] {
+  const parts: string[] = [];
+  let current = folder;
+  while (current && current !== '/') {
+    parts.push(current);
+    const next = current.slice(0, current.lastIndexOf('/')) || '/';
+    current = next;
+  }
+  return parts;
+}
+
+interface BranchProps {
+  domain: string;
+  folder: FolderNode;
+  depth: number;
+  openSet: Set<string>;
+  onToggle: (id: string) => void;
+  activeFolder: string | null;
+  activePage: string | null;
+  isFolderPage: boolean;
+}
+
+function FolderBranch({ domain, folder, depth, openSet, onToggle, activeFolder, activePage, isFolderPage }: BranchProps) {
+  const children = useChildren(domain, folder.id);
+  const open = openSet.has(folder.id);
+  const subfolders = children.data?.pages[0]?.folders ?? [];
+  const pages = useMemo(() => children.data?.pages.flatMap(r => r.pages) ?? [], [children.data]);
+  const total = children.data?.pages[0]?.page_total ?? 0;
+  const remaining = Math.max(0, total - pages.length);
+
+  return (
+    <>
+      <div className="dir-row" style={{ paddingLeft: depth * 14 }}>
+        <button type="button" className="dir-chevron" aria-expanded={open} onClick={() => onToggle(folder.id)} aria-label={open ? '折叠目录' : '展开目录'}>
+          <ChevronRight size={15} strokeWidth={2.4} className={open ? 'dir-chevron-open' : undefined} />
+        </button>
+        {open ? <FolderOpen className="dir-icon" size={15} /> : <Folder className="dir-icon" size={15} />}
+        <Link domain={domain} to={address(domain, folder.id, true)} className="dir-link dir-link-folder" aria-current={isFolderPage && activeFolder === folder.id ? 'page' : undefined}>{folder.title}</Link>
+      </div>
+      {open && (
+        <div className="dir-children">
+          {subfolders.map(f => (
+            <FolderBranch key={f.id} domain={domain} folder={f} depth={depth + 1} openSet={openSet} onToggle={onToggle} activeFolder={activeFolder} activePage={activePage} isFolderPage={isFolderPage} />
+          ))}
+          {pages.map(p => (
+            <PageRow key={p.id} domain={domain} page={p} depth={depth + 1} activePage={activePage} isFolderPage={isFolderPage} />
+          ))}
+          {remaining > 0 && (
+            <button type="button" className="dir-load-more" style={{ paddingLeft: (depth + 1) * 14 + 16 }} onClick={() => children.fetchNextPage()} disabled={children.isFetchingNextPage}>
+              {children.isFetchingNextPage ? '加载中…' : `加载更多（${remaining}）`}
+            </button>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function PageRow({ domain, page, depth, activePage, isFolderPage }: { domain: string; page: Page; depth: number; activePage: string | null; isFolderPage: boolean }) {
+  return (
+    <div className="dir-row" style={{ paddingLeft: depth * 14 }}>
+      <span className="dir-chevron-placeholder" />
+      <FileText className="dir-icon" size={15} />
+      <Link domain={domain} to={address(domain, page.id)} className="dir-link" aria-current={!isFolderPage && activePage === page.id ? 'page' : undefined}>{page.title}</Link>
+    </div>
+  );
+}
+
+export function DirectoryTree({ domain, activeFolder, activePage, isFolderPage }: { domain: string; activeFolder: string | null; activePage: string | null; isFolderPage: boolean }) {
+  const [openSet, setOpenSet] = useState<Set<string>>(() => loadOpen(domain));
+  const root = useChildren(domain, '/');
+  const container = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem(storageKey(domain), JSON.stringify([...openSet]));
+  }, [openSet, domain]);
+
+  // Auto-expand the ancestors of the folder currently being viewed.
+  useEffect(() => {
+    if (!activeFolder) return;
+    const need = ancestors(activeFolder);
+    setOpenSet(prev => {
+      if (need.every(id => prev.has(id))) return prev;
+      const next = new Set(prev);
+      need.forEach(id => next.add(id));
+      return next;
+    });
+  }, [activeFolder]);
+
+  // Keep the current item in view after the tree re-renders.
+  useEffect(() => {
+    const current = container.current?.querySelector('[aria-current]');
+    if (current) (current as HTMLElement).scrollIntoView({ block: 'nearest' });
+  }, [activePage, activeFolder]);
+
+  const toggle = (id: string) => setOpenSet(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const rootFolders = root.data?.pages[0]?.folders ?? [];
+  const rootPages = useMemo(() => root.data?.pages.flatMap(r => r.pages) ?? [], [root.data]);
+  const rootTotal = root.data?.pages[0]?.page_total ?? 0;
+  const rootRemaining = Math.max(0, rootTotal - rootPages.length);
+
+  return (
+    <div ref={container} className="dir-tree" aria-label="知识目录">
+      {rootFolders.map(f => (
+        <FolderBranch key={f.id} domain={domain} folder={f} depth={0} openSet={openSet} onToggle={toggle} activeFolder={activeFolder} activePage={activePage} isFolderPage={isFolderPage} />
+      ))}
+      {rootPages.map(p => (
+        <PageRow key={p.id} domain={domain} page={p} depth={0} activePage={activePage} isFolderPage={isFolderPage} />
+      ))}
+      {rootRemaining > 0 && (
+        <button type="button" className="dir-load-more" style={{ paddingLeft: 16 }} onClick={() => root.fetchNextPage()} disabled={root.isFetchingNextPage}>
+          {root.isFetchingNextPage ? '加载中…' : `加载更多（${rootRemaining}）`}
+        </button>
+      )}
+    </div>
+  );
+}
