@@ -7,6 +7,15 @@ export type Body = { id: string; title: string; type: string; body_md: string | 
 export type NeighborPage = { nodes: Body[]; edges: { source: string; target: string; type: string }[]; more: boolean };
 export type ChildrenResponse = { folder: string; folders: Folder[]; pages: Page[]; page_total: number; page_has_more: boolean };
 export type BacklinksResponse = { id: string; sources: { id: string; title: string; type: string }[] };
+export type SearchHit = {
+  kind: 'page' | 'folder';
+  id: string;
+  title: string;
+  title_marked: string;
+  excerpt: string;
+  folder_id: string | null;
+};
+export type SearchResponse = { results: SearchHit[]; total: number };
 export type Location = { knowledge: string | null; folder: string | null; page: string | null; key: number };
 
 export const base = '/api/knowledge/domains';
@@ -84,6 +93,14 @@ export function backlinksQuery(domain: string, id: string) {
     queryKey: ['backlinks', domain, id], staleTime: fresh,
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       read<BacklinksResponse>(base + '/' + encodeURIComponent(domain) + '/backlinks?' + new URLSearchParams({ id }), signal),
+  };
+}
+
+export function searchQuery(domain: string, q: string) {
+  return {
+    queryKey: ['search', domain, q], staleTime: fresh,
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      read<SearchResponse>(base + '/' + encodeURIComponent(domain) + '/search?' + new URLSearchParams({ q }), signal),
   };
 }
 

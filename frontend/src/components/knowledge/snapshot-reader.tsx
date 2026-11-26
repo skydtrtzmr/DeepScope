@@ -11,6 +11,7 @@ import {
 } from './util';
 import { DirectoryTree } from './directory-tree';
 import { FolderListing } from './folder-listing';
+import { SearchButton, SearchOverlay } from './search';
 import './snapshot-reader.css';
 
 type TocEntry = { depth: number; text: string; id: string };
@@ -225,7 +226,7 @@ function Backlinks({ domain, page }: { domain: string; page: Body }) {
   </div>;
 }
 
-function Reader({ domain }: { domain: string }) {
+function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: () => void }) {
   const location = useLocation();
   const folder = !location.page;
   const id = (folder ? location.folder : location.page) || '/';
@@ -258,6 +259,7 @@ function Reader({ domain }: { domain: string }) {
   const hasRight = !folder || prepared.entries.length > 0;
   return <div className="knowledge-layout" data-has-right={hasRight}>
     <aside className="sidebar left" aria-label="知识目录">
+      <SearchButton onOpen={onOpenSearch} />
       <DirectoryTree domain={domain} activeFolder={activeFolder} activePage={folder ? null : id} isFolderPage={folder} />
     </aside>
     <main ref={main} aria-busy={loading}>
@@ -281,14 +283,26 @@ function Reader({ domain }: { domain: string }) {
 
 export function SnapshotReader() {
   const location = useLocation();
+  const [searchOpen, setSearchOpen] = useState(false);
   const domains = useQuery({ queryKey: ['snapshot-domains'], staleTime: fresh, queryFn: ({ signal }) => read<string[]>(base, signal) });
   const domain = location.knowledge || domains.data?.[0];
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen(open => !open);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   return <div className="knowledge-reader">
     <header>
       <strong>DeepScope 知识库</strong>
       <select aria-label="业务域" value={domain || ''} onChange={e => navigate(address(e.target.value, '/', true))}>{domains.data?.map(d => <option key={d}>{d}</option>)}</select>
       <a href="?aggregation=live">业务数据图谱</a>
     </header>
-    {domains.error ? <p role="alert">{domains.error.message}</p> : domain ? <Reader domain={domain} /> : <p>{domains.isLoading ? '正在读取业务域…' : '暂无已构建的知识库。'}</p>}
+    {domains.error ? <p role="alert">{domains.error.message}</p> : domain ? <Reader domain={domain} onOpenSearch={() => setSearchOpen(true)} /> : <p>{domains.isLoading ? '正在读取业务域…' : '暂无已构建的知识库。'}</p>}
+    {searchOpen && domain && <SearchOverlay domain={domain} onClose={() => setSearchOpen(false)} />}
   </div>;
 }
