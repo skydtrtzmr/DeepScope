@@ -1,32 +1,51 @@
-.knowledge-reader{color:#203047;background:#fff;height:100dvh;display:flex;flex-direction:column}
+/* ============ Shell ============ */
+.knowledge-reader{color:#343a40;background:#fff;height:100dvh;display:flex;flex-direction:column}
 .knowledge-reader header{display:flex;align-items:center;gap:20px;padding:14px 24px;border-bottom:1px solid #d9e1e8}
 .knowledge-reader header a{margin-left:auto}
-.knowledge-reader select,.knowledge-reader button{border:1px solid #c7d2df;border-radius:5px;padding:4px 10px}
-.knowledge-layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(200px,24%) 1fr}
-.knowledge-layout aside,.knowledge-layout main{overflow:auto}
-.knowledge-layout aside{background:#f8f9fa;padding:12px 8px;border-right:1px solid #e0e5ea}
-.knowledge-reader a{color:#225c86}
-.knowledge-layout main{padding:24px clamp(16px,4vw,65px)}
-.knowledge-layout h1{font-size:1.85rem;font-weight:650}
-.knowledge-layout h2{font-size:1.4rem;font-weight:600;margin:1.2em 0 .65em}
-.knowledge-layout article{line-height:1.7;overflow-wrap:anywhere}
-.knowledge-layout article p,.knowledge-layout article pre{margin:.8em 0}
-.knowledge-layout article a{text-decoration:underline}
+.knowledge-reader select{border:1px solid #c7d2df;border-radius:5px;padding:4px 10px}
+
+/* ============ Three-column layout (Quartz default frame) ============ */
+.knowledge-layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(230px,290px) minmax(0,1fr) 320px}
+.knowledge-layout[data-has-right="false"]{grid-template-columns:minmax(230px,290px) minmax(0,1fr)}
+.knowledge-layout .sidebar,.knowledge-layout main{overflow:auto;height:100%;min-height:0}
+.knowledge-layout .sidebar{display:flex;flex-direction:column;gap:22px;box-sizing:border-box}
+.knowledge-layout .sidebar.left{background:#f8f9fa;border-right:1px solid #e0e5ea;padding:14px 10px 24px}
+.knowledge-layout .sidebar.right{background:#fff;border-left:1px solid #e0e5ea;padding:20px 18px 24px}
+
+/* ============ Center column typography (Quartz base styles) ============ */
+.knowledge-layout main{font-size:16px;line-height:1.6;color:#343a40;padding:28px clamp(20px,4vw,64px)}
+.knowledge-layout main,.knowledge-layout main *{scrollbar-width:thin}
+.knowledge-layout .page-title{font-size:2rem;font-weight:700;line-height:1.3;margin:0 0 20px}
+.knowledge-layout article{max-width:860px;overflow-wrap:anywhere}
+.knowledge-layout article p{margin:.8rem 0}
+.knowledge-layout article h1,.knowledge-layout article h2,.knowledge-layout article h3,.knowledge-layout article h4{color:#212529;font-weight:600}
+.knowledge-layout article h1{font-size:1.75rem;margin:2.25rem 0 1rem}
+.knowledge-layout article h2{font-size:1.4rem;margin:1.9rem 0 1rem}
+.knowledge-layout article h3{font-size:1.12rem;margin:1.62rem 0 1rem}
+.knowledge-layout article h4,.knowledge-layout article h5,.knowledge-layout article h6{font-size:1rem;margin:1.5rem 0 1rem}
 .knowledge-layout article ul{list-style:disc;padding-left:2em}
 .knowledge-layout article ol{list-style:decimal;padding-left:2em}
-.knowledge-layout article table{display:block;overflow:auto;border-collapse:collapse}
-.knowledge-layout article th,.knowledge-layout article td{border:1px solid #dce2e7;padding:5px 12px}
-.knowledge-layout article pre{background:#f2f5f7;padding:12px;overflow:auto}
-.knowledge-chart,.knowledge-graph{height:360px;width:100%;min-width:0}
-.knowledge-graph{position:relative;border:1px solid #dce2e7}
-.knowledge-layout section button{margin:8px}
+.knowledge-layout article li{margin:.25rem 0}
+.knowledge-layout article a{color:#225c86;text-decoration:none}
+.knowledge-layout article a:hover{color:#4d7ea8;text-decoration:underline}
+.knowledge-layout article blockquote{margin:1rem 0;border-left:3px solid #8fb1d8;padding:0 0 0 1rem;color:#566270}
+.knowledge-layout article pre{background:#f6f8fa;border:1px solid #dce2e7;border-radius:5px;padding:12px;overflow:auto;margin:1rem 0}
+.knowledge-layout article code{font-size:.9em;color:#212529;background:#eef1f4;border-radius:5px;padding:.1rem .25rem}
+.knowledge-layout article pre code{background:none;padding:0}
+.knowledge-layout article table{display:block;overflow:auto;border-collapse:collapse;margin:1rem 0}
+.knowledge-layout article th{text-align:left;padding:.4rem .7rem;border-bottom:2px solid #9db0bd;color:#212529}
+.knowledge-layout article td{padding:.3rem .7rem}
+.knowledge-layout article tr{border-bottom:1px solid #e9ecef}
+.knowledge-layout article tr:last-child{border-bottom:none}
+.knowledge-layout article hr{border:none;height:1px;background:#e9ecef;margin:2rem auto}
+.knowledge-chart{height:360px;width:100%;min-width:0}
+.knowledge-reader [role=alert]{color:#a33424}
 .knowledge-layout main{transition:opacity .15s}
 .knowledge-layout main[aria-busy=true]{opacity:.55}
-.knowledge-reader [role=alert]{color:#a33424}
 
-/* ---- Directory tree (Quartz explorer style) ---- */
-.dir-tree{font-size:13px;color:#343a40;line-height:1.5}
-.dir-row{display:flex;align-items:center;gap:4px;min-height:28px;padding-right:6px;border-radius:6px}
+/* ============ Directory tree (Quartz explorer style) ============ */
+.dir-tree{font-size:15px;color:#343a40;line-height:1.5}
+.dir-row{display:flex;align-items:center;gap:4px;min-height:30px;padding-right:6px;border-radius:6px}
 .dir-row:hover{background:#e9ecef}
 /* Scoped under .dir-tree so the global `.knowledge-reader button` padding/border cannot squash them */
 .dir-tree .dir-chevron{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;border:none;background:transparent;color:#5c6a77;cursor:pointer;border-radius:4px}
@@ -42,32 +61,66 @@
 .dir-tree [aria-current="page"]{color:#284b63;font-weight:650}
 .dir-children{position:relative}
 .dir-children::before{content:"";position:absolute;left:7px;top:2px;bottom:6px;width:1px;background:#dde3e8}
-.dir-tree .dir-load-more,.folder-listing .dir-load-more{display:block;margin:4px 0;padding:4px 8px;border:none;background:transparent;color:#4d7ea8;font-size:12px;cursor:pointer;border-radius:4px}
+.dir-tree .dir-load-more,.folder-listing .dir-load-more{display:block;margin:4px 0;padding:4px 8px;border:none;background:transparent;color:#4d7ea8;font-size:13px;cursor:pointer;border-radius:4px}
 .dir-tree .dir-load-more:hover,.folder-listing .dir-load-more:hover{background:#e9ecef}
 .dir-tree .dir-load-more:disabled,.folder-listing .dir-load-more:disabled{color:#adb5bd;cursor:default}
 
-/* ---- Folder listing / page list (Quartz folder-page style) ---- */
-.folder-listing{margin-top:24px;border-top:1px solid #e9ecef;padding-top:16px}
-.breadcrumb{display:flex;align-items:center;flex-wrap:wrap;gap:2px;font-size:13px;color:#6c757d;margin-bottom:16px}
+/* ============ Folder listing / page list (Quartz folder-page style) ============ */
+.folder-listing{margin-top:28px;border-top:1px solid #e9ecef;padding-top:18px;max-width:860px}
+.breadcrumb{display:flex;align-items:center;flex-wrap:wrap;gap:2px;font-size:14px;color:#6c757d;margin-bottom:16px}
 .breadcrumb a{color:#4d7ea8;text-decoration:none}
 .breadcrumb a:hover{color:#284b63}
 .breadcrumb a[aria-current="page"]{color:#343a40;font-weight:600}
 .breadcrumb-seg{display:inline-flex;align-items:center;gap:2px}
-.folder-group-title,.page-list-title{font-size:14px;font-weight:600;color:#343a40;margin:20px 0 10px}
+.folder-group-title,.page-list-title{font-size:15px;font-weight:600;color:#212529;margin:22px 0 10px}
 .subfolder-list{display:flex;flex-wrap:wrap;gap:8px}
-.subfolder-link{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #dde3e8;border-radius:6px;color:#284b63;text-decoration:none;font-size:13px;background:#fff}
+.subfolder-link{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #dde3e8;border-radius:6px;color:#284b63;text-decoration:none;font-size:14px;background:#fff}
 .subfolder-link:hover{border-color:#4d7ea8;background:#f8f9fa}
 .page-list-ul{list-style:none;margin:0;padding:0}
-.page-item{display:flex;align-items:baseline;gap:12px;padding:8px 4px;border-bottom:1px solid #f0f2f4}
-.page-date{flex:0 0 auto;min-width:92px;font-size:12px;color:#adb5bd;font-variant-numeric:tabular-nums}
-.page-title{color:#284b63;text-decoration:none;font-weight:500}
+.page-item{display:flex;align-items:baseline;gap:12px;padding:9px 4px;border-bottom:1px solid #f0f2f4}
+.page-date{flex:0 0 auto;min-width:96px;font-size:13px;color:#adb5bd;font-variant-numeric:tabular-nums}
+.page-title{color:#225c86;text-decoration:none;font-weight:500;font-size:15px}
 .page-title:hover{text-decoration:underline}
-.page-tags{margin-left:auto;font-size:12px;color:#84a59d;white-space:nowrap}
-.page-list-empty{color:#adb5bd;font-size:13px}
+.page-tags{margin-left:auto;font-size:13px;color:#84a59d;white-space:nowrap}
+.page-list-empty{color:#adb5bd;font-size:14px}
 
-@media(max-width:650px){
-  .knowledge-layout{display:block;overflow:auto}
-  .knowledge-layout aside{max-height:30vh}
-  .knowledge-layout main{overflow:visible}
+/* ============ Right sidebar: local graph (Quartz graph widget) ============ */
+.sidebar.right .graph h3,.sidebar.right .toc-header h3,.sidebar.right .backlinks h3{font-size:15px;font-weight:600;margin:0;color:#212529}
+.graph-outer{border-radius:5px;border:1px solid #dce2e7;box-sizing:border-box;height:250px;margin:.5em 0;position:relative;overflow:hidden;background:#fdfdfe}
+.knowledge-graph{position:relative;width:100%;height:100%;min-width:0}
+.graph-controls{display:flex;align-items:center;gap:10px;min-height:26px}
+.graph-controls a{color:#225c86;text-decoration:none;font-size:13.5px}
+.graph-controls a:hover{text-decoration:underline}
+.graph-controls button{border:1px solid #c7d2df;border-radius:5px;padding:3px 10px;background:#fff;color:#343a40;font-size:13px;cursor:pointer}
+.graph-controls button:disabled{color:#adb5bd;cursor:default}
+
+/* ============ Right sidebar: table of contents (Quartz toc widget) ============ */
+.toc{display:flex;flex-direction:column;min-height:1.4rem;flex:0 1 auto}
+.sidebar.right .toc-header{background:none;border:none;text-align:left;cursor:pointer;padding:0;color:#212529;display:flex;align-items:center;width:100%}
+.sidebar.right .toc-header .fold{margin-left:.5rem;transition:transform .3s ease;opacity:.8;flex:0 0 auto}
+.sidebar.right .toc-header.collapsed .fold{transform:rotateZ(-90deg)}
+ul.toc-content{list-style:none;margin:.5rem 0;padding:0;overscroll-behavior:contain}
+ul.toc-content.collapsed{display:none}
+ul.toc-content>li>a{display:block;color:#212529;opacity:.35;text-decoration:none;transition:opacity .3s ease,color .3s ease;padding:2px 0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ul.toc-content>li>a:hover{opacity:.85}
+ul.toc-content>li>a.in-view{opacity:.75}
+ul.toc-content .depth-1{padding-left:1rem}
+ul.toc-content .depth-2{padding-left:2rem}
+ul.toc-content .depth-3{padding-left:3rem}
+
+/* ============ Right sidebar: backlinks (Quartz backlinks widget) ============ */
+.backlinks{flex:0 0 auto}
+.backlinks ul.backlinks-list{list-style:none;padding:0;margin:.5rem 0}
+.backlinks ul.backlinks-list>li{padding:2px 0}
+.backlinks ul.backlinks-list>li>a{color:#225c86;text-decoration:none;font-size:14px;display:block;padding:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.backlinks ul.backlinks-list>li>a:hover{text-decoration:underline}
+
+/* ============ Responsive ============ */
+@media(max-width:900px){
+  .knowledge-layout,.knowledge-layout[data-has-right="false"]{display:block;overflow:auto}
+  .knowledge-layout .sidebar,.knowledge-layout main{height:auto;overflow:visible}
+  .knowledge-layout .sidebar.left{max-height:32vh;overflow:auto;border-right:none;border-bottom:1px solid #e0e5ea}
+  .knowledge-layout .sidebar.right{flex-direction:row;flex-wrap:wrap;gap:16px;border-left:none;border-top:1px solid #e0e5ea;padding:16px}
+  .knowledge-layout .sidebar.right>*{flex:1 1 260px;min-width:240px}
   .knowledge-reader header{gap:8px;padding:10px;flex-wrap:wrap}
 }

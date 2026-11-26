@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, createElement, type ReactNode } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -6,12 +6,71 @@ import type { Root, Parent, PhrasingContent } from 'mdast';
 import { ExplorerCanvas } from '../aggregate/aggregation-explorer';
 import type { Projection } from '@/lib/aggregation/explorer';
 import {
-  address, base, fresh, isFolderPath, Link, navigate, neighborsQuery, pageQuery,
+  address, backlinksQuery, base, fresh, isFolderPath, Link, navigate, neighborsQuery, pageQuery,
   read, resolvePageId, restoreScroll, useLocation, type Body,
 } from './util';
 import { DirectoryTree } from './directory-tree';
 import { FolderListing } from './folder-listing';
 import './snapshot-reader.css';
+
+type TocEntry = { depth: number; text: string; id: string };
+
+// Visible text of a Markdown heading line, without inline markers.
+function inlineText(line: string): string {
+  return line
+    .replace(/\[\[([^\[\]|]+)(?:\|([^\[\]]+))?\]\]/g, (_m, url: string, label?: string) => label ?? url)
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_`~]/g, '')
+    .trim();
+}
+
+// A page title heading is rendered separately, so drop a matching leading Markdown H1,
+// exactly as the Quartz page renderer does.
+function stripTitle(source: string, title: string): string {
+  const lines = source.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const match = lines[i].match(/^#\s+(.+?)\s*#*\s*$/);
+    if (match && inlineText(match[1]) === title.trim()) {
+      lines.splice(i, 1);
+      return lines.join('\n');
+    }
+    return source;
+  }
+  return source;
+}
+
+// Table of contents entries plus the heading-text -> anchor-id map used when rendering headings.
+function buildToc(source: string): { entries: TocEntry[]; ids: Map<string, string> } {
+  const entries: TocEntry[] = [];
+  const ids = new Map<string, string>();
+  const used = new Set<string>();
+  let fence = false;
+  for (const line of source.split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) { fence = !fence; continue; }
+    if (fence) continue;
+    const match = line.match(/^(#{1,4})\s+(.+?)\s*#*\s*$/);
+    if (!match) continue;
+    const text = inlineText(match[2]);
+    if (!text) continue;
+    const base = text.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, '').replace(/\s+/g, '-') || 'h';
+    let id = base;
+    let n = 2;
+    while (used.has(id)) id = `${base}-${n++}`;
+    used.add(id);
+    entries.push({ depth: match[1].length, text, id });
+    ids.set(text, id);
+  }
+  return { entries, ids };
+}
+
+function textOf(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join('');
+  if (typeof node === 'object' && 'props' in node) return textOf((node as { props?: { children?: ReactNode } }).props?.children);
+  return '';
+}
 
 // Convert Wiki links in Markdown text nodes, preserving fenced code and inline code.
 function wikiLinks() {
@@ -66,8 +125,11 @@ function Chart({ source }: { source: string }) {
 }
 
 // Markdown parsing is the costliest render step: skip it unless the text or link resolution changes.
-const Article = memo(function Article({ source, domain, link }: { source: string; domain: string; link: (href: string) => string }) {
+const Article = memo(function Article({ source, domain, link, ids }: { source: string; domain: string; link: (href: string) => string; ids: Map<string, string> }) {
+  const heading = (tag: string) => ({ children }: { children?: ReactNode }) =>
+    createElement(tag, { id: ids.get(textOf(children)) }, children);
   return <ReactMarkdown remarkPlugins={remarkPlugins} components={{
+    h1: heading('h1'), h2: heading('h2'), h3: heading('h3'), h4: heading('h4'),
     a: ({ href, children }) => <Link domain={domain} to={link(href || '')}>{children}</Link>,
     pre: ({ node, children }) => {
       const code = node?.children[0];
@@ -79,6 +141,7 @@ const Article = memo(function Article({ source, domain, link }: { source: string
   }}>{source}</ReactMarkdown>;
 });
 
+// Local graph, top of the right sidebar (Quartz graph widget).
 function Related({ domain, page }: { domain: string; page: Body }) {
   const [selected, select] = useState<string | null>(null);
   const query = useInfiniteQuery(neighborsQuery(domain, page.id));
@@ -91,11 +154,75 @@ function Related({ domain, page }: { domain: string; page: Body }) {
   // Draw once the first batch of neighbours is in: drawing the root alone and then adding the rest
   // runs a second layout pass that made the graph jump after the body had already settled.
   const loaded = query.data !== undefined || query.error !== null;
-  return <section><h2>关联图谱</h2>{query.error && <p role="alert">{query.error.message}</p>}
-    <div className="knowledge-graph">{loaded && <ExplorerCanvas contextId={domain + ':' + page.id} view={view} selectedId={selected} onSelect={n => select(n.id)} onToggle={n => select(n.id)} onClear={() => select(null)} />}</div>
-    {selected && selected !== page.id && <Link domain={domain} to={address(domain, selected)}>探索「{view.nodes.find(n => n.id === selected)?.label}」</Link>}
-    {query.hasNextPage && <button disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>加载更多关联</button>}
-  </section>;
+  const count = view.nodes.length - 1;
+  return <div className="graph">
+    <h3>关联图谱{count > 0 ? `（${count}）` : ''}</h3>
+    {query.error && <p role="alert">{query.error.message}</p>}
+    <div className="graph-outer">
+      <div className="knowledge-graph">{loaded && <ExplorerCanvas contextId={domain + ':' + page.id} view={view} selectedId={selected} onSelect={n => select(n.id)} onToggle={n => select(n.id)} onClear={() => select(null)} />}</div>
+    </div>
+    <div className="graph-controls">
+      {selected && selected !== page.id && <Link domain={domain} to={address(domain, selected)}>探索「{view.nodes.find(n => n.id === selected)?.label}」</Link>}
+      {query.hasNextPage && <button type="button" disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>加载更多关联</button>}
+    </div>
+  </div>;
+}
+
+// Page outline, middle of the right sidebar (Quartz toc widget): collapsible, with scroll spy.
+function PageToc({ entries, container }: { entries: TocEntry[]; container: React.RefObject<HTMLElement | null> }) {
+  const [active, setActive] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    const el = container.current;
+    if (!el || entries.length === 0) return;
+    const onScroll = () => {
+      const base = el.getBoundingClientRect().top;
+      const threshold = el.scrollTop + 100;
+      let current: string | null = null;
+      for (const entry of entries) {
+        const heading = el.querySelector(`[id="${CSS.escape(entry.id)}"]`) as HTMLElement | null;
+        if (!heading) continue;
+        if (heading.getBoundingClientRect().top - base + el.scrollTop <= threshold) current = entry.id;
+        else break;
+      }
+      setActive(current);
+    };
+    onScroll();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [entries, container]);
+  if (entries.length === 0) return null;
+  return (
+    <div className="toc">
+      <button type="button" className={collapsed ? 'toc-header collapsed' : 'toc-header'} aria-expanded={!collapsed} onClick={() => setCollapsed(v => !v)}>
+        <h3>页面目录</h3>
+        <svg className="fold" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+      </button>
+      <ul className={collapsed ? 'toc-content collapsed' : 'toc-content'}>
+        {entries.map(entry => (
+          <li key={entry.id} className={`depth-${entry.depth - 1}`}>
+            <a href={`#${entry.id}`} className={active === entry.id ? 'in-view' : undefined} onClick={e => {
+              e.preventDefault();
+              container.current?.querySelector(`[id="${CSS.escape(entry.id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}>{entry.text}</a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Pages linking here, bottom of the right sidebar (Quartz backlinks widget). Hidden when empty.
+function Backlinks({ domain, page }: { domain: string; page: Body }) {
+  const query = useQuery(backlinksQuery(domain, page.id));
+  const sources = query.data?.sources ?? [];
+  if (sources.length === 0) return null;
+  return <div className="backlinks">
+    <h3>反向链接（{sources.length}）</h3>
+    <ul className="backlinks-list">
+      {sources.map(s => <li key={s.id}><Link domain={domain} to={address(domain, s.id)}>{s.title}</Link></li>)}
+    </ul>
+  </div>;
 }
 
 function Reader({ domain }: { domain: string }) {
@@ -120,19 +247,35 @@ function Reader({ domain }: { domain: string }) {
     if (isFolderPath(folderPath)) return address(domain, folderPath, true);
     return address(domain, name);
   }, [domain, activeFolder]);
-  return <div className="knowledge-layout">
-    <aside aria-label="知识目录">
+  const prepared = useMemo(() => {
+    if (!page) return { source: '', entries: [] as TocEntry[], ids: new Map<string, string>() };
+    const fallback = folder ? '该目录暂无说明。' : page.type === 'virtual' ? '此链接指向的页面尚未生成。' : '';
+    const source = page.body_md ? stripTitle(page.body_md, page.title) : fallback;
+    const { entries, ids } = buildToc(source);
+    return { source, entries, ids };
+  }, [page, folder]);
+  const isEntity = !!page && page.type !== 'folder';
+  const hasRight = !folder || prepared.entries.length > 0;
+  return <div className="knowledge-layout" data-has-right={hasRight}>
+    <aside className="sidebar left" aria-label="知识目录">
       <DirectoryTree domain={domain} activeFolder={activeFolder} activePage={folder ? null : id} isFolderPage={folder} />
     </aside>
     <main ref={main} aria-busy={loading}>
       {body.error ? <p role="alert">{body.error.message}</p> : !page ? <p>正在读取知识页…</p> : <>
-        <h1>{page.title}</h1>
+        <h1 className="page-title">{page.title}</h1>
         <article>
-          <Article source={page.body_md || (folder ? '该目录暂无说明。' : page.type === 'virtual' ? '此链接指向的页面尚未生成。' : '')} domain={domain} link={link} />
+          <Article source={prepared.source} domain={domain} link={link} ids={prepared.ids} />
         </article>
-        {folder ? <FolderListing domain={domain} folderId={id} /> : !body.isPlaceholderData && <Related domain={domain} page={page} />}
+        {folder && <FolderListing domain={domain} folderId={id} />}
       </>}
     </main>
+    {hasRight && (
+      <aside className="sidebar right">
+        {!folder && isEntity && page && <Related domain={domain} page={page} />}
+        {page && <PageToc entries={prepared.entries} container={main} />}
+        {!folder && isEntity && page && <Backlinks domain={domain} page={page} />}
+      </aside>
+    )}
   </div>;
 }
 

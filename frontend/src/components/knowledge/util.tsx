@@ -6,6 +6,7 @@ export type Folder = { id: string; title: string; parent_id: string | null; kind
 export type Body = { id: string; title: string; type: string; body_md: string | null; folder_id?: string };
 export type NeighborPage = { nodes: Body[]; edges: { source: string; target: string; type: string }[]; more: boolean };
 export type ChildrenResponse = { folder: string; folders: Folder[]; pages: Page[]; page_total: number; page_has_more: boolean };
+export type BacklinksResponse = { id: string; sources: { id: string; title: string; type: string }[] };
 export type Location = { knowledge: string | null; folder: string | null; page: string | null; key: number };
 
 export const base = '/api/knowledge/domains';
@@ -75,6 +76,14 @@ export function neighborsQuery(domain: string, id: string) {
     queryFn: ({ pageParam, signal }: { pageParam: number; signal: AbortSignal }) =>
       read<NeighborPage>(base + '/' + encodeURIComponent(domain) + '/neighbors?' + new URLSearchParams({ id, offset: String(pageParam) }), signal),
     getNextPageParam: (last: NeighborPage, all: NeighborPage[]) => last.more ? all.reduce((n, p) => n + p.nodes.length, 0) : undefined,
+  };
+}
+
+export function backlinksQuery(domain: string, id: string) {
+  return {
+    queryKey: ['backlinks', domain, id], staleTime: fresh,
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      read<BacklinksResponse>(base + '/' + encodeURIComponent(domain) + '/backlinks?' + new URLSearchParams({ id }), signal),
   };
 }
 
