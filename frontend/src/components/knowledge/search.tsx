@@ -15,6 +15,12 @@ function termsOf(query: string): string[] {
   return [...terms, ...query.replace(new RegExp(CJK_SOURCE, 'g'), ' ').split(/\s+/).filter(Boolean)];
 }
 
+// Highlighting must only follow free-text words: strip `#tag`, `@key:value` and `-exclude`
+// tokens so property/tag filters never highlight matching words inside the preview body.
+function freeTextOf(query: string): string {
+  return query.split(/\s+/).filter(token => !/^[-#@]/.test(token)).join(' ');
+}
+
 // Wrap case-insensitive term occurrences with the same control-char markers the backend uses.
 function markText(text: string, terms: string[]): string {
   if (!text) return text;
@@ -115,7 +121,7 @@ export function SearchOverlay({ domain, initialQuery, onClose }: { domain: strin
   const query = useQuery({ ...searchQuery(domain, debounced, limit), enabled: debounced !== '', placeholderData: keepPreviousData });
   const results = debounced === '' ? [] : query.data?.results ?? [];
   const total = query.data?.total ?? 0;
-  const terms = useMemo(() => termsOf(debounced), [debounced]);
+  const terms = useMemo(() => termsOf(freeTextOf(debounced)), [debounced]);
 
   useEffect(() => {
     (list.current?.querySelectorAll('.search-item')[selected] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });

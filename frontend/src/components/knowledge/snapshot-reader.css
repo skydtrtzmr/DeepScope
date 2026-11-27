@@ -79,8 +79,8 @@
 .page-list-ul{list-style:none;margin:0;padding:0}
 .page-item{display:flex;align-items:baseline;gap:12px;padding:9px 4px;border-bottom:1px solid #f0f2f4}
 .page-date{flex:0 0 auto;min-width:96px;font-size:13px;color:#adb5bd;font-variant-numeric:tabular-nums}
-.page-title{color:#225c86;text-decoration:none;font-weight:500;font-size:15px}
-.page-title:hover{text-decoration:underline}
+.page-item-title{color:#225c86;text-decoration:none;font-weight:500;font-size:15px}
+.page-item-title:hover{text-decoration:underline}
 .page-tags{margin-left:auto;font-size:13px;color:#84a59d;white-space:nowrap}
 .page-list-empty{color:#adb5bd;font-size:14px}
 
@@ -263,3 +263,76 @@ ul.toc-content .depth-3{padding-left:3rem}
   cursor:pointer;font-family:inherit;transition:background .15s ease;
 }
 .note-properties-tags .prop-tag:hover{background:#d8e8f4}
+
+/* ============ Dimension views (folder dimension mode + dimension-value page) ============ */
+/* 目录页视图切换条（目录 | 按维度） */
+.dim-view-toggle{
+  display:inline-flex;align-items:center;gap:0;margin:0 0 18px;
+  background:#fff;border:1px solid #c7d2df;border-radius:999px;padding:3px;
+}
+.dim-view-toggle button{
+  border:none;background:transparent;color:#6c757d;font:13px/1 inherit;
+  border-radius:999px;padding:6px 16px;cursor:pointer;transition:background .15s ease,color .15s ease;
+}
+.dim-view-toggle button:hover{color:#284b63}
+.dim-view-toggle button.active{background:#e7f0f7;color:#284b63;font-weight:600;box-shadow:inset 0 0 0 1px #a9c3d6}
+
+/* 维度模式：每字段一条分组块 */
+.dim-groups{max-width:860px}
+.dim-status{color:#868e96;font-size:14px}
+.dim-field{margin:0 0 26px}
+.dim-field-title{
+  display:flex;align-items:baseline;gap:10px;font-size:15px;font-weight:600;
+  color:#41546b;margin:0 0 10px;
+}
+.dim-field-count{font-size:12px;font-weight:400;color:#868e96}
+.dim-value-list{display:flex;flex-wrap:wrap;gap:10px}
+.dim-value-card{
+  display:inline-flex;align-items:center;gap:10px;padding:8px 14px;
+  background:#fff;border:1px solid #dde3e8;border-radius:7px;
+  color:#343a40;text-decoration:none;font-size:14px;cursor:pointer;
+  transition:background .15s ease,border-color .15s ease,transform .15s ease;
+}
+.dim-value-card:hover{background:#e7f0f7;border-color:#8fb1d8;transform:translateY(-1px)}
+.dim-value-name{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dim-value-count{
+  flex:0 0 auto;font-size:12px;font-variant-numeric:tabular-nums;
+  background:#e2e8ee;color:#41546b;border-radius:10px;padding:2px 9px;
+}
+
+/* 维度值页 */
+.dim-value{max-width:860px}
+.dim-field-badge{
+  display:inline-block;vertical-align:middle;margin-left:12px;
+  font-size:12px;font-weight:400;color:#6c757d;
+  background:#f0f4f8;border:1px solid #e2e8ee;border-radius:4px;padding:2px 8px;
+}
+.dim-filter-bar{
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+  font-size:13.5px;color:#6c757d;margin:0 0 14px;
+}
+.dim-scope-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  background:#e7f0f7;border:1px solid #c9dbe8;color:#225c86;
+  border-radius:5px;padding:2px 4px 2px 10px;font-size:13px;
+}
+.dim-scope-chip button{
+  border:none;background:transparent;color:#4d7ea8;cursor:pointer;
+  font:14px/1 inherit;border-radius:4px;padding:2px 6px;
+}
+.dim-scope-chip button:hover{background:#d8e8f4;color:#284b63}
+.dim-truncated{color:#a33424;font-size:13px}
+.dim-subgraph{margin:0 0 20px}
+.dim-selected-hint{font-size:13px;color:#868e96;margin:6px 0 0}
+.dim-selected-hint a{color:#225c86}
+.dim-group{margin:0 0 22px}
+.dim-group-title{
+  display:flex;align-items:baseline;gap:10px;font-size:15px;font-weight:600;
+  color:#212529;margin:0 0 6px;
+}
+.dim-group-count{font-size:12px;font-weight:400;color:#868e96;font-variant-numeric:tabular-nums}
+.dim-pages{list-style:none;margin:0;padding:0}
+.dim-page{display:flex;align-items:baseline;gap:12px;padding:8px 4px;border-bottom:1px solid #f0f2f4}
+.dim-page-date{flex:0 0 auto;min-width:96px;font-size:13px;color:#adb5bd;font-variant-numeric:tabular-nums}
+.dim-page-title{color:#225c86;text-decoration:none;font-weight:500;font-size:15px}
+.dim-page-title:hover{text-decoration:underline}

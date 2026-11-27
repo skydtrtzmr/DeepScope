@@ -4,13 +4,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Root, Parent, PhrasingContent } from 'mdast';
 import { ExplorerCanvas } from '../aggregate/aggregation-explorer';
-import type { Projection } from '@/lib/aggregation/explorer';
+import type { Projection, ViewNode } from '@/lib/aggregation/explorer';
 import {
-  address, backlinksQuery, base, fresh, isFolderPath, Link, navigate, neighborsQuery, pageQuery,
+  address, backlinksQuery, base, dimensionAddress, dimensionsQuery, fresh, isFolderPath, Link, navigate, neighborsQuery, pageQuery,
   read, resolvePageId, restoreScroll, useLocation, type Body,
 } from './util';
 import { DirectoryTree } from './directory-tree';
 import { FolderListing } from './folder-listing';
+import { DimensionValue } from './dimensions';
 import { SearchButton, SearchOverlay } from './search';
 import './snapshot-reader.css';
 
@@ -143,27 +144,83 @@ const Article = memo(function Article({ source, domain, link, ids }: { source: s
 });
 
 // Local graph, top of the right sidebar (Quartz graph widget).
+// Neighbours are aggregated (not filtered): grouped into one node per value of the
+// aggregation chain's first field; a group click jumps to the dimension-value page.
 function Related({ domain, page }: { domain: string; page: Body }) {
   const [selected, select] = useState<string | null>(null);
   const query = useInfiniteQuery(neighborsQuery(domain, page.id));
   useEffect(() => { select(null); }, [page.id]);
+  const scope = (page.folder_id ?? '/').replace(/^\/+|\/+$/g, '');
+  const dims = useQuery({ ...dimensionsQuery(domain, scope), enabled: query.data !== undefined });
+  const chainField = dims.data?.chain?.[0];
+  const GROUP_PREFIX = 'dim-group:';
+
   const view = useMemo<Projection>(() => {
     const pages = query.data?.pages ?? [];
-    const nodes = [page, ...pages.flatMap(p => p.nodes)].map(n => ({ id: n.id, label: n.title, kind: 'entity' as const, depth: n.id === page.id ? 0 : 1, entity: { id: n.id, label: n.title, type: n.type, properties: {} } }));
-    return { nodes, rootId: page.id, total: nodes.length, edges: pages.flatMap(p => p.edges).map(e => ({ ...e, id: JSON.stringify([e.source, e.target, e.type]), kind: 'relation' as const })) };
-  }, [query.data, page]);
+    const neighbors = pages.flatMap(p => p.nodes);
+    const nodes: ViewNode[] = [{
+      id: page.id, label: page.title, kind: 'entity', depth: 0,
+      entity: { id: page.id, label: page.title, type: page.type, properties: {} },
+    }];
+    const edges: Projection['edges'] = [];
+    if (!chainField) {
+      for (const n of neighbors) nodes.push({
+        id: n.id, label: n.title, kind: 'entity', depth: 1,
+        entity: { id: n.id, label: n.title, type: n.type, properties: {} },
+      });
+      return { nodes, edges: pages.flatMap(p => p.edges).map(e => ({ ...e, id: JSON.stringify([e.source, e.target, e.type]), kind: 'relation' as const })), total: nodes.length, rootId: page.id };
+    }
+    const buckets = new Map<string, Body[]>();
+    const loose: Body[] = [];
+    for (const n of neighbors) {
+      const raw = n.frontmatter?.[chainField];
+      const value = Array.isArray(raw) ? raw.find(v => v != null && v !== '') : raw;
+      const key = value == null || value === '' ? null : String(value);
+      if (key == null) loose.push(n);
+      else buckets.set(key, [...(buckets.get(key) ?? []), n]);
+    }
+    for (const [key, members] of buckets) {
+      const id = GROUP_PREFIX + JSON.stringify([chainField, key]);
+      nodes.push({ id, label: `${key} · ${members.length}`, kind: 'group', count: members.length,
+        depth: 1, parentId: page.id, memberIds: members.map(m => m.id) });
+      edges.push({ id: JSON.stringify(['membership', page.id, id]), source: page.id, target: id, kind: 'membership' });
+    }
+    for (const n of loose) nodes.push({
+      id: n.id, label: n.title, kind: 'entity', depth: 1, parentId: page.id,
+      entity: { id: n.id, label: n.title, type: n.type, properties: {} },
+    });
+    const visible = new Set(nodes.map(n => n.id));
+    for (const e of pages.flatMap(p => p.edges)) {
+      if (visible.has(e.source) && visible.has(e.target)) {
+        edges.push({ ...e, id: JSON.stringify([e.source, e.target, e.type]), kind: 'relation' });
+      }
+    }
+    return { nodes, edges, total: nodes.length, rootId: page.id };
+  }, [query.data, page, chainField]);
+
+  const openGroup = (node: ViewNode) => {
+    if (node.kind !== 'group' || !chainField) return;
+    const value = JSON.parse(node.id.slice(GROUP_PREFIX.length))[1];
+    navigate(dimensionAddress(domain, chainField, value, scope));
+  };
+  const selectedNode = selected ? view.nodes.find(n => n.id === selected) : undefined;
+  const groupTarget = selectedNode?.kind === 'group' && chainField
+    ? dimensionAddress(domain, chainField, JSON.parse(selectedNode.id.slice(GROUP_PREFIX.length))[1], scope)
+    : null;
   // Draw once the first batch of neighbours is in: drawing the root alone and then adding the rest
   // runs a second layout pass that made the graph jump after the body had already settled.
-  const loaded = query.data !== undefined || query.error !== null;
-  const count = view.nodes.length - 1;
+  const loaded = query.error !== null || (query.data !== undefined && !dims.isPending);
+  const count = query.data ? query.data.pages.reduce((n, p) => n + p.nodes.length, 0) : 0;
   return <div className="graph">
     <h3>关联图谱{count > 0 ? `（${count}）` : ''}</h3>
     {query.error && <p role="alert">{query.error.message}</p>}
+    {dims.error && <p>维度分组不可用，邻居按实体平铺展示。</p>}
     <div className="graph-outer">
-      <div className="knowledge-graph">{loaded && <ExplorerCanvas contextId={domain + ':' + page.id} view={view} selectedId={selected} onSelect={n => select(n.id)} onToggle={n => select(n.id)} onClear={() => select(null)} />}</div>
+      <div className="knowledge-graph">{loaded && <ExplorerCanvas frameBeforeEntry key={JSON.stringify([domain, page.id, chainField])} contextId={domain + ':' + page.id + ':' + (chainField ?? '')} view={view} selectedId={selected} onSelect={n => select(n.id)} onToggle={openGroup} onClear={() => select(null)} />}</div>
     </div>
     <div className="graph-controls">
-      {selected && selected !== page.id && <Link domain={domain} to={address(domain, selected)}>探索「{view.nodes.find(n => n.id === selected)?.label}」</Link>}
+      {groupTarget && selectedNode && <Link domain={domain} to={groupTarget}>查看「{selectedNode.label.split(' · ')[0]}」维度值</Link>}
+      {selectedNode?.kind === 'entity' && selectedNode.id !== page.id && <Link domain={domain} to={address(domain, selectedNode.id)}>探索「{selectedNode.label}」</Link>}
       {query.hasNextPage && <button type="button" disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>加载更多关联</button>}
     </div>
   </div>;
@@ -228,15 +285,20 @@ function Backlinks({ domain, page }: { domain: string; page: Body }) {
 
 // Frontmatter property list under the page title (Quartz note-properties panel).
 // Wiki links inside values reuse the page link resolver; tags open the search overlay as `#tag`.
-function NoteProperties({ frontmatter, domain, link, onSearchTag }: {
+// With a configured properties chain only those fields are shown, in chain order.
+function NoteProperties({ frontmatter, displayFields, domain, link, onSearchTag }: {
   frontmatter: Record<string, unknown> | undefined;
+  displayFields?: string[];
   domain: string;
   link: (href: string) => string;
   onSearchTag: (tag: string) => void;
 }) {
   const panel = useRef<HTMLDetailsElement>(null);
-  const entries = Object.entries(frontmatter ?? {});
-  if (entries.length === 0) return null;
+  const fields = frontmatter ?? {};
+  const rows = displayFields
+    ? displayFields.filter(field => field in fields).map(field => [field, fields[field]] as [string, unknown])
+    : Object.entries(fields);
+  if (rows.length === 0) return null;
 
   const renderText = (text: string): ReactNode => {
     const parts: ReactNode[] = [];
@@ -275,11 +337,11 @@ function NoteProperties({ frontmatter, domain, link, onSearchTag }: {
     >
       <summary className="note-properties-header">
         <span>属性</span>
-        <span className="note-properties-count">{entries.length}</span>
+        <span className="note-properties-count">{rows.length}</span>
       </summary>
       <table className="note-properties-table">
         <tbody>
-          {entries.map(([key, value]) => (
+          {rows.map(([key, value]) => (
             <tr key={key} className="note-properties-row">
               <td className="note-properties-key">{key}</td>
               <td className="note-properties-value">{renderValue(key, value)}</td>
@@ -293,13 +355,18 @@ function NoteProperties({ frontmatter, domain, link, onSearchTag }: {
 
 function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: (query?: string) => void }) {
   const location = useLocation();
-  const folder = !location.page;
-  const id = (folder ? location.folder : location.page) || '/';
+  // 维度值页：?dimension=字段&value=值&scope=目录，主栏渲染维度视图，左侧目录树保留
+  const dimensionView = !!(location.dimension && location.value);
+  const folder = !dimensionView && !location.page;
+  const dimensionScope = (location.scope || '').replace(/^\/+|\/+$/g, '');
+  const id = dimensionView
+    ? (dimensionScope ? '/' + dimensionScope : '/')
+    : (folder ? location.folder : location.page) || '/';
   // Show the previous page until the next one arrives instead of flashing a loading state.
-  const body = useQuery({ ...pageQuery(domain, folder, id), placeholderData: keepPreviousData });
+  const body = useQuery({ ...pageQuery(domain, folder, id), placeholderData: keepPreviousData, enabled: !dimensionView });
   const page = body.data;
   const loading = body.isPlaceholderData;
-  const activeFolder = folder ? id : (page?.folder_id ?? null);
+  const activeFolder = dimensionView || folder ? id : (page?.folder_id ?? null);
   const main = useRef<HTMLElement>(null);
   useLayoutEffect(() => { restoreScroll(location.key, main.current); }, [location.key]);
   const link = useCallback((href: string) => {
@@ -321,16 +388,18 @@ function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: (query
     return { source, entries, ids };
   }, [page, folder]);
   const isEntity = !!page && page.type !== 'folder';
-  const hasRight = !folder || prepared.entries.length > 0;
+  const hasRight = !dimensionView && (!folder || prepared.entries.length > 0);
   return <div className="knowledge-layout" data-has-right={hasRight}>
     <aside className="sidebar left" aria-label="知识目录">
       <SearchButton onOpen={onOpenSearch} />
       <DirectoryTree domain={domain} activeFolder={activeFolder} activePage={folder ? null : id} isFolderPage={folder} />
     </aside>
     <main ref={main} aria-busy={loading}>
-      {body.error ? <p role="alert">{body.error.message}</p> : !page ? <p>正在读取知识页…</p> : <>
+      {dimensionView ? (
+        <DimensionValue domain={domain} field={location.dimension!} value={location.value!} scope={dimensionScope} />
+      ) : body.error ? <p role="alert">{body.error.message}</p> : !page ? <p>正在读取知识页…</p> : <>
         <h1 className="page-title">{page.title}</h1>
-        <NoteProperties frontmatter={page.frontmatter} domain={domain} link={link} onSearchTag={tag => onOpenSearch('#' + tag)} />
+        <NoteProperties frontmatter={page.frontmatter} displayFields={page.display_fields ?? undefined} domain={domain} link={link} onSearchTag={tag => onOpenSearch('#' + tag)} />
         <article>
           <Article source={prepared.source} domain={domain} link={link} ids={prepared.ids} />
         </article>

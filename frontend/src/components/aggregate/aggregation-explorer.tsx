@@ -140,14 +140,14 @@ function highlightStates(view: Projection, selectedId: string | null) {
 
 // This G6 build fits "always" by default, which enlarges a sparse graph until it fills the canvas.
 // Only shrink an oversized graph; never zoom in past the designed label size.
-async function frame(instance: Graph) {
-  await instance.fitView({ when: 'overflow' }, false);
+async function frame(instance: Graph, fitBothAxes = false) {
+  await instance.fitView({ when: fitBothAxes ? 'always' : 'overflow' }, false);
   if (instance.getZoom() <= 1) return;
   await instance.zoomTo(1, false);
   await instance.fitCenter(false);
 }
 
-export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect, onToggle }: { selectedId: string | null; onClear: () => void; view: Projection; contextId: string; onSelect: (node: ViewNode) => void; onToggle: (node: ViewNode) => void }) {
+export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect, onToggle, frameBeforeEntry = false }: { frameBeforeEntry?: boolean; selectedId: string | null; onClear: () => void; view: Projection; contextId: string; onSelect: (node: ViewNode) => void; onToggle: (node: ViewNode) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const graph = useRef<Graph | null>(null);
   const current = useRef({ view, selectedId, onClear, onSelect, onToggle });
@@ -157,10 +157,10 @@ export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect,
   const lastContext = useRef('');
   useEffect(() => {
     if (!container.current) return;
-    const instance = new Graph({ container: container.current, autoResize: true, animation: { duration: 250 },
+    const instance = new Graph({ container: container.current, autoResize: true, padding: frameBeforeEntry ? 20 : 0, animation: { duration: 250 },
       behaviors: ['drag-canvas', 'zoom-canvas', { type: SINGLE_NODE_FORCE_DRAG, fixed: false }],
       layout: {
-        type: 'd3-force',
+        type: 'd3-force', preLayout: frameBeforeEntry,
         link: { distance: 170, strength: 0.6 },
         manyBody: { strength: -180 },
         collide: { radius: 68, strength: 1 },
@@ -171,7 +171,7 @@ export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect,
       edge: { type: d => String(d.type ?? 'line'), state: { related: { stroke: '#4f46e5', lineWidth: 3, labelFill: '#312e81' }, muted: { opacity: 0.12 } } },
     });
     instance.once('afterdraw', () => {
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (!frameBeforeEntry && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         container.current?.animate([
           { opacity: 0, transform: 'scale(.92)' },
           { opacity: 1, transform: 'scale(1)' },
@@ -237,7 +237,33 @@ export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect,
       // G6 render starts entry/exit animation and force layout together. Do not await
       // its completion here: the next interaction must be free to interrupt the layout.
       void instance.render().then(async () => {
-        if (changedContext && !cancelled && graph.current === instance) await frame(instance);
+        const host = container.current;
+        if (!host || cancelled || graph.current !== instance) return;
+        if (!frameBeforeEntry) {
+          if (changedContext) await frame(instance);
+          return;
+        }
+        if (host.style.visibility !== 'hidden') return;
+        await frame(instance, true);
+        if (cancelled || graph.current !== instance) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          host.style.visibility = 'visible';
+          return;
+        }
+        // Animate node positions inside the final frame; keep the camera stationary.
+        const end: Record<string, [number, number]> = {};
+        const start: Record<string, [number, number]> = {};
+        const [cx, cy] = instance.getCanvasByViewport([host.clientWidth / 2, host.clientHeight / 2]);
+        for (const { id } of view.nodes) {
+          const [x, y] = instance.getElementPosition(id);
+          end[id] = [x, y];
+          start[id] = [cx + (x - cx) * .65, cy + (y - cy) * .65];
+        }
+        await instance.translateElementTo(start, false);
+        if (cancelled || graph.current !== instance) return;
+        host.style.visibility = 'visible';
+        host.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250 });
+        await instance.translateElementTo(end, true);
       }).catch(e => {
         if (!cancelled && graph.current === instance) setError(e instanceof Error ? e.message : '渲染失败');
       });
@@ -251,5 +277,5 @@ export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect,
       void instance.setElementState(highlightStates(current.current.view, selectedId), false);
     }
   }, [selectedId]);
-  return <><div ref={container} className="w-full h-full" />{error && <div role="alert" className="absolute bottom-4 left-4 bg-background border p-3 text-sm">{error}</div>}</>;
+  return <><div ref={container} style={frameBeforeEntry ? { visibility: 'hidden' } : undefined} className="w-full h-full" />{error && <div role="alert" className="absolute bottom-4 left-4 bg-background border p-3 text-sm">{error}</div>}</>;
 }

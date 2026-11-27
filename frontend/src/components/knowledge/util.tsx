@@ -3,9 +3,9 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 
 export type Page = { id: string; title: string; folder_id: string; date?: string; tags?: string[] };
 export type Folder = { id: string; title: string; parent_id: string | null; kind?: string };
-export type Body = { id: string; title: string; type: string; body_md: string | null; folder_id?: string; frontmatter?: Record<string, unknown> };
+export type Body = { id: string; title: string; type: string; body_md: string | null; folder_id?: string; frontmatter?: Record<string, unknown>; display_fields?: string[] | null };
 export type NeighborPage = { nodes: Body[]; edges: { source: string; target: string; type: string }[]; more: boolean };
-export type ChildrenResponse = { folder: string; folders: Folder[]; pages: Page[]; page_total: number; page_has_more: boolean };
+export type ChildrenResponse = { folder: string; folders: Folder[]; pages: Page[]; page_total: number; page_has_more: boolean; sort?: { field: string; order: string } };
 export type BacklinksResponse = { id: string; sources: { id: string; title: string; type: string }[] };
 export type SearchHit = {
   kind: 'page' | 'folder';
@@ -16,11 +16,22 @@ export type SearchHit = {
   folder_id: string | null;
 };
 export type SearchResponse = { results: SearchHit[]; total: number };
-export type Location = { knowledge: string | null; folder: string | null; page: string | null; key: number };
+export type DimensionsResponse = { scope: string; chain: string[]; fields: { field: string; values: { value: string; count: number }[] }[] };
+export type DimensionValueResponse = {
+  field: string;
+  value: string;
+  scope: string;
+  count: number;
+  groups: { folder: string; title: string; pages: { id: string; title: string; date?: string | null }[] }[];
+  subgraph: { nodes: { id: string; title: string }[]; edges: { source: string; target: string }[]; truncated: boolean };
+};
+export type Location = { knowledge: string | null; folder: string | null; page: string | null; dimension: string | null; value: string | null; scope: string | null; key: number };
 
 export const base = '/api/knowledge/domains';
 // Snapshot data only changes on rebuild, so revisits within one session are served from memory.
 export const fresh = 60_000;
+// Dimension config lives in config.db and takes effect on write (mtime invalidation), so only short-cache it.
+export const dimensionFresh = 5_000;
 export const PAGE_SIZE = 50;
 
 export async function read<T>(url: string, signal: AbortSignal): Promise<T> {
@@ -31,6 +42,12 @@ export async function read<T>(url: string, signal: AbortSignal): Promise<T> {
 
 export function address(domain: string, id: string, folder = false) {
   return '?' + new URLSearchParams({ knowledge: domain, [folder ? 'folder' : 'page']: id });
+}
+
+export function dimensionAddress(domain: string, field: string, value: string, scope?: string) {
+  const params: Record<string, string> = { knowledge: domain, dimension: field, value };
+  if (scope) params.scope = scope;
+  return '?' + new URLSearchParams(params);
 }
 
 // In-app navigation: the URL stays shareable, but the document is never reloaded.
@@ -44,6 +61,9 @@ export function readLocation(): Location {
     knowledge: params.get('knowledge'),
     folder: params.get('folder'),
     page: params.get('page'),
+    dimension: params.get('dimension'),
+    value: params.get('value'),
+    scope: params.get('scope'),
     key: (history.state && (history.state as { key?: number }).key) || 0,
   };
 }
@@ -110,6 +130,22 @@ export function childrenQuery(domain: string, folderId: string) {
     queryFn: ({ pageParam, signal }: { pageParam: number; signal: AbortSignal }) =>
       read<ChildrenResponse>(base + '/' + encodeURIComponent(domain) + '/children?' + new URLSearchParams({ folder: folderId, offset: String(pageParam), limit: String(PAGE_SIZE) }), signal),
     getNextPageParam: (last: ChildrenResponse, all: ChildrenResponse[]) => last.page_has_more ? all.reduce((n, p) => n + p.pages.length, 0) : undefined,
+  };
+}
+
+export function dimensionsQuery(domain: string, scope: string) {
+  return {
+    queryKey: ['dimensions', domain, scope], staleTime: dimensionFresh,
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      read<DimensionsResponse>(base + '/' + encodeURIComponent(domain) + '/dimensions?' + new URLSearchParams({ scope }), signal),
+  };
+}
+
+export function dimensionValueQuery(domain: string, field: string, value: string, scope: string) {
+  return {
+    queryKey: ['dimension-value', domain, field, value, scope], staleTime: dimensionFresh,
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      read<DimensionValueResponse>(base + '/' + encodeURIComponent(domain) + '/dimension-value?' + new URLSearchParams({ field, value, scope }), signal),
   };
 }
 
