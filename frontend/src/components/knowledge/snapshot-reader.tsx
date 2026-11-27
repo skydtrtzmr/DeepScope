@@ -1,3 +1,4 @@
+import { Network } from 'lucide-react';
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, createElement, type ReactNode } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
@@ -6,7 +7,7 @@ import type { Root, Parent, PhrasingContent } from 'mdast';
 import { ExplorerCanvas } from '../aggregate/aggregation-explorer';
 import type { Projection, ViewNode } from '@/lib/aggregation/explorer';
 import {
-  address, backlinksQuery, base, fresh, isFolderPath, Link, navigate, neighborsQuery, pageQuery,
+  address, base, fresh, isFolderPath, Link, navigate, neighborsQuery, pageQuery,
   read, resolvePageId, restoreScroll, useLocation, type Body,
 } from './util';
 import { AggregationPanel, AggregationPreferences, useAggregation } from './aggregation-preferences';
@@ -146,6 +147,48 @@ const Article = memo(function Article({ source, domain, link, ids }: { source: s
 
 // Local graph, top of the right sidebar (Quartz graph widget).
 // Neighbours are aggregated (not filtered): grouped into one node per value of the
+type RelatedTree = { pages: Body[]; groups: { value: string; count: number; children: RelatedTree }[] };
+
+function groupRelated(pages: Body[], fields: string[], minimum: number): RelatedTree {
+  const [field, ...rest] = fields;
+  if (!field) return { pages, groups: [] };
+  const loose: Body[] = [];
+  const buckets = new Map<string, Body[]>();
+  for (const page of pages) {
+    const raw = page.frontmatter?.[field];
+    const value = Array.isArray(raw) ? raw.find(v => v != null && v !== '') : raw;
+    if (value == null || value === '') {
+      loose.push(page);
+      continue;
+    }
+    const key = String(value);
+    const group = buckets.get(key) ?? [];
+    group.push(page);
+    buckets.set(key, group);
+  }
+  const groups: RelatedTree['groups'] = [];
+  for (const [value, members] of buckets) {
+    if (members.length < minimum) loose.push(...members);
+    else groups.push({ value, count: members.length, children: groupRelated(members, rest, minimum) });
+  }
+  return { pages: loose, groups };
+}
+
+function RelatedList({ tree, domain, directions }: {
+  tree: RelatedTree; domain: string; directions: Map<string, number>;
+}) {
+  return <ul className="backlinks-list">
+    {tree.groups.map(group => <li key={group.value}><details>
+      <summary>{group.value} <span className="dir-group-count">{group.count}</span></summary>
+      <RelatedList tree={group.children} domain={domain} directions={directions} />
+    </details></li>)}
+    {tree.pages.map(page => <li key={page.id} className="related-page-row">
+      <Link domain={domain} to={address(domain, page.id)}>{page.title}</Link>
+      <span>{['', '引用', '被引用', '双向'][directions.get(page.id) ?? 0]}</span>
+    </li>)}
+  </ul>;
+}
+
 // Related nodes are grouped from the current page's neighbors.
 function Related({ domain, page }: { domain: string; page: Body }) {
   const [selected, select] = useState<string | null>(null);
@@ -155,8 +198,20 @@ function Related({ domain, page }: { domain: string; page: Body }) {
   const query = useInfiniteQuery(neighborsQuery(domain, page.id));
   const { order, query: dims } = useAggregation(domain, page.folder_id ?? '/');
   const orderKey = JSON.stringify(order);
+  const related = useMemo(() => query.data?.pages.flatMap(p => p.nodes) ?? [], [query.data]);
+  const relations = useMemo(() => query.data?.pages.flatMap(p => p.edges) ?? [], [query.data]);
+  const tree = useMemo(() => groupRelated(related, JSON.parse(orderKey), dims.data?.min_group_size ?? 1),
+    [related, orderKey, dims.data?.min_group_size]);
+  const directions = useMemo(() => {
+    const result = new Map<string, number>();
+    for (const edge of relations) {
+      const outgoing = edge.source === page.id;
+      const id = outgoing ? edge.target : edge.source;
+      result.set(id, (result.get(id) ?? 0) | (outgoing ? 1 : 2));
+    }
+    return result;
+  }, [relations, page.id]);
   const view = useMemo<Projection>(() => {
-    const pages = query.data?.pages ?? [];
     const nodes: ViewNode[] = [];
     const edges: Projection['edges'] = [];
     const addEntity = (n: Body, depth: number, parentId?: string) => nodes.push({
@@ -166,52 +221,30 @@ function Related({ domain, page }: { domain: string; page: Body }) {
     function membership(parent: string, child: string) {
       edges.push({ id: JSON.stringify(['membership', parent, child]), source: parent, target: child, kind: 'membership' });
     }
-    function branch(members: Body[], fields: string[], parent: string, path: string[], depth: number) {
-      const [field, ...rest] = fields;
-      if (!field) {
-        for (const n of members) {
-          addEntity(n, depth, parent);
-          if (parent !== page.id) membership(parent, n.id);
-        }
-        return;
+    function branch(tree: RelatedTree, parent: string, path: string[], depth: number) {
+      for (const n of tree.pages) {
+        addEntity(n, depth, parent);
+        if (parent !== page.id) membership(parent, n.id);
       }
-      const buckets = new Map<string, Body[]>();
-      for (const n of members) {
-        const raw = n.frontmatter?.[field];
-        const value = Array.isArray(raw) ? raw.find(v => v != null && v !== '') : raw;
-        if (value == null || value === '') {
-          addEntity(n, depth, parent);
-          if (parent !== page.id) membership(parent, n.id);
-          continue;
-        }
-        const key = String(value);
-        const group = buckets.get(key) ?? [];
-        group.push(n);
-        buckets.set(key, group);
-      }
-      for (const [value, group] of buckets) {
-        if (group.length < (dims.data?.min_group_size ?? 1)) {
-          branch(group, [], parent, path, depth);
-          continue;
-        }
-        const nextPath = [...path, value];
+      for (const group of tree.groups) {
+        const nextPath = [...path, group.value];
         const id = 'dim-group:' + JSON.stringify([orderKey, nextPath]);
         const open = expanded.has(id);
-        nodes.push({ id, label: value + ' · ' + group.length, kind: 'group', depth, parentId: parent, count: group.length, expanded: open });
+        nodes.push({ id, label: group.value + ' · ' + group.count, kind: 'group', depth, parentId: parent, count: group.count, expanded: open });
         membership(parent, id);
-        if (open) branch(group, rest, id, nextPath, depth + 1);
+        if (open) branch(group.children, id, nextPath, depth + 1);
       }
     }
     addEntity(page, 0);
-    branch(pages.flatMap(p => p.nodes), JSON.parse(orderKey), page.id, [], 1);
+    branch(tree, page.id, [], 1);
     const visible = new Set(nodes.map(n => n.id));
-    for (const e of pages.flatMap(p => p.edges)) {
+    for (const e of relations) {
       if (visible.has(e.source) && visible.has(e.target)) {
         edges.push({ ...e, id: JSON.stringify([e.source, e.target, e.type]), kind: 'relation' });
       }
     }
     return { nodes, edges, total: nodes.length, rootId: page.id };
-  }, [query.data, page, orderKey, expanded, dims.data?.min_group_size]);
+  }, [tree, relations, page, orderKey, expanded]);
 
   function pick(node: ViewNode) {
     select(node.id);
@@ -225,7 +258,7 @@ function Related({ domain, page }: { domain: string; page: Body }) {
   // Draw once the first batch of neighbours is in: drawing the root alone and then adding the rest
   // runs a second layout pass that made the graph jump after the body had already settled.
   const loaded = query.error !== null || (query.data !== undefined && !dims.isPending);
-  const count = query.data ? query.data.pages.reduce((n, p) => n + p.nodes.length, 0) : 0;
+  const count = query.data?.pages[0]?.total ?? related.length;
   const canvas = (suffix: string) => <ExplorerCanvas frameBeforeEntry fitUpdates
     key={JSON.stringify([page.id, orderKey, suffix])} contextId={page.id + ':' + orderKey + ':' + suffix} view={view}
     selectedId={selected} onSelect={pick} onToggle={() => {}} onClear={() => select(null)} />;
@@ -236,7 +269,7 @@ function Related({ domain, page }: { domain: string; page: Body }) {
   return <div className="graph">
     <div className="knowledge-graph-heading">
       <h3>关联图谱{count > 0 ? `（${count}）` : ''}</h3>
-      <button type="button" disabled={!loaded} onClick={() => { modal.current?.showModal(); enlarge(true); }}>放大图谱</button>
+      <button type="button" className="graph-expand-button" title="放大图谱" aria-label="放大图谱" disabled={!loaded} onClick={() => { modal.current?.showModal(); enlarge(true); }}><Network size={17} aria-hidden="true" /></button>
     </div>
     {query.error && <p role="alert">{query.error.message}</p>}
     {dims.error && <p>维度分组不可用，邻居按实体平铺展示。</p>}
@@ -247,6 +280,12 @@ function Related({ domain, page }: { domain: string; page: Body }) {
       <div className="knowledge-graph">{enlarged && canvas('large')}</div>
       {controls}
     </dialog>
+    {count > 0 && <section className="backlinks">
+      <h3>关联页面（{count}）</h3>
+      <RelatedList tree={tree} domain={domain} directions={directions} />
+      {query.hasNextPage && <button type="button" className="dir-load-more" disabled={query.isFetchingNextPage}
+        onClick={() => query.fetchNextPage()}>加载更多（已加载 {related.length} / {count}）</button>}
+    </section>}
   </div>;
 }
 
@@ -292,19 +331,6 @@ function PageToc({ entries, container }: { entries: TocEntry[]; container: React
       </ul>
     </div>
   );
-}
-
-// Pages linking here, bottom of the right sidebar (Quartz backlinks widget). Hidden when empty.
-function Backlinks({ domain, page }: { domain: string; page: Body }) {
-  const query = useQuery(backlinksQuery(domain, page.id));
-  const sources = query.data?.sources ?? [];
-  if (sources.length === 0) return null;
-  return <div className="backlinks">
-    <h3>反向链接（{sources.length}）</h3>
-    <ul className="backlinks-list">
-      {sources.map(s => <li key={s.id}><Link domain={domain} to={address(domain, s.id)}>{s.title}</Link></li>)}
-    </ul>
-  </div>;
 }
 
 // Frontmatter property list under the page title (Quartz note-properties panel).
@@ -418,11 +444,11 @@ function Reader({ domain, header, onOpenSearch }: { domain: string; header: Reac
     <div className="knowledge-layout" data-has-right={hasRight}>
     <aside className="sidebar left" aria-label="知识目录">
       <SearchButton onOpen={onOpenSearch} />
-      <DirectoryTree domain={domain} activeFolder={activeFolder} activePage={folder ? null : id} isFolderPage={folder} />
+      <DirectoryTree domain={domain} activeFolder={activeFolder} activePage={folder ? null : id} isFolderPage={folder} activePath={location.path} />
     </aside>
     <main ref={main} aria-busy={loading}>
       {dimensionView ? (
-        <DimensionValue domain={domain} field={location.dimension!} value={location.value!} scope={dimensionScope} />
+        <DimensionValue domain={domain} field={location.dimension!} value={location.value!} scope={dimensionScope} path={location.path} matchFirstAny={location.matchFirstAny} />
       ) : body.error ? <p role="alert">{body.error.message}</p> : !page ? <p>正在读取知识页…</p> : <>
         <h1 className="page-title">{page.title}</h1>
         <NoteProperties frontmatter={page.frontmatter} displayFields={page.display_fields ?? undefined} domain={domain} link={link} onSearchTag={tag => onOpenSearch('#' + tag)} />
@@ -436,7 +462,6 @@ function Reader({ domain, header, onOpenSearch }: { domain: string; header: Reac
       <aside className="sidebar right">
         {!folder && isEntity && page && <Related key={page.id} domain={domain} page={page} />}
         {page && <PageToc entries={prepared.entries} container={main} />}
-        {!folder && isEntity && page && <Backlinks domain={domain} page={page} />}
       </aside>
     )}
   </div></>;

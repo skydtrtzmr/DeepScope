@@ -1,21 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ChevronRight, Folder } from 'lucide-react';
-import { address, Link, useChildren } from './util';
-import { DimensionModeView } from './dimensions';
-
-type ViewMode = 'directory' | 'dimension';
-const MODE_KEY = 'folder-view-mode';
+import { address, classificationAddress, Link, useChildren, type DimensionPath } from './util';
+import { useAggregation } from './aggregation-preferences';
 
 export function FolderListing({ domain, folderId }: { domain: string; folderId: string }) {
-  const children = useChildren(domain, folderId);
-  const pages = useMemo(() => children.data?.pages.flatMap(r => r.pages) ?? [], [children.data]);
-  const subfolders = children.data?.pages[0]?.folders ?? [];
-  const total = children.data?.pages[0]?.page_total ?? 0;
-  const remaining = Math.max(0, total - pages.length);
-  // 目录/按维度双视图（纯前端切换），选择记忆在 localStorage。
-  const [mode, setMode] = useState<ViewMode>(() => localStorage.getItem(MODE_KEY) === 'dimension' ? 'dimension' : 'directory');
-  useEffect(() => { localStorage.setItem(MODE_KEY, mode); }, [mode]);
-
+  const { order, query } = useAggregation(domain, folderId);
   const segments = folderId.split('/').filter(Boolean);
 
   return (
@@ -35,46 +24,63 @@ export function FolderListing({ domain, folderId }: { domain: string; folderId: 
         </nav>
       )}
 
-      <div className="dim-view-toggle" role="tablist" aria-label="目录视图切换">
-        <button type="button" role="tab" aria-selected={mode === 'directory'} className={mode === 'directory' ? 'active' : undefined} onClick={() => setMode('directory')}>目录</button>
-        <button type="button" role="tab" aria-selected={mode === 'dimension'} className={mode === 'dimension' ? 'active' : undefined} onClick={() => setMode('dimension')}>按维度</button>
-      </div>
-
-      {mode === 'dimension' ? (
-        <DimensionModeView domain={domain} folderId={folderId} />
-      ) : <>
-        {subfolders.length > 0 && (
-          <section className="folder-group">
-            <h3 className="folder-group-title">子目录</h3>
-            <div className="subfolder-list">
-              {subfolders.map(f => (
-                <Link key={f.id} domain={domain} to={address(domain, f.id, true)} className="subfolder-link">
-                  <Folder size={14} />{f.title}
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section className="page-list">
-          <h3 className="page-list-title">页面{total > 0 ? `（${total}）` : ''}</h3>
-          <ul className="page-list-ul">
-            {pages.map(p => (
-              <li key={p.id} className="page-item">
-                <time className="page-date">{p.date ?? ''}</time>
-                <Link domain={domain} to={address(domain, p.id)} className="page-item-title">{p.title}</Link>
-                {p.tags && p.tags.length > 0 && <span className="page-tags">{p.tags.join(' · ')}</span>}
-              </li>
-            ))}
-          </ul>
-          {pages.length === 0 && !children.isLoading && <p className="page-list-empty">此目录暂无子页面。</p>}
-          {remaining > 0 && (
-            <button type="button" className="dir-load-more" onClick={() => children.fetchNextPage()} disabled={children.isFetchingNextPage}>
-              {children.isFetchingNextPage ? '加载中…' : `加载更多（${remaining}）`}
-            </button>
-          )}
-        </section>
-      </>}
+      {!query.isPending && <FolderContents domain={domain} folderId={folderId} order={order} path={[]} />}
     </div>
   );
+}
+
+export function ClassificationContents({ domain, folderId, path, matchFirstAny = false }: {
+  domain: string; folderId: string; path: DimensionPath; matchFirstAny?: boolean;
+}) {
+  const { order, query } = useAggregation(domain, folderId);
+  if (query.isPending) return <p>正在读取分类…</p>;
+  return <div className="folder-listing">
+    <FolderContents {...{ domain, folderId, order, path, matchFirstAny }} />
+  </div>;
+}
+
+function FolderContents({ domain, folderId, order, path, matchFirstAny = false }: {
+  domain: string; folderId: string; order: string[]; path: DimensionPath; matchFirstAny?: boolean;
+}) {
+  const children = useChildren(domain, folderId, order, [], true, path, matchFirstAny);
+  const first = children.data?.pages[0];
+  const pages = children.data?.pages.flatMap(batch => batch.pages) ?? [];
+  const field = order.find(key => !path.some(([used]) => used === key));
+  if (children.error) return <p role="alert">{children.error.message}</p>;
+  if (!first) return <p>正在读取目录…</p>;
+  return <>
+    {first.folders.length > 0 && <section className="folder-group">
+      <h3 className="folder-group-title">子目录</h3>
+      <div className="subfolder-list">{first.folders.map(folder => <Link key={folder.id} domain={domain}
+        to={address(domain, folder.id, true)} className="subfolder-link"><Folder size={14} />{folder.title}</Link>)}</div>
+    </section>}
+    {field && first.groups?.map(group => {
+      const next: DimensionPath = [...path, [field, group.value]];
+      return <ClassificationCard key={classificationAddress(domain, folderId, next, matchFirstAny)} {...{ domain, folderId, order, matchFirstAny }} path={next} count={group.count} />;
+    })}
+    {pages.length > 0 && <section className="page-list">
+      <h3 className="page-list-title">本层文档（{first.page_total}）</h3>
+      <ul className="page-list-ul">{pages.map(page => <li key={page.id} className="page-item">
+        <time className="page-date">{page.date ?? ''}</time>
+        <Link domain={domain} to={address(domain, page.id)} className="page-item-title">{page.title}</Link>
+      </li>)}</ul>
+      {children.hasNextPage && <button type="button" className="dir-load-more" disabled={children.isFetchingNextPage}
+        onClick={() => children.fetchNextPage()}>加载更多</button>}
+    </section>}
+    {!first.folders.length && !first.groups?.length && !pages.length && <p className="page-list-empty">此目录暂无文档。</p>}
+  </>;
+}
+
+function ClassificationCard({ domain, folderId, order, path, count, matchFirstAny }: {
+  domain: string; folderId: string; order: string[]; path: DimensionPath; count: number; matchFirstAny: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [field, value] = path[path.length - 1];
+  return <details className="folder-classification" onToggle={e => setOpen(e.currentTarget.open)}>
+    <summary><span>{field} · {value}</span><span className="dir-group-count">{count}</span></summary>
+    {open && <div className="folder-classification-body">
+      <Link domain={domain} to={classificationAddress(domain, folderId, path, matchFirstAny)}>打开分类页 ↗</Link>
+      <FolderContents {...{ domain, folderId, order, path, matchFirstAny }} />
+    </div>}
+  </details>;
 }

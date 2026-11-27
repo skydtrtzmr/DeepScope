@@ -3,10 +3,13 @@ import { ArrowDown, ArrowUp, SlidersHorizontal } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { dimensionsQuery } from './util';
 
-const Preferences = createContext<{ orders: Record<string, string[]>; save: (scope: string, order?: string[]) => void }>({ orders: {}, save: () => {} });
+const Preferences = createContext<{ showFiles: boolean; setShowFiles: (show: boolean) => void; orders: Record<string, string[]>; save: (scope: string, order?: string[]) => void }>({ showFiles: true, setShowFiles: () => {}, orders: {}, save: () => {} });
 
 export function AggregationPreferences({ domain, children }: { domain: string; children: ReactNode }) {
   const key = 'deepscope:dimension-order:' + domain;
+  const filesKey = 'deepscope:directory-files:' + domain;
+  const [showFiles, setShowFiles] = useState(() => localStorage.getItem(filesKey) !== 'false');
+  useEffect(() => { localStorage.setItem(filesKey, String(showFiles)); }, [filesKey, showFiles]);
   const [orders, setOrders] = useState<Record<string, string[]>>(() => {
     try { return JSON.parse(localStorage.getItem(key) || '{}') ?? {}; } catch { return {}; }
   });
@@ -16,7 +19,12 @@ export function AggregationPreferences({ domain, children }: { domain: string; c
     if (order === undefined) delete next[scope]; else next[scope] = order;
     return next;
   });
-  return <Preferences.Provider value={{ orders, save }}>{children}</Preferences.Provider>;
+  return <Preferences.Provider value={{ orders, save, showFiles, setShowFiles }}>{children}</Preferences.Provider>;
+}
+
+export function useDirectoryVisibility() {
+  const { showFiles, setShowFiles } = useContext(Preferences);
+  return { showFiles, setShowFiles };
 }
 
 export function useAggregation(domain: string, folder: string, enabled = true) {
@@ -31,6 +39,7 @@ export function useAggregation(domain: string, folder: string, enabled = true) {
 
 export function AggregationPanel({ domain, folder }: { domain: string; folder: string }) {
   const panel = useRef<HTMLDetailsElement>(null);
+  const { showFiles, setShowFiles } = useDirectoryVisibility();
   const { allowed, order, query, save } = useAggregation(domain, folder);
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
@@ -81,6 +90,9 @@ export function AggregationPanel({ domain, folder }: { domain: string; folder: s
             <button type="button" onClick={() => save()}>恢复默认</button>
           </div>
         </>}
+      <label className="aggregation-directory-files">
+        <input type="checkbox" checked={showFiles} onChange={e => setShowFiles(e.target.checked)} /> 目录树显示文件
+      </label>
     </div>
   </details>;
 }

@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, FileText, Folder, FolderOpen, Layers } from 'lucide-react';
-import { address, Link, useChildren, type Folder as FolderNode, type Page } from './util';
+import { address, classificationAddress, Link, useChildren, type DimensionPath, type Folder as FolderNode, type Page } from './util';
 
-import { useAggregation } from './aggregation-preferences';
+import { useAggregation, useDirectoryVisibility } from './aggregation-preferences';
+
+const ActiveClassification = createContext<{ folder: string | null; path: DimensionPath }>({ folder: null, path: [] });
 
 const storageKey = (domain: string) => `deepscope:dir-open:${domain}`;
 
@@ -38,6 +40,7 @@ interface BranchProps {
 }
 
 function FolderBranch({ domain, folder, depth, openSet, onToggle, activeFolder, activePage, isFolderPage }: BranchProps) {
+  const { showFiles } = useDirectoryVisibility();
   const open = openSet.has(folder.id);
   const { order } = useAggregation(domain, folder.id, open);
   const children = useChildren(domain, folder.id, order, [], open);
@@ -61,10 +64,10 @@ function FolderBranch({ domain, folder, depth, openSet, onToggle, activeFolder, 
             <FolderBranch key={f.id} domain={domain} folder={f} depth={depth + 1} openSet={openSet} onToggle={onToggle} activeFolder={activeFolder} activePage={activePage} isFolderPage={isFolderPage} />
           ))}
           {children.data?.pages[0]?.groups?.map(g => <GroupBranch key={g.value} {...{ domain, order, activePage, isFolderPage }} folder={folder.id} branch={[g.value]} count={g.count} depth={depth + 1} />)}
-          {pages.map(p => (
+          {showFiles && pages.map(p => (
             <PageRow key={p.id} domain={domain} page={p} depth={depth + 1} activePage={activePage} isFolderPage={isFolderPage} />
           ))}
-          {remaining > 0 && (
+          {showFiles && remaining > 0 && (
             <button type="button" className="dir-load-more" style={{ paddingLeft: (depth + 1) * 14 + 16 }} onClick={() => children.fetchNextPage()} disabled={children.isFetchingNextPage}>
               {children.isFetchingNextPage ? '加载中…' : `加载更多（${remaining}）`}
             </button>
@@ -79,21 +82,30 @@ function GroupBranch({ domain, folder, order, branch, count, depth, activePage, 
   domain: string; folder: string; order: string[]; branch: string[]; count: number;
   depth: number; activePage: string | null; isFolderPage: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const { showFiles } = useDirectoryVisibility();
+  const active = useContext(ActiveClassification);
+  const path: DimensionPath = branch.map((value, i) => [order[i], value]);
+  const ancestor = active.folder === folder && path.every(([field, value], i) =>
+    active.path[i]?.[0] === field && active.path[i]?.[1] === value);
+  const current = ancestor && active.path.length === path.length;
+  const [open, setOpen] = useState(ancestor);
+  useEffect(() => { if (ancestor) setOpen(true); }, [ancestor]);
   const children = useChildren(domain, folder, order, branch, open);
   const data = children.data?.pages[0];
   return <>
-    <button type="button" className="dir-row dir-group-row" style={{ paddingLeft: depth * 14 }} aria-expanded={open} onClick={() => setOpen(!open)}>
-      <span className="dir-group-chevron"><ChevronRight size={15} className={open ? 'dir-chevron-open' : undefined} /></span>
+    <div className="dir-row dir-group-row" style={{ paddingLeft: depth * 14 }} data-expanded={open}>
+      <button type="button" className="dir-chevron" aria-label={(open ? '收起 ' : '展开 ') + branch[branch.length - 1]} aria-expanded={open} onClick={() => setOpen(!open)}>
+        <ChevronRight size={15} className={open ? 'dir-chevron-open' : undefined} />
+      </button>
       <Layers className="dir-icon dir-group-icon" size={14} aria-hidden="true" />
-      <span className="dir-link" title={branch[branch.length - 1]}>{branch[branch.length - 1]}</span>
+      <Link domain={domain} to={classificationAddress(domain, folder, path)} className="dir-link" aria-current={current ? 'page' : undefined}>{branch[branch.length - 1]}</Link>
       <span className="dir-group-count" aria-label={count + ' 个条目'}>{count}</span>
-    </button>
+    </div>
     {open && <div className="dir-children" style={{ '--dir-guide': `${depth * 14 + 9}px` } as React.CSSProperties}>
       {children.error && <p role="alert">{children.error.message}</p>}
       {data?.groups?.map(g => <GroupBranch key={g.value} {...{ domain, folder, order, activePage, isFolderPage }} branch={[...branch, g.value]} count={g.count} depth={depth + 1} />)}
-      {children.data?.pages.flatMap(batch => batch.pages).map(page => <PageRow key={page.id} {...{ domain, page, activePage, isFolderPage }} depth={depth + 1} />)}
-      {children.hasNextPage && <button className="dir-load-more" disabled={children.isFetchingNextPage} onClick={() => children.fetchNextPage()}>加载更多</button>}
+      {showFiles && children.data?.pages.flatMap(batch => batch.pages).map(page => <PageRow key={page.id} {...{ domain, page, activePage, isFolderPage }} depth={depth + 1} />)}
+      {showFiles && children.hasNextPage && <button className="dir-load-more" disabled={children.isFetchingNextPage} onClick={() => children.fetchNextPage()}>加载更多</button>}
     </div>}
   </>;
 }
@@ -108,9 +120,10 @@ function PageRow({ domain, page, depth, activePage, isFolderPage }: { domain: st
   );
 }
 
-export function DirectoryTree({ domain, activeFolder, activePage, isFolderPage }: { domain: string; activeFolder: string | null; activePage: string | null; isFolderPage: boolean }) {
+export function DirectoryTree({ domain, activeFolder, activePage, isFolderPage, activePath }: { activePath: DimensionPath; domain: string; activeFolder: string | null; activePage: string | null; isFolderPage: boolean }) {
   const [openSet, setOpenSet] = useState<Set<string>>(() => loadOpen(domain));
   const { order } = useAggregation(domain, '/');
+  const { showFiles } = useDirectoryVisibility();
   const root = useChildren(domain, '/', order);
   const container = useRef<HTMLDivElement>(null);
 
@@ -148,19 +161,19 @@ export function DirectoryTree({ domain, activeFolder, activePage, isFolderPage }
   const rootRemaining = Math.max(0, rootTotal - rootPages.length);
 
   return (
-    <div ref={container} className="dir-tree" aria-label="知识目录">
+    <ActiveClassification.Provider value={{ folder: activeFolder, path: activePath }}><div ref={container} className="dir-tree" aria-label="知识目录">
       {rootFolders.map(f => (
         <FolderBranch key={f.id} domain={domain} folder={f} depth={0} openSet={openSet} onToggle={toggle} activeFolder={activeFolder} activePage={activePage} isFolderPage={isFolderPage} />
       ))}
       {root.data?.pages[0]?.groups?.map(g => <GroupBranch key={g.value} {...{ domain, order, activePage, isFolderPage }} folder="/" branch={[g.value]} count={g.count} depth={0} />)}
-      {rootPages.map(p => (
+      {showFiles && rootPages.map(p => (
         <PageRow key={p.id} domain={domain} page={p} depth={0} activePage={activePage} isFolderPage={isFolderPage} />
       ))}
-      {rootRemaining > 0 && (
+      {showFiles && rootRemaining > 0 && (
         <button type="button" className="dir-load-more" style={{ paddingLeft: 16 }} onClick={() => root.fetchNextPage()} disabled={root.isFetchingNextPage}>
           {root.isFetchingNextPage ? '加载中…' : `加载更多（${rootRemaining}）`}
         </button>
       )}
-    </div>
+    </div></ActiveClassification.Provider>
   );
 }

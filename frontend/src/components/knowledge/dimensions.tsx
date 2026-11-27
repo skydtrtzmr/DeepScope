@@ -1,53 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ExplorerCanvas } from '../aggregate/aggregation-explorer';
+import { ClassificationContents } from './folder-listing';
 import type { Projection, ViewNode } from '@/lib/aggregation/explorer';
-import { address, dimensionAddress, dimensionValueQuery, Link, navigate } from './util';
+import { address, classificationAddress, dimensionAddress, dimensionValueQuery, Link, navigate, type DimensionPath } from './util';
 
-import { useAggregation } from './aggregation-preferences';
 
 /** scope 转展示名：取路径最后一段（“任务/年度” → “年度”）。 */
 function scopeTitle(scope: string): string {
   return scope.split('/').filter(Boolean).pop() ?? scope;
 }
 
-/** 目录页「按维度」模式：聚合链逐字段分组，组卡 = 维度值 + 计数，点击进维度值页。 */
-export function DimensionModeView({ domain, folderId }: { domain: string; folderId: string }) {
-  const scope = folderId.replace(/^\/+|\/+$/g, '');
-  const { query, order } = useAggregation(domain, folderId);
-  if (query.isLoading) return <p className="dim-status">正在统计维度分组…</p>;
-  if (query.error) return <p role="alert">{(query.error as Error).message}</p>;
-  if (!order.length) return <p className="dim-status">此目录暂无可用的维度配置。</p>;
-  return (
-    <div className="dim-groups">
-      {order.flatMap(field => query.data?.fields.filter(item => item.field === field) ?? []).map(({ field, values }) => (
-        <section className="dim-field" key={field}>
-          <h3 className="dim-field-title">
-            {field}
-            <span className="dim-field-count">{values.length} 组</span>
-          </h3>
-          <div className="dim-value-list">
-            {values.map(entry => (
-              <Link
-                key={entry.value}
-                domain={domain}
-                to={dimensionAddress(domain, field, entry.value, scope)}
-                className="dim-value-card"
-              >
-                <span className="dim-value-name">{entry.value}</span>
-                <span className="dim-value-count">{entry.count}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
 /** 维度值页：计数 + scope 说明（含清除）+ 关系子图 + 按目录分组的实体列表。 */
-export function DimensionValue({ domain, field, value, scope }: { domain: string; field: string; value: string; scope: string }) {
-  const query = useQuery(dimensionValueQuery(domain, field, value, scope));
+export function DimensionValue({ domain, field, value, scope, path, matchFirstAny = false }: { domain: string; field: string; value: string; scope: string; path: DimensionPath; matchFirstAny?: boolean }) {
+  const query = useQuery(dimensionValueQuery(domain, field, value, scope, path, matchFirstAny));
   const [selected, select] = useState<string | null>(null);
   const data = query.data;
 
@@ -67,6 +33,14 @@ export function DimensionValue({ domain, field, value, scope }: { domain: string
 
   return (
     <div className="dim-value">
+      {path.length > 0 && <nav className="breadcrumb" aria-label="分类路径">
+        <Link domain={domain} to={address(domain, scope ? '/' + scope : '/', true)}>{scope || '根目录'}</Link>
+        {path.map(([key, entry], i) => <span key={i} className="breadcrumb-seg">
+          <span aria-hidden="true">›</span>
+          {i === path.length - 1 ? <span aria-current="page">{key} · {entry}</span> :
+            <Link domain={domain} to={classificationAddress(domain, scope, path.slice(0, i + 1), matchFirstAny)}>{key} · {entry}</Link>}
+        </span>)}
+      </nav>}
       <h1 className="page-title">
         {value}
         <span className="dim-field-badge">{field}</span>
@@ -91,7 +65,7 @@ export function DimensionValue({ domain, field, value, scope }: { domain: string
               <div className="knowledge-graph">
                 <ExplorerCanvas
                   frameBeforeEntry
-                  key={JSON.stringify([domain, field, value, scope])}
+                  key={JSON.stringify([domain, field, value, scope, path])}
                   contextId={domain + ':dim:' + field + ':' + value + ':' + scope}
                   view={view}
                   selectedId={selected}
@@ -110,20 +84,15 @@ export function DimensionValue({ domain, field, value, scope }: { domain: string
           )}
 
           <div className="dim-group-list">
-            {data.groups.map(group => (
+            {path.length > 0 ? (
+              <ClassificationContents domain={domain} folderId={scope ? '/' + scope : '/'} path={path} matchFirstAny={matchFirstAny} />
+            ) : data.groups.map(group => (
               <section className="dim-group" key={group.folder}>
                 <h3 className="dim-group-title">
                   {group.title}
                   <span className="dim-group-count">{group.pages.length}</span>
                 </h3>
-                <ul className="dim-pages">
-                  {group.pages.map(p => (
-                    <li key={p.id} className="dim-page">
-                      <time className="dim-page-date">{p.date ?? ''}</time>
-                      <Link domain={domain} to={address(domain, p.id)} className="dim-page-title">{p.title}</Link>
-                    </li>
-                  ))}
-                </ul>
+                <ClassificationContents domain={domain} folderId={group.folder} path={[[field, value]]} matchFirstAny />
               </section>
             ))}
           </div>

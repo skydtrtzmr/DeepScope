@@ -4,7 +4,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 export type Page = { id: string; title: string; folder_id: string; date?: string; tags?: string[] };
 export type Folder = { id: string; title: string; parent_id: string | null; kind?: string };
 export type Body = { id: string; title: string; type: string; body_md: string | null; folder_id?: string; frontmatter?: Record<string, unknown>; display_fields?: string[] | null };
-export type NeighborPage = { nodes: Body[]; edges: { source: string; target: string; type: string }[]; more: boolean };
+export type NeighborPage = { nodes: Body[]; edges: { source: string; target: string; type: string }[]; more: boolean; total?: number };
 export type ChildrenResponse = { folder: string; groups?: { value: string; count: number }[]; folders: Folder[]; pages: Page[]; page_total: number; page_has_more: boolean; sort?: { field: string; order: string } };
 export type BacklinksResponse = { id: string; sources: { id: string; title: string; type: string }[] };
 export type SearchHit = {
@@ -25,7 +25,8 @@ export type DimensionValueResponse = {
   groups: { folder: string; title: string; pages: { id: string; title: string; date?: string | null }[] }[];
   subgraph: { nodes: { id: string; title: string }[]; edges: { source: string; target: string }[]; truncated: boolean };
 };
-export type Location = { knowledge: string | null; folder: string | null; page: string | null; dimension: string | null; value: string | null; scope: string | null; key: number };
+export type DimensionPath = [field: string, value: string][];
+export type Location = { knowledge: string | null; folder: string | null; page: string | null; dimension: string | null; value: string | null; scope: string | null; path: DimensionPath; matchFirstAny: boolean; key: number };
 
 export const base = '/api/knowledge/domains';
 // Snapshot data only changes on rebuild, so revisits within one session are served from memory.
@@ -44,9 +45,11 @@ export function address(domain: string, id: string, folder = false) {
   return '?' + new URLSearchParams({ knowledge: domain, [folder ? 'folder' : 'page']: id });
 }
 
-export function dimensionAddress(domain: string, field: string, value: string, scope?: string) {
+export function dimensionAddress(domain: string, field: string, value: string, scope?: string, path: DimensionPath = [], matchFirstAny = false) {
   const params: Record<string, string> = { knowledge: domain, dimension: field, value };
   if (scope) params.scope = scope;
+  if (path.length) params.path = JSON.stringify(path);
+  if (matchFirstAny) params.match_first_any = 'true';
   return '?' + new URLSearchParams(params);
 }
 
@@ -54,6 +57,18 @@ export function dimensionAddress(domain: string, field: string, value: string, s
 const listeners = new Set<() => void>();
 const scrollPositions = new Map<number, number>();
 let sequence = (history.state && (history.state as { key?: number }).key) || 0;
+
+export function classificationAddress(domain: string, folder: string, path: DimensionPath, matchFirstAny = false) {
+  const [field, value] = path[path.length - 1];
+  return dimensionAddress(domain, field, value, folder.replace(/^\/+|\/+$/g, ''), path, matchFirstAny);
+}
+
+function readDimensionPath(raw: string | null): DimensionPath {
+  try {
+    const path = JSON.parse(raw ?? '[]');
+    return Array.isArray(path) && path.every(p => Array.isArray(p) && p.length === 2 && p.every(v => typeof v === 'string')) ? path : [];
+  } catch { return []; }
+}
 
 export function readLocation(): Location {
   const params = new URLSearchParams(location.search);
@@ -64,6 +79,8 @@ export function readLocation(): Location {
     dimension: params.get('dimension'),
     value: params.get('value'),
     scope: params.get('scope'),
+    path: readDimensionPath(params.get('path')),
+    matchFirstAny: params.get('match_first_any') === 'true',
     key: (history.state && (history.state as { key?: number }).key) || 0,
   };
 }
@@ -124,11 +141,11 @@ export function searchQuery(domain: string, q: string, limit = 12) {
   };
 }
 
-export function childrenQuery(domain: string, folderId: string, order: string[] = [], branch: string[] = []) {
+export function childrenQuery(domain: string, folderId: string, order: string[] = [], branch: string[] = [], path: DimensionPath = [], matchFirstAny = false) {
   return {
-    queryKey: ['children', domain, folderId, order, branch], initialPageParam: 0, staleTime: fresh,
+    queryKey: ['children', domain, folderId, order, branch, path, matchFirstAny], initialPageParam: 0, staleTime: fresh,
     queryFn: ({ pageParam, signal }: { pageParam: number; signal: AbortSignal }) =>
-      read<ChildrenResponse>(base + '/' + encodeURIComponent(domain) + '/children?' + new URLSearchParams({ folder: folderId, order: JSON.stringify(order), branch: JSON.stringify(branch), offset: String(pageParam), limit: String(PAGE_SIZE) }), signal),
+      read<ChildrenResponse>(base + '/' + encodeURIComponent(domain) + '/children?' + new URLSearchParams({ folder: folderId, order: JSON.stringify(order), branch: JSON.stringify(branch), path: path.length ? JSON.stringify(path) : '', match_first_any: String(matchFirstAny), offset: String(pageParam), limit: String(PAGE_SIZE) }), signal),
     getNextPageParam: (last: ChildrenResponse, all: ChildrenResponse[]) => last.page_has_more ? all.reduce((n, p) => n + p.pages.length, 0) : undefined,
   };
 }
@@ -141,11 +158,11 @@ export function dimensionsQuery(domain: string, scope: string) {
   };
 }
 
-export function dimensionValueQuery(domain: string, field: string, value: string, scope: string) {
+export function dimensionValueQuery(domain: string, field: string, value: string, scope: string, path: DimensionPath = [], matchFirstAny = false) {
   return {
-    queryKey: ['dimension-value', domain, field, value, scope], staleTime: dimensionFresh,
+    queryKey: ['dimension-value', domain, field, value, scope, path, matchFirstAny], staleTime: dimensionFresh,
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      read<DimensionValueResponse>(base + '/' + encodeURIComponent(domain) + '/dimension-value?' + new URLSearchParams({ field, value, scope }), signal),
+      read<DimensionValueResponse>(base + '/' + encodeURIComponent(domain) + '/dimension-value?' + new URLSearchParams({ field, value, scope, path: path.length ? JSON.stringify(path) : '', match_first_any: String(matchFirstAny) }), signal),
   };
 }
 
@@ -159,8 +176,8 @@ export function registerChildren(res: ChildrenResponse) {
   for (const p of res.pages) pageNames.set(p.id.toLowerCase(), p.id);
 }
 
-export function useChildren(domain: string, folderId: string, order: string[] = [], branch: string[] = [], enabled = true) {
-  const query = useInfiniteQuery({ ...childrenQuery(domain, folderId, order, branch), enabled });
+export function useChildren(domain: string, folderId: string, order: string[] = [], branch: string[] = [], enabled = true, path: DimensionPath = [], matchFirstAny = false) {
+  const query = useInfiniteQuery({ ...childrenQuery(domain, folderId, order, branch, path, matchFirstAny), enabled });
   useEffect(() => {
     for (const res of query.data?.pages ?? []) registerChildren(res);
   }, [query.data]);
@@ -178,6 +195,11 @@ export function isFolderPath(path: string): boolean {
 // Warm the cache while the pointer rests on a link, so the click itself is instant.
 export function prefetch(queryClient: ReturnType<typeof useQueryClient>, domain: string, to: string) {
   const params = new URLSearchParams(to);
+  const field = params.get('dimension'), value = params.get('value');
+  if (field && value !== null) {
+    void queryClient.prefetchQuery(dimensionValueQuery(domain, field, value, params.get('scope') ?? '', readDimensionPath(params.get('path')), params.get('match_first_any') === 'true'));
+    return;
+  }
   const folder = !params.has('page');
   const id = params.get(folder ? 'folder' : 'page');
   if (!id) return;
