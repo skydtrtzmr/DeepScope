@@ -6,9 +6,10 @@ import type { Root, Parent, PhrasingContent } from 'mdast';
 import { ExplorerCanvas } from '../aggregate/aggregation-explorer';
 import type { Projection, ViewNode } from '@/lib/aggregation/explorer';
 import {
-  address, backlinksQuery, base, dimensionAddress, dimensionsQuery, fresh, isFolderPath, Link, navigate, neighborsQuery, pageQuery,
+  address, backlinksQuery, base, fresh, isFolderPath, Link, navigate, neighborsQuery, pageQuery,
   read, resolvePageId, restoreScroll, useLocation, type Body,
 } from './util';
+import { AggregationPanel, AggregationPreferences, useAggregation } from './aggregation-preferences';
 import { DirectoryTree } from './directory-tree';
 import { FolderListing } from './folder-listing';
 import { DimensionValue } from './dimensions';
@@ -145,50 +146,64 @@ const Article = memo(function Article({ source, domain, link, ids }: { source: s
 
 // Local graph, top of the right sidebar (Quartz graph widget).
 // Neighbours are aggregated (not filtered): grouped into one node per value of the
-// aggregation chain's first field; a group click jumps to the dimension-value page.
+// Related nodes are grouped from the current page's neighbors.
 function Related({ domain, page }: { domain: string; page: Body }) {
   const [selected, select] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const modal = useRef<HTMLDialogElement>(null);
+  const [enlarged, enlarge] = useState(false);
   const query = useInfiniteQuery(neighborsQuery(domain, page.id));
-  useEffect(() => { select(null); }, [page.id]);
-  const scope = (page.folder_id ?? '/').replace(/^\/+|\/+$/g, '');
-  const dims = useQuery({ ...dimensionsQuery(domain, scope), enabled: query.data !== undefined });
-  const chainField = dims.data?.chain?.[0];
-  const GROUP_PREFIX = 'dim-group:';
-
+  const { order, query: dims } = useAggregation(domain, page.folder_id ?? '/');
+  const orderKey = JSON.stringify(order);
   const view = useMemo<Projection>(() => {
     const pages = query.data?.pages ?? [];
-    const neighbors = pages.flatMap(p => p.nodes);
-    const nodes: ViewNode[] = [{
-      id: page.id, label: page.title, kind: 'entity', depth: 0,
-      entity: { id: page.id, label: page.title, type: page.type, properties: {} },
-    }];
+    const nodes: ViewNode[] = [];
     const edges: Projection['edges'] = [];
-    if (!chainField) {
-      for (const n of neighbors) nodes.push({
-        id: n.id, label: n.title, kind: 'entity', depth: 1,
-        entity: { id: n.id, label: n.title, type: n.type, properties: {} },
-      });
-      return { nodes, edges: pages.flatMap(p => p.edges).map(e => ({ ...e, id: JSON.stringify([e.source, e.target, e.type]), kind: 'relation' as const })), total: nodes.length, rootId: page.id };
-    }
-    const buckets = new Map<string, Body[]>();
-    const loose: Body[] = [];
-    for (const n of neighbors) {
-      const raw = n.frontmatter?.[chainField];
-      const value = Array.isArray(raw) ? raw.find(v => v != null && v !== '') : raw;
-      const key = value == null || value === '' ? null : String(value);
-      if (key == null) loose.push(n);
-      else buckets.set(key, [...(buckets.get(key) ?? []), n]);
-    }
-    for (const [key, members] of buckets) {
-      const id = GROUP_PREFIX + JSON.stringify([chainField, key]);
-      nodes.push({ id, label: `${key} · ${members.length}`, kind: 'group', count: members.length,
-        depth: 1, parentId: page.id, memberIds: members.map(m => m.id) });
-      edges.push({ id: JSON.stringify(['membership', page.id, id]), source: page.id, target: id, kind: 'membership' });
-    }
-    for (const n of loose) nodes.push({
-      id: n.id, label: n.title, kind: 'entity', depth: 1, parentId: page.id,
+    const addEntity = (n: Body, depth: number, parentId?: string) => nodes.push({
+      id: n.id, label: n.title, kind: 'entity', depth, parentId,
       entity: { id: n.id, label: n.title, type: n.type, properties: {} },
     });
+    function membership(parent: string, child: string) {
+      edges.push({ id: JSON.stringify(['membership', parent, child]), source: parent, target: child, kind: 'membership' });
+    }
+    function branch(members: Body[], fields: string[], parent: string, path: string[], depth: number) {
+      const [field, ...rest] = fields;
+      if (!field) {
+        for (const n of members) {
+          addEntity(n, depth, parent);
+          if (parent !== page.id) membership(parent, n.id);
+        }
+        return;
+      }
+      const buckets = new Map<string, Body[]>();
+      for (const n of members) {
+        const raw = n.frontmatter?.[field];
+        const value = Array.isArray(raw) ? raw.find(v => v != null && v !== '') : raw;
+        if (value == null || value === '') {
+          addEntity(n, depth, parent);
+          if (parent !== page.id) membership(parent, n.id);
+          continue;
+        }
+        const key = String(value);
+        const group = buckets.get(key) ?? [];
+        group.push(n);
+        buckets.set(key, group);
+      }
+      for (const [value, group] of buckets) {
+        if (group.length < (dims.data?.min_group_size ?? 1)) {
+          branch(group, [], parent, path, depth);
+          continue;
+        }
+        const nextPath = [...path, value];
+        const id = 'dim-group:' + JSON.stringify([orderKey, nextPath]);
+        const open = expanded.has(id);
+        nodes.push({ id, label: value + ' · ' + group.length, kind: 'group', depth, parentId: parent, count: group.length, expanded: open });
+        membership(parent, id);
+        if (open) branch(group, rest, id, nextPath, depth + 1);
+      }
+    }
+    addEntity(page, 0);
+    branch(pages.flatMap(p => p.nodes), JSON.parse(orderKey), page.id, [], 1);
     const visible = new Set(nodes.map(n => n.id));
     for (const e of pages.flatMap(p => p.edges)) {
       if (visible.has(e.source) && visible.has(e.target)) {
@@ -196,33 +211,42 @@ function Related({ domain, page }: { domain: string; page: Body }) {
       }
     }
     return { nodes, edges, total: nodes.length, rootId: page.id };
-  }, [query.data, page, chainField]);
+  }, [query.data, page, orderKey, expanded, dims.data?.min_group_size]);
 
-  const openGroup = (node: ViewNode) => {
-    if (node.kind !== 'group' || !chainField) return;
-    const value = JSON.parse(node.id.slice(GROUP_PREFIX.length))[1];
-    navigate(dimensionAddress(domain, chainField, value, scope));
-  };
+  function pick(node: ViewNode) {
+    select(node.id);
+    if (node.kind === 'group') setExpanded(current => {
+      const next = new Set(current);
+      if (next.has(node.id)) next.delete(node.id); else next.add(node.id);
+      return next;
+    });
+  }
   const selectedNode = selected ? view.nodes.find(n => n.id === selected) : undefined;
-  const groupTarget = selectedNode?.kind === 'group' && chainField
-    ? dimensionAddress(domain, chainField, JSON.parse(selectedNode.id.slice(GROUP_PREFIX.length))[1], scope)
-    : null;
   // Draw once the first batch of neighbours is in: drawing the root alone and then adding the rest
   // runs a second layout pass that made the graph jump after the body had already settled.
   const loaded = query.error !== null || (query.data !== undefined && !dims.isPending);
   const count = query.data ? query.data.pages.reduce((n, p) => n + p.nodes.length, 0) : 0;
+  const canvas = (suffix: string) => <ExplorerCanvas frameBeforeEntry fitUpdates
+    key={JSON.stringify([page.id, orderKey, suffix])} contextId={page.id + ':' + orderKey + ':' + suffix} view={view}
+    selectedId={selected} onSelect={pick} onToggle={() => {}} onClear={() => select(null)} />;
+  const controls = <div className="graph-controls">
+    {selectedNode?.kind === 'entity' && selectedNode.id !== page.id && <Link domain={domain} to={address(domain, selectedNode.id)}>探索「{selectedNode.label}」</Link>}
+    {query.hasNextPage && <button type="button" disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>加载更多关联</button>}
+  </div>;
   return <div className="graph">
-    <h3>关联图谱{count > 0 ? `（${count}）` : ''}</h3>
+    <div className="knowledge-graph-heading">
+      <h3>关联图谱{count > 0 ? `（${count}）` : ''}</h3>
+      <button type="button" disabled={!loaded} onClick={() => { modal.current?.showModal(); enlarge(true); }}>放大图谱</button>
+    </div>
     {query.error && <p role="alert">{query.error.message}</p>}
     {dims.error && <p>维度分组不可用，邻居按实体平铺展示。</p>}
-    <div className="graph-outer">
-      <div className="knowledge-graph">{loaded && <ExplorerCanvas frameBeforeEntry key={JSON.stringify([domain, page.id, chainField])} contextId={domain + ':' + page.id + ':' + (chainField ?? '')} view={view} selectedId={selected} onSelect={n => select(n.id)} onToggle={openGroup} onClear={() => select(null)} />}</div>
-    </div>
-    <div className="graph-controls">
-      {groupTarget && selectedNode && <Link domain={domain} to={groupTarget}>查看「{selectedNode.label.split(' · ')[0]}」维度值</Link>}
-      {selectedNode?.kind === 'entity' && selectedNode.id !== page.id && <Link domain={domain} to={address(domain, selectedNode.id)}>探索「{selectedNode.label}」</Link>}
-      {query.hasNextPage && <button type="button" disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>加载更多关联</button>}
-    </div>
+    <div className="graph-outer"><div className="knowledge-graph">{loaded && canvas('inline')}</div></div>
+    {controls}
+    <dialog ref={modal} aria-label="关联图谱" className="knowledge-graph-dialog" onClose={() => enlarge(false)}>
+      <div className="knowledge-graph-heading"><h3>关联图谱 · {page.title}</h3><button type="button" onClick={() => modal.current?.close()}>关闭</button></div>
+      <div className="knowledge-graph">{enlarged && canvas('large')}</div>
+      {controls}
+    </dialog>
   </div>;
 }
 
@@ -353,7 +377,7 @@ function NoteProperties({ frontmatter, displayFields, domain, link, onSearchTag 
   );
 }
 
-function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: (query?: string) => void }) {
+function Reader({ domain, header, onOpenSearch }: { domain: string; header: ReactNode; onOpenSearch: (query?: string) => void }) {
   const location = useLocation();
   // 维度值页：?dimension=字段&value=值&scope=目录，主栏渲染维度视图，左侧目录树保留
   const dimensionView = !!(location.dimension && location.value);
@@ -365,7 +389,7 @@ function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: (query
   // Show the previous page until the next one arrives instead of flashing a loading state.
   const body = useQuery({ ...pageQuery(domain, folder, id), placeholderData: keepPreviousData, enabled: !dimensionView });
   const page = body.data;
-  const loading = body.isPlaceholderData;
+  const loading = !dimensionView && body.isPlaceholderData;
   const activeFolder = dimensionView || folder ? id : (page?.folder_id ?? null);
   const main = useRef<HTMLElement>(null);
   useLayoutEffect(() => { restoreScroll(location.key, main.current); }, [location.key]);
@@ -389,7 +413,9 @@ function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: (query
   }, [page, folder]);
   const isEntity = !!page && page.type !== 'folder';
   const hasRight = !dimensionView && (!folder || prepared.entries.length > 0);
-  return <div className="knowledge-layout" data-has-right={hasRight}>
+  return <>
+    <header>{header}<AggregationPanel domain={domain} folder={activeFolder ?? '/'} /></header>
+    <div className="knowledge-layout" data-has-right={hasRight}>
     <aside className="sidebar left" aria-label="知识目录">
       <SearchButton onOpen={onOpenSearch} />
       <DirectoryTree domain={domain} activeFolder={activeFolder} activePage={folder ? null : id} isFolderPage={folder} />
@@ -408,12 +434,12 @@ function Reader({ domain, onOpenSearch }: { domain: string; onOpenSearch: (query
     </main>
     {hasRight && (
       <aside className="sidebar right">
-        {!folder && isEntity && page && <Related domain={domain} page={page} />}
+        {!folder && isEntity && page && <Related key={page.id} domain={domain} page={page} />}
         {page && <PageToc entries={prepared.entries} container={main} />}
         {!folder && isEntity && page && <Backlinks domain={domain} page={page} />}
       </aside>
     )}
-  </div>;
+  </div></>;
 }
 
 export function SnapshotReader() {
@@ -438,13 +464,14 @@ export function SnapshotReader() {
     setSearchQuery(typeof query === 'string' ? query : '');
     setSearchOpen(true);
   };
-  return <div className="knowledge-reader">
-    <header>
+  const header = <>
       <strong>DeepScope 知识库</strong>
       <select aria-label="业务域" value={domain || ''} onChange={e => navigate(address(e.target.value, '/', true))}>{domains.data?.map(d => <option key={d}>{d}</option>)}</select>
       <a href="?aggregation=live">业务数据图谱</a>
-    </header>
-    {domains.error ? <p role="alert">{domains.error.message}</p> : domain ? <Reader domain={domain} onOpenSearch={openSearch} /> : <p>{domains.isLoading ? '正在读取业务域…' : '暂无已构建的知识库。'}</p>}
+  </>;
+  return <div className="knowledge-reader">
+    {domain && !domains.error ? <AggregationPreferences key={domain} domain={domain}><Reader domain={domain} header={header} onOpenSearch={openSearch} /></AggregationPreferences> :
+      <><header>{header}</header>{domains.error ? <p role="alert">{domains.error.message}</p> : <p>{domains.isLoading ? '正在读取业务域…' : '暂无已构建的知识库。'}</p>}</>}
     {searchOpen && domain && <SearchOverlay domain={domain} initialQuery={searchQuery} onClose={() => setSearchOpen(false)} />}
   </div>;
 }

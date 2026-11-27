@@ -147,7 +147,7 @@ async function frame(instance: Graph, fitBothAxes = false) {
   await instance.fitCenter(false);
 }
 
-export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect, onToggle, frameBeforeEntry = false }: { frameBeforeEntry?: boolean; selectedId: string | null; onClear: () => void; view: Projection; contextId: string; onSelect: (node: ViewNode) => void; onToggle: (node: ViewNode) => void }) {
+export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect, onToggle, frameBeforeEntry = false, fitUpdates = false }: { fitUpdates?: boolean; frameBeforeEntry?: boolean; selectedId: string | null; onClear: () => void; view: Projection; contextId: string; onSelect: (node: ViewNode) => void; onToggle: (node: ViewNode) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const graph = useRef<Graph | null>(null);
   const current = useRef({ view, selectedId, onClear, onSelect, onToggle });
@@ -243,7 +243,10 @@ export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect,
           if (changedContext) await frame(instance);
           return;
         }
-        if (host.style.visibility !== 'hidden') return;
+        if (host.style.visibility !== 'hidden') {
+          if (fitUpdates) await frame(instance, true);
+          return;
+        }
         await frame(instance, true);
         if (cancelled || graph.current !== instance) return;
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -270,7 +273,7 @@ export function ExplorerCanvas({ view, contextId, selectedId, onClear, onSelect,
       if (!cancelled) setError('');
     }).catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : '画布渲染失败'); });
     return () => { cancelled = true; };
-  }, [view, contextId]);
+  }, [view, contextId, frameBeforeEntry, fitUpdates]);
   useEffect(() => {
     const instance = graph.current;
     if (instance && ready.current) {

@@ -5,7 +5,7 @@ export type Page = { id: string; title: string; folder_id: string; date?: string
 export type Folder = { id: string; title: string; parent_id: string | null; kind?: string };
 export type Body = { id: string; title: string; type: string; body_md: string | null; folder_id?: string; frontmatter?: Record<string, unknown>; display_fields?: string[] | null };
 export type NeighborPage = { nodes: Body[]; edges: { source: string; target: string; type: string }[]; more: boolean };
-export type ChildrenResponse = { folder: string; folders: Folder[]; pages: Page[]; page_total: number; page_has_more: boolean; sort?: { field: string; order: string } };
+export type ChildrenResponse = { folder: string; groups?: { value: string; count: number }[]; folders: Folder[]; pages: Page[]; page_total: number; page_has_more: boolean; sort?: { field: string; order: string } };
 export type BacklinksResponse = { id: string; sources: { id: string; title: string; type: string }[] };
 export type SearchHit = {
   kind: 'page' | 'folder';
@@ -16,7 +16,7 @@ export type SearchHit = {
   folder_id: string | null;
 };
 export type SearchResponse = { results: SearchHit[]; total: number };
-export type DimensionsResponse = { scope: string; chain: string[]; fields: { field: string; values: { value: string; count: number }[] }[] };
+export type DimensionsResponse = { scope: string; chain: string[]; min_group_size?: number; fields: { field: string; values: { value: string; count: number }[] }[] };
 export type DimensionValueResponse = {
   field: string;
   value: string;
@@ -124,11 +124,11 @@ export function searchQuery(domain: string, q: string, limit = 12) {
   };
 }
 
-export function childrenQuery(domain: string, folderId: string) {
+export function childrenQuery(domain: string, folderId: string, order: string[] = [], branch: string[] = []) {
   return {
-    queryKey: ['children', domain, folderId], initialPageParam: 0, staleTime: fresh,
+    queryKey: ['children', domain, folderId, order, branch], initialPageParam: 0, staleTime: fresh,
     queryFn: ({ pageParam, signal }: { pageParam: number; signal: AbortSignal }) =>
-      read<ChildrenResponse>(base + '/' + encodeURIComponent(domain) + '/children?' + new URLSearchParams({ folder: folderId, offset: String(pageParam), limit: String(PAGE_SIZE) }), signal),
+      read<ChildrenResponse>(base + '/' + encodeURIComponent(domain) + '/children?' + new URLSearchParams({ folder: folderId, order: JSON.stringify(order), branch: JSON.stringify(branch), offset: String(pageParam), limit: String(PAGE_SIZE) }), signal),
     getNextPageParam: (last: ChildrenResponse, all: ChildrenResponse[]) => last.page_has_more ? all.reduce((n, p) => n + p.pages.length, 0) : undefined,
   };
 }
@@ -159,8 +159,8 @@ export function registerChildren(res: ChildrenResponse) {
   for (const p of res.pages) pageNames.set(p.id.toLowerCase(), p.id);
 }
 
-export function useChildren(domain: string, folderId: string) {
-  const query = useInfiniteQuery(childrenQuery(domain, folderId));
+export function useChildren(domain: string, folderId: string, order: string[] = [], branch: string[] = [], enabled = true) {
+  const query = useInfiniteQuery({ ...childrenQuery(domain, folderId, order, branch), enabled });
   useEffect(() => {
     for (const res of query.data?.pages ?? []) registerChildren(res);
   }, [query.data]);

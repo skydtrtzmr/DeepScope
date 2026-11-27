@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ExplorerCanvas } from '../aggregate/aggregation-explorer';
 import type { Projection, ViewNode } from '@/lib/aggregation/explorer';
-import { address, dimensionAddress, dimensionValueQuery, dimensionsQuery, Link, navigate } from './util';
+import { address, dimensionAddress, dimensionValueQuery, Link, navigate } from './util';
+
+import { useAggregation } from './aggregation-preferences';
 
 /** scope 转展示名：取路径最后一段（“任务/年度” → “年度”）。 */
 function scopeTitle(scope: string): string {
@@ -12,13 +14,13 @@ function scopeTitle(scope: string): string {
 /** 目录页「按维度」模式：聚合链逐字段分组，组卡 = 维度值 + 计数，点击进维度值页。 */
 export function DimensionModeView({ domain, folderId }: { domain: string; folderId: string }) {
   const scope = folderId.replace(/^\/+|\/+$/g, '');
-  const query = useQuery(dimensionsQuery(domain, scope));
+  const { query, order } = useAggregation(domain, folderId);
   if (query.isLoading) return <p className="dim-status">正在统计维度分组…</p>;
   if (query.error) return <p role="alert">{(query.error as Error).message}</p>;
-  if (!query.data?.fields.length) return <p className="dim-status">此目录暂无可用的维度配置。</p>;
+  if (!order.length) return <p className="dim-status">此目录暂无可用的维度配置。</p>;
   return (
     <div className="dim-groups">
-      {query.data.fields.map(({ field, values }) => (
+      {order.flatMap(field => query.data?.fields.filter(item => item.field === field) ?? []).map(({ field, values }) => (
         <section className="dim-field" key={field}>
           <h3 className="dim-field-title">
             {field}
@@ -81,13 +83,15 @@ export function DimensionValue({ domain, field, value, scope }: { domain: string
                 <button type="button" aria-label="清除范围" onClick={() => navigate(dimensionAddress(domain, field, value))}>×</button>
               </span>
             )}
-            {data.subgraph.truncated && <span className="dim-truncated">子图过大，仅展示前 300 个节点</span>}
+            {data.subgraph.truncated && <span className="dim-truncated">图谱展示前 {data.subgraph.nodes.length} 个节点</span>}
           </div>
 
           {data.count > 0 && (
             <div className="graph-outer dim-subgraph">
               <div className="knowledge-graph">
                 <ExplorerCanvas
+                  frameBeforeEntry
+                  key={JSON.stringify([domain, field, value, scope])}
                   contextId={domain + ':dim:' + field + ':' + value + ':' + scope}
                   view={view}
                   selectedId={selected}

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, FileText, Folder, FolderOpen } from 'lucide-react';
+import { ChevronRight, FileText, Folder, FolderOpen, Layers } from 'lucide-react';
 import { address, Link, useChildren, type Folder as FolderNode, type Page } from './util';
+
+import { useAggregation } from './aggregation-preferences';
 
 const storageKey = (domain: string) => `deepscope:dir-open:${domain}`;
 
@@ -36,8 +38,9 @@ interface BranchProps {
 }
 
 function FolderBranch({ domain, folder, depth, openSet, onToggle, activeFolder, activePage, isFolderPage }: BranchProps) {
-  const children = useChildren(domain, folder.id);
   const open = openSet.has(folder.id);
+  const { order } = useAggregation(domain, folder.id, open);
+  const children = useChildren(domain, folder.id, order, [], open);
   const subfolders = children.data?.pages[0]?.folders ?? [];
   const pages = useMemo(() => children.data?.pages.flatMap(r => r.pages) ?? [], [children.data]);
   const total = children.data?.pages[0]?.page_total ?? 0;
@@ -53,10 +56,11 @@ function FolderBranch({ domain, folder, depth, openSet, onToggle, activeFolder, 
         <Link domain={domain} to={address(domain, folder.id, true)} className="dir-link dir-link-folder" aria-current={isFolderPage && activeFolder === folder.id ? 'page' : undefined}>{folder.title}</Link>
       </div>
       {open && (
-        <div className="dir-children">
+        <div className="dir-children" style={{ '--dir-guide': `${depth * 14 + 9}px` } as React.CSSProperties}>
           {subfolders.map(f => (
             <FolderBranch key={f.id} domain={domain} folder={f} depth={depth + 1} openSet={openSet} onToggle={onToggle} activeFolder={activeFolder} activePage={activePage} isFolderPage={isFolderPage} />
           ))}
+          {children.data?.pages[0]?.groups?.map(g => <GroupBranch key={g.value} {...{ domain, order, activePage, isFolderPage }} folder={folder.id} branch={[g.value]} count={g.count} depth={depth + 1} />)}
           {pages.map(p => (
             <PageRow key={p.id} domain={domain} page={p} depth={depth + 1} activePage={activePage} isFolderPage={isFolderPage} />
           ))}
@@ -71,6 +75,29 @@ function FolderBranch({ domain, folder, depth, openSet, onToggle, activeFolder, 
   );
 }
 
+function GroupBranch({ domain, folder, order, branch, count, depth, activePage, isFolderPage }: {
+  domain: string; folder: string; order: string[]; branch: string[]; count: number;
+  depth: number; activePage: string | null; isFolderPage: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const children = useChildren(domain, folder, order, branch, open);
+  const data = children.data?.pages[0];
+  return <>
+    <button type="button" className="dir-row dir-group-row" style={{ paddingLeft: depth * 14 }} aria-expanded={open} onClick={() => setOpen(!open)}>
+      <span className="dir-group-chevron"><ChevronRight size={15} className={open ? 'dir-chevron-open' : undefined} /></span>
+      <Layers className="dir-icon dir-group-icon" size={14} aria-hidden="true" />
+      <span className="dir-link" title={branch[branch.length - 1]}>{branch[branch.length - 1]}</span>
+      <span className="dir-group-count" aria-label={count + ' 个条目'}>{count}</span>
+    </button>
+    {open && <div className="dir-children" style={{ '--dir-guide': `${depth * 14 + 9}px` } as React.CSSProperties}>
+      {children.error && <p role="alert">{children.error.message}</p>}
+      {data?.groups?.map(g => <GroupBranch key={g.value} {...{ domain, folder, order, activePage, isFolderPage }} branch={[...branch, g.value]} count={g.count} depth={depth + 1} />)}
+      {children.data?.pages.flatMap(batch => batch.pages).map(page => <PageRow key={page.id} {...{ domain, page, activePage, isFolderPage }} depth={depth + 1} />)}
+      {children.hasNextPage && <button className="dir-load-more" disabled={children.isFetchingNextPage} onClick={() => children.fetchNextPage()}>加载更多</button>}
+    </div>}
+  </>;
+}
+
 function PageRow({ domain, page, depth, activePage, isFolderPage }: { domain: string; page: Page; depth: number; activePage: string | null; isFolderPage: boolean }) {
   return (
     <div className="dir-row" style={{ paddingLeft: depth * 14 }}>
@@ -83,7 +110,8 @@ function PageRow({ domain, page, depth, activePage, isFolderPage }: { domain: st
 
 export function DirectoryTree({ domain, activeFolder, activePage, isFolderPage }: { domain: string; activeFolder: string | null; activePage: string | null; isFolderPage: boolean }) {
   const [openSet, setOpenSet] = useState<Set<string>>(() => loadOpen(domain));
-  const root = useChildren(domain, '/');
+  const { order } = useAggregation(domain, '/');
+  const root = useChildren(domain, '/', order);
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -124,6 +152,7 @@ export function DirectoryTree({ domain, activeFolder, activePage, isFolderPage }
       {rootFolders.map(f => (
         <FolderBranch key={f.id} domain={domain} folder={f} depth={0} openSet={openSet} onToggle={toggle} activeFolder={activeFolder} activePage={activePage} isFolderPage={isFolderPage} />
       ))}
+      {root.data?.pages[0]?.groups?.map(g => <GroupBranch key={g.value} {...{ domain, order, activePage, isFolderPage }} folder="/" branch={[g.value]} count={g.count} depth={0} />)}
       {rootPages.map(p => (
         <PageRow key={p.id} domain={domain} page={p} depth={0} activePage={activePage} isFolderPage={isFolderPage} />
       ))}

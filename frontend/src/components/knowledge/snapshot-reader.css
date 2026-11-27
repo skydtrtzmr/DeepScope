@@ -40,8 +40,6 @@
 .knowledge-layout article hr{border:none;height:1px;background:#e9ecef;margin:2rem auto}
 .knowledge-chart{height:360px;width:100%;min-width:0}
 .knowledge-reader [role=alert]{color:#a33424}
-.knowledge-layout main{transition:opacity .15s}
-.knowledge-layout main[aria-busy=true]{opacity:.55}
 
 /* ============ Directory tree (Quartz explorer style) ============ */
 .dir-tree{font-size:15px;color:#343a40;line-height:1.5}
@@ -60,7 +58,7 @@
 .dir-row:has([aria-current="page"]){background:#e2e8ee}
 .dir-tree [aria-current="page"]{color:#284b63;font-weight:650}
 .dir-children{position:relative}
-.dir-children::before{content:"";position:absolute;left:7px;top:2px;bottom:6px;width:1px;background:#dde3e8}
+.dir-children::before{content:"";position:absolute;left:var(--dir-guide, 9px);top:2px;bottom:6px;width:1px;background:#dde3e8}
 .dir-tree .dir-load-more,.folder-listing .dir-load-more{display:block;margin:4px 0;padding:4px 8px;border:none;background:transparent;color:#4d7ea8;font-size:13px;cursor:pointer;border-radius:4px}
 .dir-tree .dir-load-more:hover,.folder-listing .dir-load-more:hover{background:#e9ecef}
 .dir-tree .dir-load-more:disabled,.folder-listing .dir-load-more:disabled{color:#adb5bd;cursor:default}
@@ -336,3 +334,35 @@ ul.toc-content .depth-3{padding-left:3rem}
 .dim-page-date{flex:0 0 auto;min-width:96px;font-size:13px;color:#adb5bd;font-variant-numeric:tabular-nums}
 .dim-page-title{color:#225c86;text-decoration:none;font-weight:500;font-size:15px}
 .dim-page-title:hover{text-decoration:underline}
+
+.knowledge-aggregation-panel{position:relative;flex:none}
+.knowledge-aggregation-panel summary{display:grid;place-items:center;width:34px;height:34px;border:1px solid #d7e0e8;border-radius:7px;color:#455d72;cursor:pointer;list-style:none}
+.knowledge-aggregation-panel summary::-webkit-details-marker{display:none}
+.knowledge-aggregation-panel summary:hover,.knowledge-aggregation-panel[open] summary{background:#edf4fa;color:#254f73;border-color:#b6cce0}
+.knowledge-aggregation-options{position:absolute;z-index:20;right:0;top:calc(100% + 10px);width:min(294px,calc(100vw - 24px));padding:14px;background:#fff;border:1px solid #d9e1e8;border-radius:10px;box-shadow:0 10px 30px #13243621;font-size:13px;line-height:1.5}
+.aggregation-panel-title,.aggregation-panel-footer,.aggregation-field-row,.knowledge-graph-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.aggregation-panel-title strong{font-size:15px;color:#263a4b}
+.aggregation-panel-title span{color:#50677c;background:#edf3f8;padding:2px 7px;border-radius:4px;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aggregation-panel-hint{color:#506274;margin:5px 0 11px}
+.aggregation-field-list{border:1px solid #e2e9ef;border-radius:7px;max-height: min(360px,45vh);overflow:auto}
+.aggregation-field-row{min-height:38px;padding:4px 8px}
+.aggregation-field-row + .aggregation-field-row{border-top:1px solid #eef2f5}
+.aggregation-field-row label,.aggregation-order-actions{display:flex;align-items:center;gap:6px}
+.aggregation-field-row label{min-width:0;cursor:pointer}
+.aggregation-field-row label span{overflow-wrap:anywhere}
+.aggregation-field-row input{accent-color:#356b99}
+.knowledge-aggregation-options button,.knowledge-graph-heading button{padding:3px 7px;border:1px solid #d9e1e8;border-radius:5px;white-space:nowrap}
+.aggregation-order-actions button{display:grid;place-items:center;width:25px;height:26px;color:#455d72}
+.knowledge-aggregation-options button:hover:enabled{background:#edf4fa}
+.knowledge-aggregation-options button:disabled{opacity:.45}
+.aggregation-panel-footer{margin-top:11px;color:#506274}
+.aggregation-panel-footer button{color:#285878}
+.dir-tree .dir-group-row{width:100%;border:0;background:transparent;text-align:left;cursor:pointer;padding-block:0}
+.dir-tree .dir-group-row:hover,.dir-tree .dir-group-row[aria-expanded=true]{background:#eaf1f7}
+.dir-group-chevron{display:grid;place-items:center;flex:none;width:20px;color:#5c6a77}
+.dir-group-chevron svg{transition:transform .15s ease}
+.dir-group-icon{color:#5782a8}
+.dir-group-count{color:#526578;background:#e6edf4;padding:1px 6px;border-radius:5px;font-size:12px;font-variant-numeric:tabular-nums}
+.knowledge-graph-dialog{position:fixed;inset:0;margin:auto;width:min(1120px,94vw);max-width:none;padding:16px;border:1px solid #d9e1e8;border-radius:10px;background:var(--light,#fff);color:inherit}
+.knowledge-graph-dialog::backdrop{background:#17243670}
+.knowledge-graph-dialog .knowledge-graph{height:min(68dvh,720px);width:100%;margin-top:10px}
