@@ -23,7 +23,7 @@ export type DimensionValueResponse = {
   scope: string;
   count: number;
   groups: { folder: string; title: string; pages: { id: string; title: string; date?: string | null }[] }[];
-  subgraph: { nodes: { id: string; title: string }[]; edges: { source: string; target: string }[]; truncated: boolean };
+  subgraph: { nodes: { id: string; title: string; classification?: { folder: string; field: string; value: string; count: number } }[]; represented?: number; edges: { source: string; target: string }[]; truncated: boolean };
 };
 export type DimensionPath = [field: string, value: string][];
 export type Location = { knowledge: string | null; folder: string | null; page: string | null; dimension: string | null; value: string | null; scope: string | null; path: DimensionPath; matchFirstAny: boolean; key: number };
@@ -158,11 +158,11 @@ export function dimensionsQuery(domain: string, scope: string) {
   };
 }
 
-export function dimensionValueQuery(domain: string, field: string, value: string, scope: string, path: DimensionPath = [], matchFirstAny = false) {
+export function dimensionValueQuery(domain: string, field: string, value: string, scope: string, path: DimensionPath = [], matchFirstAny = false, graphOrders: Record<string, string[]> = {}) {
   return {
-    queryKey: ['dimension-value', domain, field, value, scope, path, matchFirstAny], staleTime: dimensionFresh,
+    queryKey: ['dimension-value', domain, field, value, scope, path, matchFirstAny, graphOrders], staleTime: dimensionFresh,
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      read<DimensionValueResponse>(base + '/' + encodeURIComponent(domain) + '/dimension-value?' + new URLSearchParams({ field, value, scope, path: path.length ? JSON.stringify(path) : '', match_first_any: String(matchFirstAny) }), signal),
+      read<DimensionValueResponse>(base + '/' + encodeURIComponent(domain) + '/dimension-value?' + new URLSearchParams({ field, value, scope, path: path.length ? JSON.stringify(path) : '', match_first_any: String(matchFirstAny), graph_orders: JSON.stringify(graphOrders) }), signal),
   };
 }
 

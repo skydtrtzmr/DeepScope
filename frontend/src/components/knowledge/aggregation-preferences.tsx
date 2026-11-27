@@ -3,11 +3,21 @@ import { ArrowDown, ArrowUp, SlidersHorizontal } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { dimensionsQuery } from './util';
 
-const Preferences = createContext<{ showFiles: boolean; setShowFiles: (show: boolean) => void; orders: Record<string, string[]>; save: (scope: string, order?: string[]) => void }>({ showFiles: true, setShowFiles: () => {}, orders: {}, save: () => {} });
+const DEFAULT_EXPANSION_THRESHOLD = '10';
+
+const Preferences = createContext<{ relatedThreshold: string; setRelatedThreshold: (value: string) => void; showFiles: boolean; setShowFiles: (show: boolean) => void; orders: Record<string, string[]>; save: (scope: string, order?: string[]) => void }>({ relatedThreshold: DEFAULT_EXPANSION_THRESHOLD, setRelatedThreshold: () => {}, showFiles: true, setShowFiles: () => {}, orders: {}, save: () => {} });
 
 export function AggregationPreferences({ domain, children }: { domain: string; children: ReactNode }) {
   const key = 'deepscope:dimension-order:' + domain;
   const filesKey = 'deepscope:directory-files:' + domain;
+  const thresholdKey = 'deepscope:related-expand-threshold:' + domain;
+  const [relatedThreshold, setRelatedThreshold] = useState(() => {
+    const saved = localStorage.getItem(thresholdKey);
+    return saved && /^\d+$/.test(saved) ? saved : DEFAULT_EXPANSION_THRESHOLD;
+  });
+  useEffect(() => {
+    if (relatedThreshold !== '') localStorage.setItem(thresholdKey, relatedThreshold);
+  }, [thresholdKey, relatedThreshold]);
   const [showFiles, setShowFiles] = useState(() => localStorage.getItem(filesKey) !== 'false');
   useEffect(() => { localStorage.setItem(filesKey, String(showFiles)); }, [filesKey, showFiles]);
   const [orders, setOrders] = useState<Record<string, string[]>>(() => {
@@ -19,7 +29,16 @@ export function AggregationPreferences({ domain, children }: { domain: string; c
     if (order === undefined) delete next[scope]; else next[scope] = order;
     return next;
   });
-  return <Preferences.Provider value={{ orders, save, showFiles, setShowFiles }}>{children}</Preferences.Provider>;
+  return <Preferences.Provider value={{ orders, save, showFiles, setShowFiles, relatedThreshold, setRelatedThreshold }}>{children}</Preferences.Provider>;
+}
+
+export function useRelatedExpansionThreshold() {
+  const { relatedThreshold } = useContext(Preferences);
+  return Number(relatedThreshold || DEFAULT_EXPANSION_THRESHOLD);
+}
+
+export function useAggregationOrders() {
+  return useContext(Preferences).orders;
 }
 
 export function useDirectoryVisibility() {
@@ -40,6 +59,7 @@ export function useAggregation(domain: string, folder: string, enabled = true) {
 export function AggregationPanel({ domain, folder }: { domain: string; folder: string }) {
   const panel = useRef<HTMLDetailsElement>(null);
   const { showFiles, setShowFiles } = useDirectoryVisibility();
+  const { relatedThreshold, setRelatedThreshold } = useContext(Preferences);
   const { allowed, order, query, save } = useAggregation(domain, folder);
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
@@ -93,6 +113,14 @@ export function AggregationPanel({ domain, folder }: { domain: string; folder: s
       <label className="aggregation-directory-files">
         <input type="checkbox" checked={showFiles} onChange={e => setShowFiles(e.target.checked)} /> 目录树显示文件
       </label>
+      <div className="related-expansion-setting">
+        <label htmlFor="related-expansion-threshold">关联页面自动展开阈值</label>
+        <input id="related-expansion-threshold" type="number" min={0} step={1} inputMode="numeric"
+          value={relatedThreshold} aria-describedby="related-expansion-hint"
+          onChange={e => { if (/^\d*$/.test(e.target.value)) setRelatedThreshold(e.target.value); }}
+          onBlur={() => { if (relatedThreshold === '') setRelatedThreshold(DEFAULT_EXPANSION_THRESHOLD); }} />
+        <small id="related-expansion-hint">关联数低于阈值时展开全部分组，0 表示关闭。</small>
+      </div>
     </div>
   </details>;
 }

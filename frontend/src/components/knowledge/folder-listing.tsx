@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ChevronRight, Folder } from 'lucide-react';
+import { useId, useState } from 'react';
+import { ChevronRight, FileText, Folder, Layers } from 'lucide-react';
 import { address, classificationAddress, Link, useChildren, type DimensionPath } from './util';
 import { useAggregation } from './aggregation-preferences';
 
@@ -61,8 +61,10 @@ function FolderContents({ domain, folderId, order, path, matchFirstAny = false }
     {pages.length > 0 && <section className="page-list">
       <h3 className="page-list-title">本层文档（{first.page_total}）</h3>
       <ul className="page-list-ul">{pages.map(page => <li key={page.id} className="page-item">
-        <time className="page-date">{page.date ?? ''}</time>
-        <Link domain={domain} to={address(domain, page.id)} className="page-item-title">{page.title}</Link>
+        <Link domain={domain} to={address(domain, page.id)} className="page-item-title">
+          <FileText size={15} aria-hidden="true" /><span>{page.title}</span>
+        </Link>
+        {page.date && <time className="page-date">{page.date}</time>}
       </li>)}</ul>
       {children.hasNextPage && <button type="button" className="dir-load-more" disabled={children.isFetchingNextPage}
         onClick={() => children.fetchNextPage()}>加载更多</button>}
@@ -76,11 +78,22 @@ function ClassificationCard({ domain, folderId, order, path, count, matchFirstAn
 }) {
   const [open, setOpen] = useState(false);
   const [field, value] = path[path.length - 1];
-  return <details className="folder-classification" onToggle={e => setOpen(e.currentTarget.open)}>
-    <summary><span>{field} · {value}</span><span className="dir-group-count">{count}</span></summary>
-    {open && <div className="folder-classification-body">
-      <Link domain={domain} to={classificationAddress(domain, folderId, path, matchFirstAny)}>打开分类页 ↗</Link>
-      <FolderContents {...{ domain, folderId, order, path, matchFirstAny }} />
-    </div>}
-  </details>;
+  const contentsId = useId();
+  return <div className="folder-classification">
+    <div className="classification-row">
+      <button type="button" className="classification-toggle" aria-label={(open ? '收起 ' : '展开 ') + value}
+        aria-expanded={open} aria-controls={contentsId} onClick={() => setOpen(!open)}>
+        <ChevronRight className={open ? 'classification-chevron is-open' : 'classification-chevron'} size={15} aria-hidden="true" />
+      </button>
+      <Link className="classification-link" domain={domain} to={classificationAddress(domain, folderId, path, matchFirstAny)}>
+        <Layers className="classification-icon" size={16} aria-hidden="true" />
+        <span className="classification-value">{value}</span>
+        <span className="classification-field">{field}</span>
+        <span className="dir-group-count" aria-label={count + ' 个条目'}>{count}</span>
+      </Link>
+    </div>
+    <div id={contentsId} className="folder-classification-body" hidden={!open}>
+      {open && <FolderContents {...{ domain, folderId, order, path, matchFirstAny }} />}
+    </div>
+  </div>;
 }

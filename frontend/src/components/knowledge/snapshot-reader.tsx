@@ -1,4 +1,4 @@
-import { Network } from 'lucide-react';
+import { ChevronRight, FileText, Layers, List, Network } from 'lucide-react';
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, createElement, type ReactNode } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
@@ -10,7 +10,7 @@ import {
   address, base, fresh, isFolderPath, Link, navigate, neighborsQuery, pageQuery,
   read, resolvePageId, restoreScroll, useLocation, type Body,
 } from './util';
-import { AggregationPanel, AggregationPreferences, useAggregation } from './aggregation-preferences';
+import { AggregationPanel, AggregationPreferences, useAggregation, useRelatedExpansionThreshold } from './aggregation-preferences';
 import { DirectoryTree } from './directory-tree';
 import { FolderListing } from './folder-listing';
 import { DimensionValue } from './dimensions';
@@ -151,41 +151,51 @@ type RelatedTree = { pages: Body[]; groups: { value: string; count: number; chil
 
 function groupRelated(pages: Body[], fields: string[], minimum: number): RelatedTree {
   const [field, ...rest] = fields;
+  const unclassified = '未分类';
   if (!field) return { pages, groups: [] };
   const loose: Body[] = [];
   const buckets = new Map<string, Body[]>();
   for (const page of pages) {
     const raw = page.frontmatter?.[field];
-    const value = Array.isArray(raw) ? raw.find(v => v != null && v !== '') : raw;
-    if (value == null || value === '') {
-      loose.push(page);
-      continue;
-    }
-    const key = String(value);
+    const value = (Array.isArray(raw) ? raw : [raw]).find(v => v != null && String(v).trim() !== '');
+    const key = value == null ? unclassified : String(value);
     const group = buckets.get(key) ?? [];
     group.push(page);
     buckets.set(key, group);
   }
   const groups: RelatedTree['groups'] = [];
   for (const [value, members] of buckets) {
-    if (members.length < minimum) loose.push(...members);
+    if (value !== unclassified && members.length < minimum) loose.push(...members);
     else groups.push({ value, count: members.length, children: groupRelated(members, rest, minimum) });
   }
+  groups.sort((a, b) => Number(a.value === unclassified) - Number(b.value === unclassified));
   return { pages: loose, groups };
 }
 
-function RelatedList({ tree, domain, directions }: {
-  tree: RelatedTree; domain: string; directions: Map<string, number>;
+function RelatedList({ tree, domain, directions, defaultOpen, depth = 0 }: {
+  tree: RelatedTree; domain: string; directions: Map<string, number>; defaultOpen: boolean; depth?: number;
 }) {
-  return <ul className="backlinks-list">
-    {tree.groups.map(group => <li key={group.value}><details>
-      <summary>{group.value} <span className="dir-group-count">{group.count}</span></summary>
-      <RelatedList tree={group.children} domain={domain} directions={directions} />
+  const indent = depth * 14;
+  return <ul className={depth === 0 ? 'dir-tree related-tree' : 'dir-children related-tree'}
+    style={{ '--dir-guide': `${indent - 5}px` } as React.CSSProperties}>
+    {tree.groups.map(group => <li key={group.value}><details open={defaultOpen}>
+      <summary className="dir-row dir-group-row related-group-row" style={{ paddingLeft: indent }}>
+        <span className="dir-group-chevron"><ChevronRight size={15} aria-hidden="true" /></span>
+        <Layers className="dir-icon dir-group-icon" size={14} aria-hidden="true" />
+        <span className="dir-link" title={group.value}>{group.value}</span>
+        <span className="dir-group-count" aria-label={group.count + ' 个条目'}>{group.count}</span>
+      </summary>
+      <RelatedList tree={group.children} domain={domain} directions={directions} defaultOpen={defaultOpen} depth={depth + 1} />
     </details></li>)}
-    {tree.pages.map(page => <li key={page.id} className="related-page-row">
-      <Link domain={domain} to={address(domain, page.id)}>{page.title}</Link>
-      <span>{['', '引用', '被引用', '双向'][directions.get(page.id) ?? 0]}</span>
-    </li>)}
+    {tree.pages.map(page => {
+      const direction = ['', '引用', '被引用', '双向'][directions.get(page.id) ?? 0];
+      return <li key={page.id} className="dir-row related-page-row" style={{ paddingLeft: indent }}>
+        <span className="dir-chevron-placeholder" />
+        <FileText className="dir-icon" size={15} aria-hidden="true" />
+        <Link className="dir-link" title={page.title} domain={domain} to={address(domain, page.id)}>{page.title}</Link>
+        {direction && <span className="related-direction">{direction}</span>}
+      </li>;
+    })}
   </ul>;
 }
 
@@ -259,6 +269,11 @@ function Related({ domain, page }: { domain: string; page: Body }) {
   // runs a second layout pass that made the graph jump after the body had already settled.
   const loaded = query.error !== null || (query.data !== undefined && !dims.isPending);
   const count = query.data?.pages[0]?.total ?? related.length;
+  const autoExpand = count < useRelatedExpansionThreshold();
+  const { hasNextPage, isFetching, isFetchNextPageError, fetchNextPage } = query;
+  useEffect(() => {
+    if (autoExpand && hasNextPage && !isFetching && !isFetchNextPageError) void fetchNextPage();
+  }, [autoExpand, hasNextPage, isFetching, isFetchNextPageError, fetchNextPage]);
   const canvas = (suffix: string) => <ExplorerCanvas frameBeforeEntry fitUpdates
     key={JSON.stringify([page.id, orderKey, suffix])} contextId={page.id + ':' + orderKey + ':' + suffix} view={view}
     selectedId={selected} onSelect={pick} onToggle={() => {}} onClear={() => select(null)} />;
@@ -282,17 +297,26 @@ function Related({ domain, page }: { domain: string; page: Body }) {
     </dialog>
     {count > 0 && <section className="backlinks">
       <h3>关联页面（{count}）</h3>
-      <RelatedList tree={tree} domain={domain} directions={directions} />
+      <RelatedList key={String(autoExpand)} tree={tree} domain={domain} directions={directions} defaultOpen={autoExpand} />
       {query.hasNextPage && <button type="button" className="dir-load-more" disabled={query.isFetchingNextPage}
         onClick={() => query.fetchNextPage()}>加载更多（已加载 {related.length} / {count}）</button>}
     </section>}
   </div>;
 }
 
-// Page outline, middle of the right sidebar (Quartz toc widget): collapsible, with scroll spy.
+// The outline floats at the top right of the scrolling document.
 function PageToc({ entries, container }: { entries: TocEntry[]; container: React.RefObject<HTMLElement | null> }) {
   const [active, setActive] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [open, setOpen] = useState(false);
+  const toc = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => { if (!toc.current?.contains(e.target as Node)) setOpen(false); };
+    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); toc.current?.querySelector('button')?.focus(); } };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape); };
+  }, [open]);
   useEffect(() => {
     const el = container.current;
     if (!el || entries.length === 0) return;
@@ -314,21 +338,22 @@ function PageToc({ entries, container }: { entries: TocEntry[]; container: React
   }, [entries, container]);
   if (entries.length === 0) return null;
   return (
-    <div className="toc">
-      <button type="button" className={collapsed ? 'toc-header collapsed' : 'toc-header'} aria-expanded={!collapsed} onClick={() => setCollapsed(v => !v)}>
-        <h3>页面目录</h3>
-        <svg className="fold" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+    <div className="floating-toc" ref={toc}>
+      <button type="button" className="floating-toc-button" title="页面目录" aria-label="页面目录" aria-expanded={open} onClick={() => setOpen(v => !v)}>
+        <List size={17} aria-hidden="true" />
       </button>
-      <ul className={collapsed ? 'toc-content collapsed' : 'toc-content'}>
+      {open && <nav className="floating-toc-panel" aria-label="页面目录"><strong>页面目录</strong>
+      <ul className="toc-content">
         {entries.map(entry => (
           <li key={entry.id} className={`depth-${entry.depth - 1}`}>
             <a href={`#${entry.id}`} className={active === entry.id ? 'in-view' : undefined} onClick={e => {
               e.preventDefault();
+              setOpen(false);
               container.current?.querySelector(`[id="${CSS.escape(entry.id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }}>{entry.text}</a>
           </li>
         ))}
-      </ul>
+      </ul></nav>}
     </div>
   );
 }
@@ -438,7 +463,7 @@ function Reader({ domain, header, onOpenSearch }: { domain: string; header: Reac
     return { source, entries, ids };
   }, [page, folder]);
   const isEntity = !!page && page.type !== 'folder';
-  const hasRight = !dimensionView && (!folder || prepared.entries.length > 0);
+  const hasRight = !dimensionView && !folder;
   return <>
     <header>{header}<AggregationPanel domain={domain} folder={activeFolder ?? '/'} /></header>
     <div className="knowledge-layout" data-has-right={hasRight}>
@@ -447,6 +472,7 @@ function Reader({ domain, header, onOpenSearch }: { domain: string; header: Reac
       <DirectoryTree domain={domain} activeFolder={activeFolder} activePage={folder ? null : id} isFolderPage={folder} activePath={location.path} />
     </aside>
     <main ref={main} aria-busy={loading}>
+      {!dimensionView && <PageToc key={id} entries={prepared.entries} container={main} />}
       {dimensionView ? (
         <DimensionValue domain={domain} field={location.dimension!} value={location.value!} scope={dimensionScope} path={location.path} matchFirstAny={location.matchFirstAny} />
       ) : body.error ? <p role="alert">{body.error.message}</p> : !page ? <p>正在读取知识页…</p> : <>
@@ -461,7 +487,6 @@ function Reader({ domain, header, onOpenSearch }: { domain: string; header: Reac
     {hasRight && (
       <aside className="sidebar right">
         {!folder && isEntity && page && <Related key={page.id} domain={domain} page={page} />}
-        {page && <PageToc entries={prepared.entries} container={main} />}
       </aside>
     )}
   </div></>;

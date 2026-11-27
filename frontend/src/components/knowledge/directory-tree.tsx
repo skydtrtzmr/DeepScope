@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, FileText, Folder, FolderOpen, Layers } from 'lucide-react';
+import { ChevronRight, FileText, Folder, Layers } from 'lucide-react';
 import { address, classificationAddress, Link, useChildren, type DimensionPath, type Folder as FolderNode, type Page } from './util';
 
 import { useAggregation, useDirectoryVisibility } from './aggregation-preferences';
@@ -55,8 +55,9 @@ function FolderBranch({ domain, folder, depth, openSet, onToggle, activeFolder, 
         <button type="button" className="dir-chevron" aria-expanded={open} onClick={() => onToggle(folder.id)} aria-label={open ? '折叠目录' : '展开目录'}>
           <ChevronRight size={15} strokeWidth={2.4} className={open ? 'dir-chevron-open' : undefined} />
         </button>
-        {open ? <FolderOpen className="dir-icon" size={15} /> : <Folder className="dir-icon" size={15} />}
-        <Link domain={domain} to={address(domain, folder.id, true)} className="dir-link dir-link-folder" aria-current={isFolderPage && activeFolder === folder.id ? 'page' : undefined}>{folder.title}</Link>
+        <Link domain={domain} to={address(domain, folder.id, true)} className="dir-link dir-link-folder dir-row-link" aria-current={isFolderPage && activeFolder === folder.id ? 'page' : undefined}>
+          <Folder className="dir-icon" size={15} aria-hidden="true" /><span>{folder.title}</span>
+        </Link>
       </div>
       {open && (
         <div className="dir-children" style={{ '--dir-guide': `${depth * 14 + 9}px` } as React.CSSProperties}>
@@ -88,18 +89,21 @@ function GroupBranch({ domain, folder, order, branch, count, depth, activePage, 
   const ancestor = active.folder === folder && path.every(([field, value], i) =>
     active.path[i]?.[0] === field && active.path[i]?.[1] === value);
   const current = ancestor && active.path.length === path.length;
-  const [open, setOpen] = useState(ancestor);
-  useEffect(() => { if (ancestor) setOpen(true); }, [ancestor]);
+  const revealChild = ancestor && !current;
+  const [open, setOpen] = useState(revealChild);
+  useEffect(() => { if (revealChild) setOpen(true); }, [revealChild]);
   const children = useChildren(domain, folder, order, branch, open);
   const data = children.data?.pages[0];
   return <>
-    <div className="dir-row dir-group-row" style={{ paddingLeft: depth * 14 }} data-expanded={open}>
+    <div className="dir-row dir-group-row" style={{ paddingLeft: depth * 14 }}>
       <button type="button" className="dir-chevron" aria-label={(open ? '收起 ' : '展开 ') + branch[branch.length - 1]} aria-expanded={open} onClick={() => setOpen(!open)}>
         <ChevronRight size={15} className={open ? 'dir-chevron-open' : undefined} />
       </button>
-      <Layers className="dir-icon dir-group-icon" size={14} aria-hidden="true" />
-      <Link domain={domain} to={classificationAddress(domain, folder, path)} className="dir-link" aria-current={current ? 'page' : undefined}>{branch[branch.length - 1]}</Link>
-      <span className="dir-group-count" aria-label={count + ' 个条目'}>{count}</span>
+      <Link domain={domain} to={classificationAddress(domain, folder, path)} className="dir-link dir-row-link" aria-current={current ? 'page' : undefined}>
+        <Layers className="dir-icon dir-group-icon" size={14} aria-hidden="true" />
+        <span>{branch[branch.length - 1]}</span>
+        <span className="dir-group-count" aria-label={count + ' 个条目'}>{count}</span>
+      </Link>
     </div>
     {open && <div className="dir-children" style={{ '--dir-guide': `${depth * 14 + 9}px` } as React.CSSProperties}>
       {children.error && <p role="alert">{children.error.message}</p>}
@@ -134,14 +138,14 @@ export function DirectoryTree({ domain, activeFolder, activePage, isFolderPage, 
   // Auto-expand the ancestors of the folder currently being viewed.
   useEffect(() => {
     if (!activeFolder) return;
-    const need = ancestors(activeFolder);
+    const need = ancestors(activeFolder).slice(isFolderPage ? 1 : 0);
     setOpenSet(prev => {
       if (need.every(id => prev.has(id))) return prev;
       const next = new Set(prev);
       need.forEach(id => next.add(id));
       return next;
     });
-  }, [activeFolder]);
+  }, [activeFolder, isFolderPage]);
 
   // Keep the current item in view after the tree re-renders.
   useEffect(() => {
