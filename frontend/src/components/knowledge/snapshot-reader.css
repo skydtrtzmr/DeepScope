@@ -4,6 +4,11 @@
 .knowledge-reader header a{margin-left:auto}
 .knowledge-reader select{border:1px solid #c7d2df;border-radius:5px;padding:4px 10px}
 
+.knowledge-history{display:flex;align-items:center;gap:3px;flex:none}
+.knowledge-history button{display:grid;place-items:center;width:32px;height:32px;border-radius:6px;color:#455d72;cursor:pointer}
+.knowledge-history button:hover:enabled{background:#edf4fa;color:#254f73}
+.knowledge-history button:disabled{opacity:.35;cursor:default}
+
 /* ============ Three-column layout (Quartz default frame) ============ */
 .knowledge-layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(230px,290px) minmax(0,1fr) 320px}
 .knowledge-layout[data-has-right="false"]{grid-template-columns:minmax(230px,290px) minmax(0,1fr)}
@@ -109,8 +114,11 @@ ul.toc-content .depth-3{padding-left:3rem}
 .related-tree{list-style:none;margin:0;padding:0}
 .related-tree summary{list-style:none;cursor:pointer}
 .related-tree summary::-webkit-details-marker{display:none}
-.related-tree details[open] > .related-group-row{background:#eaf1f7}
 .related-tree details[open] > .related-group-row .dir-group-chevron svg{transform:rotate(90deg)}
+.related-tree .related-group-row{min-height:28px}
+.backlinks > .related-tree > li > details > summary .dir-link{font-weight:650}
+.related-subject-icon{color:#5782a8}
+.related-field{flex:0 1 auto;max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid #e1e9f1;border-radius:4px;padding:0 4px;color:#536b80;font-size:11px}
 .related-direction{flex:none;white-space:nowrap;color:#526578;font-size:11px;line-height:1.4;padding:2px 5px;border-radius:4px;background:#edf2f6}
 .sidebar.right .backlinks .dir-load-more{margin:6px 0 0;padding:4px 6px;color:#285878;font-size:13px}
 
@@ -322,7 +330,7 @@ ul.toc-content .depth-3{padding-left:3rem}
 }
 .dim-scope-chip button:hover{background:#d8e8f4;color:#284b63}
 .dim-truncated{color:#a33424;font-size:13px}
-.dim-subgraph{margin:0 0 20px}
+.dim-subgraph{height:clamp(360px,58dvh,620px);margin:0 0 20px}
 .dim-selected-hint{font-size:13px;color:#868e96;margin:6px 0 0}
 .dim-selected-hint a{color:#225c86}
 .dim-group{margin:0 0 22px}
@@ -368,9 +376,10 @@ ul.toc-content .depth-3{padding-left:3rem}
 .dir-group-chevron svg{transition:transform .15s ease}
 .dir-group-icon{color:#5782a8}
 .dir-group-count{color:#526578;background:#e6edf4;padding:1px 6px;border-radius:5px;font-size:12px;font-variant-numeric:tabular-nums}
-.knowledge-graph-dialog{position:fixed;inset:0;margin:auto;width:min(1120px,94vw);max-width:none;padding:16px;border:1px solid #d9e1e8;border-radius:10px;background:var(--light,#fff);color:inherit}
+.knowledge-graph-dialog{position:fixed;inset:0;margin:auto;width:min(1440px,96vw);height:min(900px,90dvh);max-width:none;max-height:96dvh;padding:0;border:1px solid #d9e1e8;border-radius:10px;background:#fff;color:#263745;overflow:hidden}
+.knowledge-graph-dialog[open]{display:flex;flex-direction:column}
 .knowledge-graph-dialog::backdrop{background:#17243670}
-.knowledge-graph-dialog .knowledge-graph{height:min(68dvh,720px);width:100%;margin-top:10px}
+
 
 .aggregation-directory-files{display:flex;align-items:center;gap:7px;margin-top:11px;padding-top:10px;border-top:1px solid #e2e9ef}
 .aggregation-directory-files input{accent-color:#356b99}

@@ -1,10 +1,16 @@
-import { useEffect, useState, type AnchorHTMLAttributes } from 'react';
+import { useEffect, useSyncExternalStore, type AnchorHTMLAttributes } from 'react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 
 export type Page = { id: string; title: string; folder_id: string; date?: string; tags?: string[] };
 export type Folder = { id: string; title: string; parent_id: string | null; kind?: string };
 export type Body = { id: string; title: string; type: string; body_md: string | null; folder_id?: string; frontmatter?: Record<string, unknown>; display_fields?: string[] | null };
-export type NeighborPage = { nodes: Body[]; edges: { source: string; target: string; type: string }[]; more: boolean; total?: number };
+export type NeighborNode = Body & { subject?: { id: string; title: string } | null };
+export function subjectKey(page: { folder_id?: string; type?: string; subject?: NeighborNode['subject'] }) {
+  if (page.subject) return page.subject.id;
+  if (page.folder_id) return '/' + (page.folder_id.split('/').filter(Boolean)[0] ?? '');
+  return page.type ?? 'entity';
+}
+export type NeighborPage = { nodes: NeighborNode[]; edges: { source: string; target: string; type: string }[]; more: boolean; total?: number };
 export type ChildrenResponse = { folder: string; groups?: { value: string; count: number }[]; folders: Folder[]; pages: Page[]; page_total: number; page_has_more: boolean; sort?: { field: string; order: string } };
 export type BacklinksResponse = { id: string; sources: { id: string; title: string; type: string }[] };
 export type SearchHit = {
@@ -17,16 +23,18 @@ export type SearchHit = {
 };
 export type SearchResponse = { results: SearchHit[]; total: number };
 export type DimensionsResponse = { scope: string; chain: string[]; min_group_size?: number; fields: { field: string; values: { value: string; count: number }[] }[] };
-export type DimensionValueResponse = {
+export type ScopeGraphResponse = {
+  count: number;
+  subgraph: { nodes: { id: string; title: string; folder_id?: string; classification?: { folder: string; field: string; value: string; count: number } }[]; represented?: number; edges: { source: string; target: string }[]; truncated: boolean };
+};
+export type DimensionValueResponse = ScopeGraphResponse & {
   field: string;
   value: string;
   scope: string;
-  count: number;
   groups: { folder: string; title: string; pages: { id: string; title: string; date?: string | null }[] }[];
-  subgraph: { nodes: { id: string; title: string; classification?: { folder: string; field: string; value: string; count: number } }[]; represented?: number; edges: { source: string; target: string }[]; truncated: boolean };
 };
 export type DimensionPath = [field: string, value: string][];
-export type Location = { knowledge: string | null; folder: string | null; page: string | null; dimension: string | null; value: string | null; scope: string | null; path: DimensionPath; matchFirstAny: boolean; key: number };
+export type Location = { knowledge: string | null; folder: string | null; page: string | null; dimension: string | null; value: string | null; scope: string | null; path: DimensionPath; matchFirstAny: boolean; key: string; canGoBack: boolean; canGoForward: boolean };
 
 export const base = '/api/knowledge/domains';
 // Snapshot data only changes on rebuild, so revisits within one session are served from memory.
@@ -53,11 +61,6 @@ export function dimensionAddress(domain: string, field: string, value: string, s
   return '?' + new URLSearchParams(params);
 }
 
-// In-app navigation: the URL stays shareable, but the document is never reloaded.
-const listeners = new Set<() => void>();
-const scrollPositions = new Map<number, number>();
-let sequence = (history.state && (history.state as { key?: number }).key) || 0;
-
 export function classificationAddress(domain: string, folder: string, path: DimensionPath, matchFirstAny = false) {
   const [field, value] = path[path.length - 1];
   return dimensionAddress(domain, field, value, folder.replace(/^\/+|\/+$/g, ''), path, matchFirstAny);
@@ -70,7 +73,34 @@ function readDimensionPath(raw: string | null): DimensionPath {
   } catch { return []; }
 }
 
-export function readLocation(): Location {
+type HistoryEntry = { trail: string; index: number; id: string };
+const historyKey = 'deepscopeKnowledge';
+const listeners = new Set<() => void>();
+const scrollPositions = new Map<string, number>();
+const makeId = () => Array.from(crypto.getRandomValues(new Uint32Array(4))).join('-');
+
+function ensureHistoryEntry(): HistoryEntry {
+  const marker = history.state?.[historyKey] as HistoryEntry | undefined;
+  if (marker) return marker;
+  const id = makeId();
+  const first = { trail: id, index: 0, id };
+  history.replaceState({ ...history.state, [historyKey]: first }, '');
+  return first;
+}
+
+function storedLastIndex(marker: HistoryEntry) {
+  try {
+    return Math.max(marker.index, Number(sessionStorage.getItem(historyKey + ':' + marker.trail)) || 0);
+  } catch {
+    return marker.index;
+  }
+}
+
+let entry = ensureHistoryEntry();
+let lastIndex = storedLastIndex(entry);
+history.scrollRestoration = 'manual';
+
+function readLocation(): Location {
   const params = new URLSearchParams(location.search);
   return {
     knowledge: params.get('knowledge'),
@@ -81,31 +111,70 @@ export function readLocation(): Location {
     scope: params.get('scope'),
     path: readDimensionPath(params.get('path')),
     matchFirstAny: params.get('match_first_any') === 'true',
-    key: (history.state && (history.state as { key?: number }).key) || 0,
+    key: entry.id,
+    canGoBack: entry.index > 0,
+    canGoForward: entry.index < lastIndex,
   };
 }
 
-export function navigate(to: string) {
-  if (to === location.pathname + location.search) return;
-  const current = readLocation();
-  scrollPositions.set(current.key, document.querySelector('.knowledge-layout main')?.scrollTop ?? 0);
-  history.pushState({ key: ++sequence }, '', to);
+let currentLocation = readLocation();
+function publishLocation() {
+  currentLocation = readLocation();
   listeners.forEach(fn => fn());
 }
 
-export function useLocation() {
-  const [state, setState] = useState(readLocation);
-  useEffect(() => {
-    if (!history.state) history.replaceState({ key: ++sequence }, '');
-    const update = () => setState(readLocation());
-    listeners.add(update);
-    return () => { listeners.delete(update); };
-  }, []);
-  return state;
+function saveScroll() {
+  const main = document.querySelector('.knowledge-layout main');
+  if (main) scrollPositions.set(entry.id, main.scrollTop);
 }
 
-export function restoreScroll(key: number, element: HTMLElement | null) {
-  if (element) element.scrollTop = scrollPositions.get(key) ?? 0;
+window.addEventListener('popstate', () => {
+  saveScroll();
+  const next = ensureHistoryEntry();
+  if (next.trail !== entry.trail) lastIndex = storedLastIndex(next);
+  entry = next;
+  publishLocation();
+});
+
+export function navigate(to: string) {
+  const destination = new URL(to, location.href);
+  if (destination.href === location.href) return;
+  saveScroll();
+  const next = { trail: entry.trail, index: entry.index + 1, id: makeId() };
+  history.pushState({ ...history.state, [historyKey]: next }, '', destination);
+  entry = next;
+  lastIndex = next.index;
+  try { sessionStorage.setItem(historyKey + ':' + entry.trail, String(lastIndex)); } catch { /* keep the in-memory trail */ }
+  publishLocation();
+}
+
+export function stepHistory(direction: -1 | 1) {
+  if (direction < 0 ? currentLocation.canGoBack : currentLocation.canGoForward) history.go(direction);
+}
+
+function subscribeLocation(fn: () => void) {
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}
+
+export function useLocation() {
+  return useSyncExternalStore(subscribeLocation, () => currentLocation);
+}
+
+export function restoreScroll(key: string, element: HTMLElement | null) {
+  if (!element) return;
+  const saved = scrollPositions.get(key);
+  if (saved === undefined && location.hash) {
+    try {
+      const id = decodeURIComponent(location.hash.slice(1));
+      const heading = element.querySelector('#' + CSS.escape(id));
+      if (heading) {
+        heading.scrollIntoView({ block: 'start' });
+        return;
+      }
+    } catch { /* malformed hash */ }
+  }
+  element.scrollTop = saved ?? 0;
 }
 
 export function pageQuery(domain: string, folder: boolean, id: string) {
@@ -210,8 +279,10 @@ export function prefetch(queryClient: ReturnType<typeof useQueryClient>, domain:
 
 export function Link({ to, domain, ...rest }: { to: string; domain: string } & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>) {
   const queryClient = useQueryClient();
-  return <a {...rest} href={to} onMouseEnter={() => prefetch(queryClient, domain, to)} onFocus={() => prefetch(queryClient, domain, to)} onClick={e => {
-    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const internal = to.startsWith('?') || to.startsWith('#');
+  const warm = () => { if (to.startsWith('?')) prefetch(queryClient, domain, to); };
+  return <a {...rest} href={to} onMouseEnter={warm} onFocus={warm} onClick={e => {
+    if (!internal || rest.download || (rest.target && rest.target !== '_self') || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
     navigate(to);
   }} />;

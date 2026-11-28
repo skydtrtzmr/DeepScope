@@ -1,19 +1,22 @@
-import { ChevronRight, FileText, Layers, List, Network } from 'lucide-react';
+import { pageNode, edgeKey } from './graph-data';
+import { ArrowLeft, ArrowRight, ChevronRight, FileText, Folder, Layers, List, Network, Tag } from 'lucide-react';
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, createElement, type ReactNode } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Root, Parent, PhrasingContent } from 'mdast';
-import { ExplorerCanvas } from '../aggregate/aggregation-explorer';
-import type { Projection, ViewNode } from '@/lib/aggregation/explorer';
+import { ExplorerCanvas } from '../graph/explorer-canvas';
+import type { Projection, ViewNode } from '@/types/graph-view';
 import {
   address, base, fresh, isFolderPath, Link, navigate, neighborsQuery, pageQuery,
-  read, resolvePageId, restoreScroll, useLocation, type Body,
+  read, resolvePageId, restoreScroll, stepHistory, useLocation, type Body,
 } from './util';
-import { AggregationPanel, AggregationPreferences, useAggregation, useRelatedExpansionThreshold } from './aggregation-preferences';
+import { AggregationPanel, AggregationPreferences, useAggregation, useSubjectColors, useRelatedExpansionThreshold } from './aggregation-preferences';
+import { LocalGraphExplorer } from './local-graph-explorer';
 import { DirectoryTree } from './directory-tree';
 import { FolderListing } from './folder-listing';
-import { DimensionValue } from './dimensions';
+import { relatedDimensionValue, relatedDirectory, type RelatedDirectory } from './related-page-tree';
+import { DimensionValue, FolderScopeGraph } from './dimensions';
 import { SearchButton, SearchOverlay } from './search';
 import './snapshot-reader.css';
 
@@ -156,9 +159,7 @@ function groupRelated(pages: Body[], fields: string[], minimum: number): Related
   const loose: Body[] = [];
   const buckets = new Map<string, Body[]>();
   for (const page of pages) {
-    const raw = page.frontmatter?.[field];
-    const value = (Array.isArray(raw) ? raw : [raw]).find(v => v != null && String(v).trim() !== '');
-    const key = value == null ? unclassified : String(value);
+    const key = relatedDimensionValue(page.frontmatter?.[field]);
     const group = buckets.get(key) ?? [];
     group.push(page);
     buckets.set(key, group);
@@ -173,16 +174,19 @@ function groupRelated(pages: Body[], fields: string[], minimum: number): Related
 }
 
 function RelatedList({ tree, domain, directions, defaultOpen, depth = 0 }: {
-  tree: RelatedTree; domain: string; directions: Map<string, number>; defaultOpen: boolean; depth?: number;
+  tree: RelatedDirectory; domain: string; directions: Map<string, number>; defaultOpen: boolean; depth?: number;
 }) {
   const indent = depth * 14;
   return <ul className={depth === 0 ? 'dir-tree related-tree' : 'dir-children related-tree'}
     style={{ '--dir-guide': `${indent - 5}px` } as React.CSSProperties}>
-    {tree.groups.map(group => <li key={group.value}><details open={defaultOpen}>
+    {tree.groups.map(group => <li key={group.id}><details open={defaultOpen}>
       <summary className="dir-row dir-group-row related-group-row" style={{ paddingLeft: indent }}>
         <span className="dir-group-chevron"><ChevronRight size={15} aria-hidden="true" /></span>
-        <Layers className="dir-icon dir-group-icon" size={14} aria-hidden="true" />
-        <span className="dir-link" title={group.value}>{group.value}</span>
+        {group.field ? <Layers className="dir-icon dir-group-icon" size={14} aria-hidden="true" /> :
+          group.id === '标签' ? <Tag className="dir-icon related-subject-icon" size={15} aria-hidden="true" /> :
+            <Folder className="dir-icon related-subject-icon" size={15} aria-hidden="true" />}
+        <span className="dir-link" title={group.title}>{group.title}</span>
+        {group.field && <span className="related-field" title={group.field}>{group.field}</span>}
         <span className="dir-group-count" aria-label={group.count + ' 个条目'}>{group.count}</span>
       </summary>
       <RelatedList tree={group.children} domain={domain} directions={directions} defaultOpen={defaultOpen} depth={depth + 1} />
@@ -205,12 +209,15 @@ function Related({ domain, page }: { domain: string; page: Body }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const modal = useRef<HTMLDialogElement>(null);
   const [enlarged, enlarge] = useState(false);
+  const colors = useSubjectColors(domain);
   const query = useInfiniteQuery(neighborsQuery(domain, page.id));
   const { order, query: dims } = useAggregation(domain, page.folder_id ?? '/');
   const orderKey = JSON.stringify(order);
   const related = useMemo(() => query.data?.pages.flatMap(p => p.nodes) ?? [], [query.data]);
   const relations = useMemo(() => query.data?.pages.flatMap(p => p.edges) ?? [], [query.data]);
   const tree = useMemo(() => groupRelated(related, JSON.parse(orderKey), dims.data?.min_group_size ?? 1),
+    [related, orderKey, dims.data?.min_group_size]);
+  const relatedTree = useMemo(() => relatedDirectory(related, JSON.parse(orderKey), dims.data?.min_group_size ?? 1),
     [related, orderKey, dims.data?.min_group_size]);
   const directions = useMemo(() => {
     const result = new Map<string, number>();
@@ -224,10 +231,12 @@ function Related({ domain, page }: { domain: string; page: Body }) {
   const view = useMemo<Projection>(() => {
     const nodes: ViewNode[] = [];
     const edges: Projection['edges'] = [];
-    const addEntity = (n: Body, depth: number, parentId?: string) => nodes.push({
-      id: n.id, label: n.title, kind: 'entity', depth, parentId,
-      entity: { id: n.id, label: n.title, type: n.type, properties: {} },
-    });
+    const seen = new Set<string>();
+    function addEntity(page: Body, depth: number, parentId?: string) {
+      if (seen.has(page.id)) return;
+      seen.add(page.id);
+      nodes.push(pageNode(page, depth, parentId));
+    }
     function membership(parent: string, child: string) {
       edges.push({ id: JSON.stringify(['membership', parent, child]), source: parent, target: child, kind: 'membership' });
     }
@@ -250,19 +259,22 @@ function Related({ domain, page }: { domain: string; page: Body }) {
     const visible = new Set(nodes.map(n => n.id));
     for (const e of relations) {
       if (visible.has(e.source) && visible.has(e.target)) {
-        edges.push({ ...e, id: JSON.stringify([e.source, e.target, e.type]), kind: 'relation' });
+        edges.push({ ...e, id: edgeKey(e), kind: 'relation' });
       }
     }
     return { nodes, edges, total: nodes.length, rootId: page.id };
   }, [tree, relations, page, orderKey, expanded]);
 
-  function pick(node: ViewNode) {
-    select(node.id);
+  function toggleGroup(node: ViewNode) {
     if (node.kind === 'group') setExpanded(current => {
       const next = new Set(current);
       if (next.has(node.id)) next.delete(node.id); else next.add(node.id);
       return next;
     });
+  }
+  function pick(node: ViewNode) {
+    select(current => current === node.id ? null : node.id);
+    toggleGroup(node);
   }
   const selectedNode = selected ? view.nodes.find(n => n.id === selected) : undefined;
   // Draw once the first batch of neighbours is in: drawing the root alone and then adding the rest
@@ -274,7 +286,7 @@ function Related({ domain, page }: { domain: string; page: Body }) {
   useEffect(() => {
     if (autoExpand && hasNextPage && !isFetching && !isFetchNextPageError) void fetchNextPage();
   }, [autoExpand, hasNextPage, isFetching, isFetchNextPageError, fetchNextPage]);
-  const canvas = (suffix: string) => <ExplorerCanvas frameBeforeEntry fitUpdates
+  const canvas = (suffix: string) => <ExplorerCanvas categoryColors={colors} frameBeforeEntry fitUpdates
     key={JSON.stringify([page.id, orderKey, suffix])} contextId={page.id + ':' + orderKey + ':' + suffix} view={view}
     selectedId={selected} onSelect={pick} onToggle={() => {}} onClear={() => select(null)} />;
   const controls = <div className="graph-controls">
@@ -291,13 +303,13 @@ function Related({ domain, page }: { domain: string; page: Body }) {
     <div className="graph-outer"><div className="knowledge-graph">{loaded && canvas('inline')}</div></div>
     {controls}
     <dialog ref={modal} aria-label="关联图谱" className="knowledge-graph-dialog" onClose={() => enlarge(false)}>
-      <div className="knowledge-graph-heading"><h3>关联图谱 · {page.title}</h3><button type="button" onClick={() => modal.current?.close()}>关闭</button></div>
-      <div className="knowledge-graph">{enlarged && canvas('large')}</div>
-      {controls}
+      {enlarged && <LocalGraphExplorer colors={colors} domain={domain} page={page} related={related} relations={relations} groupedView={view}
+        moreGroups={query.hasNextPage ? { loading: query.isFetchingNextPage, load: () => void query.fetchNextPage() } : undefined}
+        initialId={selected} toggleGroup={toggleGroup} close={() => modal.current?.close()} />}
     </dialog>
     {count > 0 && <section className="backlinks">
       <h3>关联页面（{count}）</h3>
-      <RelatedList key={String(autoExpand)} tree={tree} domain={domain} directions={directions} defaultOpen={autoExpand} />
+      <RelatedList key={String(autoExpand)} tree={relatedTree} domain={domain} directions={directions} defaultOpen={autoExpand} />
       {query.hasNextPage && <button type="button" className="dir-load-more" disabled={query.isFetchingNextPage}
         onClick={() => query.fetchNextPage()}>加载更多（已加载 {related.length} / {count}）</button>}
     </section>}
@@ -370,9 +382,9 @@ function NoteProperties({ frontmatter, displayFields, domain, link, onSearchTag 
 }) {
   const panel = useRef<HTMLDetailsElement>(null);
   const fields = frontmatter ?? {};
-  const rows = displayFields
+  const rows = (displayFields
     ? displayFields.filter(field => field in fields).map(field => [field, fields[field]] as [string, unknown])
-    : Object.entries(fields);
+    : Object.entries(fields)).filter(([field]) => field !== 'title');
   if (rows.length === 0) return null;
 
   const renderText = (text: string): ReactNode => {
@@ -443,7 +455,9 @@ function Reader({ domain, header, onOpenSearch }: { domain: string; header: Reac
   const loading = !dimensionView && body.isPlaceholderData;
   const activeFolder = dimensionView || folder ? id : (page?.folder_id ?? null);
   const main = useRef<HTMLElement>(null);
-  useLayoutEffect(() => { restoreScroll(location.key, main.current); }, [location.key]);
+  useLayoutEffect(() => {
+    if (dimensionView || (page && !loading) || body.error) restoreScroll(location.key, main.current);
+  }, [location.key, dimensionView, page, loading, body.error]);
   const link = useCallback((href: string) => {
     if (/^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(href)) return href;
     const url = new URL(href, 'https://knowledge.local' + (activeFolder || '/').replace(/\/$/, '') + '/');
@@ -481,7 +495,7 @@ function Reader({ domain, header, onOpenSearch }: { domain: string; header: Reac
         <article>
           <Article source={prepared.source} domain={domain} link={link} ids={prepared.ids} />
         </article>
-        {folder && <FolderListing domain={domain} folderId={id} />}
+        {folder && <><FolderScopeGraph domain={domain} folderId={id} /><FolderListing domain={domain} folderId={id} /></>}
       </>}
     </main>
     {hasRight && (
@@ -515,6 +529,10 @@ export function SnapshotReader() {
     setSearchOpen(true);
   };
   const header = <>
+      <nav className="knowledge-history" aria-label="知识库浏览历史">
+        <button type="button" aria-label="返回" title="返回" disabled={!location.canGoBack} onClick={() => stepHistory(-1)}><ArrowLeft size={17} aria-hidden="true" /></button>
+        <button type="button" aria-label="前进" title="前进" disabled={!location.canGoForward} onClick={() => stepHistory(1)}><ArrowRight size={17} aria-hidden="true" /></button>
+      </nav>
       <strong>DeepScope 知识库</strong>
       <select aria-label="业务域" value={domain || ''} onChange={e => navigate(address(e.target.value, '/', true))}>{domains.data?.map(d => <option key={d}>{d}</option>)}</select>
       <a href="?aggregation=live">业务数据图谱</a>

@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, SlidersHorizontal } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { dimensionsQuery } from './util';
+import { buildCategoryColorMap } from '@/lib/graph-color';
+import { dimensionsQuery, useChildren } from './util';
 
 const DEFAULT_EXPANSION_THRESHOLD = '10';
 
@@ -54,6 +55,13 @@ export function useAggregation(domain: string, folder: string, enabled = true) {
   const saved = orders[scope];
   const order = Array.isArray(saved) ? saved.filter(field => allowed.includes(field)) : allowed;
   return { allowed, order, query, save: (next?: string[]) => save(scope, next) };
+}
+
+export function useSubjectColors(domain: string) {
+  const { order } = useAggregation(domain, '/');
+  const directory = useChildren(domain, '/', order);
+  const folders = directory.data?.pages[0]?.folders;
+  return useMemo(() => buildCategoryColorMap((folders ?? []).map(f => f.id)), [folders]);
 }
 
 export function AggregationPanel({ domain, folder }: { domain: string; folder: string }) {

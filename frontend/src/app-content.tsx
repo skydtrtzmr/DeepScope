@@ -1,4 +1,6 @@
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { EntityDetail } from '@/components/graph/entity-detail';
+import { GraphWorkspace } from '@/components/graph/graph-workspace';
+import { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import { GraphContainer } from '@/components/graph/graph-container';
 import { NodeDetail } from '@/components/graph/node-detail-card';
 import { GraphToolbar } from '@/components/graph/graph-toolbar';
@@ -6,7 +8,7 @@ import { AssociatedNodeList } from '@/components/graph/associated-node--list';
 import { useGraphStore } from '@/lib/stores/graph-store';
 import { fetchInitialGraph, fetchNodesByIds, expandGraph, setApiBaseUrl, setEndpointPaths, setTokenConfig, setToken, onTokenExpired } from '@/lib/api';
 import type { GraphData, SliderLimits } from '@/types/graph';
-import { setCategoryColorConfig } from '@/lib/graph-color';
+import { buildCategoryColorMap, setCategoryColorConfig } from '@/lib/graph-color';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,7 +19,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 
-// Loaded on demand: the graph entry pulls in G6, which the knowledge and preview entries never need.
+
 export function AppContent() {
   const { setGraphData, fullData, selectedNodeId, selectNode, updateExploreConfig, updateBatchLoadConfig, updateConfig, updateDisplaySettings, setMaxTotalNodes, setSliderLimits } = useGraphStore();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -27,9 +29,18 @@ export function AppContent() {
   const [tokenExpired, setTokenExpired] = useState(false);
   const initializedRef = useRef(false);
 
+  const params = new URLSearchParams(window.location.search);
+  const hasModelMetadata = fullData?.nodes.some(n => Array.isArray(n.data?.columns) || n.data?.physicalName);
+  const entityEntry = params.has('node') || params.get('example') === 'original' || (params.has('data') && !hasModelMetadata);
+  const colors = useMemo(() => buildCategoryColorMap(fullData?.nodes.map(n => n.category) ?? []), [fullData]);
+  const selected = fullData?.nodes.find(n => n.id === selectedNodeId);
+  const { bfsExpandNode, loadMoreNeighbors, isLoading, getNeighborButtonState } = useGraphStore();
+  const neighbors = selected && getNeighborButtonState(selected.id);
+  const [loadError, setLoadError] = useState('');
+
   // 加载外部配置文件
   useEffect(() => {
-    fetch('/app-config.json')
+    fetch(new URL('app-config.json', document.baseURI))
       .then((res) => {
         if (!res.ok) return null;
         return res.json();
@@ -119,15 +130,15 @@ export function AppContent() {
         }
         // 滑块上限（从 explore、highlight、batchLoad 中提取上限字段）
         const limits: Partial<SliderLimits> = {};
-        if (cfg.explore) {
+        if (cfg?.explore) {
           if (typeof cfg.explore.mMax === 'number') limits.exploreMMax = cfg.explore.mMax;
           if (typeof cfg.explore.nMax === 'number') limits.exploreNMax = cfg.explore.nMax;
         }
-        if (cfg.highlight) {
+        if (cfg?.highlight) {
           if (typeof cfg.highlight.directRelationsMax === 'number') limits.highlightDirectRelationsMax = cfg.highlight.directRelationsMax;
           if (typeof cfg.highlight.depthMax === 'number') limits.highlightDepthMax = cfg.highlight.depthMax;
         }
-        if (cfg.batchLoad) {
+        if (cfg?.batchLoad) {
           if (typeof cfg.batchLoad.pageSizeMax === 'number') limits.batchLoadPageSizeMax = cfg.batchLoad.pageSizeMax;
         }
         if (Object.keys(limits).length > 0) {
@@ -201,6 +212,7 @@ export function AppContent() {
             const mergedNodes = [...initialData.nodes];
             for (const node of expandResult.nodes) {
               if (!existingIds.has(node.id)) {
+                existingIds.add(node.id);
                 mergedNodes.push(node);
               }
             }
@@ -220,7 +232,7 @@ export function AppContent() {
               useGraphStore.setState({ expansionStates: newExpansionStates });
             }
           } catch (e) {
-            console.error('首屏加载失败:', e);
+            setLoadError(e instanceof Error ? e.message : '图谱加载失败');
           }
         })();
       } else {
@@ -233,7 +245,7 @@ export function AppContent() {
               selectNode(nodeParam);
             }
           })
-          .catch(console.error);
+          .catch(e => setLoadError(e instanceof Error ? e.message : '图谱加载失败'));
       }
       return;
     }
@@ -244,7 +256,7 @@ export function AppContent() {
         setGraphData(data);
         initializedRef.current = true;
       })
-      .catch(console.error);
+      .catch(e => setLoadError(e instanceof Error ? e.message : '图谱加载失败'));
   }, [configReady, setGraphData, selectNode]);
 
   // 导入数据
@@ -291,35 +303,22 @@ export function AppContent() {
         onExportData={handleExport}
       />
 
-      {/* 主内容区 */}
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col md:flex-row overflow-hidden">
-        {/* 图谱区域 */}
-        <div className="flex-1 min-w-0 overflow-hidden min-h-[50vh] md:min-h-0 border-b md:border-b-0 md:border-r">
-          {fullData && fullData.nodes.length > 0 ? (
-            <GraphContainer className="w-full h-full" />
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="flex flex-col items-center gap-4">
-                <Spinner className="size-8" />
-                <p className="text-muted-foreground">正在加载图谱...</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 右侧面板 */}
-        <div className="w-full md:w-80 xl:w-96 shrink-0 min-w-0 flex flex-col h-[45vh] md:h-full overflow-hidden">
-          {/* 控制面板 */}
-          <div className="flex-1 min-h-0 overflow-y-auto border-b">
-            <NodeDetail />
-          </div>
-
-          {/* 详情列表 */}
-          <div className="h-[32%] shrink-0 overflow-hidden" style={{display:selectedNodeId?undefined:'none'}}>
-            <AssociatedNodeList />
-          </div>
-        </div>
-      </div>
+      <GraphWorkspace
+        canvas={fullData?.nodes.length ? <GraphContainer forceLayout={entityEntry} /> :
+          <div className="flex h-full items-center justify-center gap-3">{loadError ? <p role="alert">{loadError}</p> :
+            <><Spinner className="size-8" /><span>正在加载图谱...</span></>}</div>}
+        detail={entityEntry ? selected ? <>
+          <EntityDetail key={selected.id} node={selected} color={colors.get(selected.category ?? '')}
+            directNeighborCount={neighbors?.loaded ?? 0} />
+          <button disabled={isLoading} onClick={() => void bfsExpandNode(selected.id)}>多层展开</button>
+          {selected.url && <a href={selected.url}>打开页面 ↗</a>}
+        </> : <p>选择节点，查看属性和关联范围。</p> : <NodeDetail />}
+        related={selected && <>
+          <AssociatedNodeList />
+          {entityEntry && neighbors && (!neighbors.hasTotal || neighbors.loaded < neighbors.total) &&
+            <button className="local-graph-more" disabled={isLoading} onClick={() => void loadMoreNeighbors(selected.id)}>探索更多关联</button>}
+        </>}
+      />
 
       {/* 导入对话框 */}
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>

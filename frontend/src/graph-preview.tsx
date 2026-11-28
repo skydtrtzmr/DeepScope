@@ -2,7 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ExplorerCanvas } from './components/graph/explorer-canvas';
 import { aggregateLocalGraph, MEMBER_PAGE_SIZE, type LocalGraph } from './lib/local-aggregation';
-import type { ViewNode } from './lib/preview-types';
+import type { ViewNode } from './types/graph-view';
 import './index.css';
 
 function Preview() {
@@ -36,9 +36,9 @@ function Preview() {
   };
   return <main style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
     <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-      {view && <ExplorerCanvas view={view} contextId={view.rootId} onToggle={toggle} onSelect={node => {
-        if (node.kind === 'group') setSelected(node.id);
-        else if (node.id !== view.rootId) window.parent.postMessage({ type: 'knowledge-graph:select', id: node.id }, location.origin);
+      {view && <ExplorerCanvas controls selectedId={selected || null} onClear={() => setSelected('')} view={view} contextId={view.rootId} onToggle={toggle} onSelect={node => {
+        setSelected(node.id);
+        if (node.kind !== 'group' && node.id !== view.rootId) window.parent.postMessage({ type: 'knowledge-graph:select', id: node.id }, location.origin);
       }} />}
     </div>
     {group && <section style={{ padding: '6px 8px', borderTop: '1px solid #e0e8f2', fontSize: 12, background: 'white' }}>

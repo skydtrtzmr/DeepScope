@@ -36,7 +36,6 @@ function sortNodes(nodes: RelatedNodeDetail[], field: SortField, asc: boolean): 
 }
 
 export function AssociatedNodeList() {
-  const parentRef = useRef<HTMLDivElement>(null);
   const { fullData, relatedNodes, selectedNodeId, highlightedNodeId, selectNode, highlightNode, categoryFilter, setCategoryFilter } =
     useGraphStore();
 
@@ -54,6 +53,20 @@ export function AssociatedNodeList() {
     return [...cats].sort((a, b) => a.localeCompare(b, 'zh'));
   }, [fullData]);
 
+  return <RelatedNodeList {...{ relatedNodes, selectedNodeId, highlightedNodeId, selectNode, highlightNode,
+    categoryFilter, setCategoryFilter, categoryOptions, categoryColorMap }} />;
+}
+
+type RelatedNodeListProps = {
+  relatedNodes: RelatedNodeDetail[]; selectedNodeId: string | null; highlightedNodeId: string | null;
+  selectNode: (id: string) => void; highlightNode: (id: string | null) => void;
+  categoryFilter: string[]; setCategoryFilter: (items: string[]) => void;
+  categoryOptions: string[]; categoryColorMap: Map<string, string>;
+};
+
+export function RelatedNodeList({ relatedNodes, selectedNodeId, highlightedNodeId, selectNode, highlightNode,
+  categoryFilter, setCategoryFilter, categoryOptions, categoryColorMap }: RelatedNodeListProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
   const [sortField, setSortField] = useState<SortField>('depth');
   const [sortAsc, setSortAsc] = useState(true);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
@@ -131,7 +144,7 @@ export function AssociatedNodeList() {
                   categoryFilter.length > 0 && 'bg-primary/10 border-primary/30'
                 )}
                 onClick={() => setCatMenuOpen(!catMenuOpen)}
-                title="按类别过滤（多选）"
+                aria-expanded={catMenuOpen} title="按类别过滤（多选）"
               >
                 <Filter className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
@@ -154,6 +167,7 @@ export function AssociatedNodeList() {
                     return (
                       <button
                         key={cat}
+                        aria-pressed={selected}
                         className={cn(
                           'flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-accent transition-colors',
                           selected && 'font-medium'
@@ -188,7 +202,7 @@ export function AssociatedNodeList() {
             <button
               className="p-1 rounded-full border hover:bg-accent transition-colors"
               onClick={() => setSortMenuOpen(!sortMenuOpen)}
-              title="排序方式"
+              aria-expanded={sortMenuOpen} title="排序方式"
             >
               <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
@@ -229,7 +243,7 @@ export function AssociatedNodeList() {
 
       {sortedNodes.length === 0 ? (
         <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-          当前节点没有关联节点
+          {relatedNodes.length ? '没有符合筛选条件的关联节点' : '当前节点没有关联节点'}
         </div>
       ) : (
         <div ref={parentRef} className="flex-1 overflow-auto">
@@ -257,13 +271,15 @@ export function AssociatedNodeList() {
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <div
+                <button type="button"
                   className={cn(
-                    'p-3 mx-2 my-1 rounded-lg border cursor-pointer transition-all',
+                    'block text-left w-[calc(100%-1rem)] p-3 mx-2 my-1 rounded-lg border cursor-pointer transition-all',
                     'hover:bg-accent hover:border-primary/30',
                     isHighlighted && 'bg-accent border-primary/50'
                   )}
                   onClick={() => handleItemClick(node)}
+                  onFocus={() => handleItemHover(node.id)}
+                  onBlur={() => handleItemHover(null)}
                   onMouseEnter={() => handleItemHover(node.id)}
                   onMouseLeave={() => handleItemHover(null)}
                 >
@@ -303,7 +319,7 @@ export function AssociatedNodeList() {
                       )}
                     </div>
                   </div>
-                </div>
+                </button>
               </div>
             );
           })}

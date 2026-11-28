@@ -1,4 +1,4 @@
-import type { Projection, ViewNode } from './preview-types';
+import type { Projection, ViewNode } from '../types/graph-view';
 
 export interface RelationGroup {
   id: string; label: string; total: number; memberIds: string[]; edgeIds: string[];

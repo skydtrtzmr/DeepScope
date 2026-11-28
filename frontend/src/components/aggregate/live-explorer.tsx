@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getNodeColor } from '@/lib/graph-color';
+import { buildCategoryColorMap } from '@/lib/graph-color';
 import './live-explorer.css';
-import { ExplorerCanvas } from './aggregation-explorer';
-import type { Projection, ViewEdge, ViewNode } from '@/lib/aggregation/explorer';
+import { ExplorerCanvas } from '../graph/explorer-canvas';
+import type { Projection, ViewEdge, ViewNode } from '@/types/graph-view';
 
 type Choice = { id: string; name: string };
 type View = Choice & { groups: { field: string; name: string }[]; roots: { field: string; subject: string; name: string }[] };
-type Entity = { id: string; label: string; data: { key?: string; kind?: string } };
+type Entity = { id: string; label: string; category?: string; data: { key?: string; kind?: string } };
 type Result = { scope: string; root: Entity; total: number; groups: { id: string; label: string; count: number }[] };
 type Members = { nodes: Entity[]; edges: ViewEdge[]; has_more: boolean; offset: number };
 type Bucket = { open: boolean; nodes: Entity[]; edges: ViewEdge[]; more: boolean; offset: number };
@@ -70,16 +70,17 @@ function Results({ result }: { result: Result }) {
     else void load(id);
   }
   const view = useMemo<Projection>(() => {
+    const entity = (n: Entity) => ({ id: n.id, label: n.label, type: n.category ?? '', properties: {} });
     const root = result.root;
-    const nodes = new Map<string, ViewNode>([[root.id, {id: root.id, label: root.label, kind: root.data.kind === 'scope' ? 'scope' : 'anchor', depth: 0}]]);
+    const nodes = new Map<string, ViewNode>([[root.id, {id: root.id, label: root.label, kind: root.data.kind === 'scope' ? 'scope' : 'anchor', depth: 0, entity: entity(root)}]]);
     const edges = new Map<string, ViewEdge>();
     for (const group of result.groups) {
       const bucket = buckets[group.id];
-      nodes.set(group.id, {id: group.id, label: group.label + ' · ' + group.count, kind: 'group', depth: 1, parentId: root.id});
+      nodes.set(group.id, {id: group.id, label: group.label + ' · ' + group.count, kind: 'group', depth: 1, parentId: root.id, count: group.count, expanded: !!bucket?.open});
       const id = JSON.stringify([root.id, group.id]);
       edges.set(id, {id, source: root.id, target: group.id, kind: 'membership'});
       if (!bucket?.open) continue;
-      for (const n of bucket.nodes) if (!nodes.has(n.id)) nodes.set(n.id, {id: n.id, label: n.label, kind: 'entity', depth: 2, parentId: group.id});
+      for (const n of bucket.nodes) if (!nodes.has(n.id)) nodes.set(n.id, {id: n.id, label: n.label, kind: 'entity', depth: 2, parentId: group.id, entity: entity(n)});
       for (const e of bucket.edges) edges.set(e.id, {...e, kind: 'membership'});
     }
     return { nodes: [...nodes.values()], edges: [...edges.values()], total: result.total, rootId: root.id };
@@ -112,18 +113,19 @@ function DomainOverview({onExplore}: {onExplore: (source: string) => void}) {
       entity:{id:n.id,label:n.label,type:n.category,properties:{}}})),
     edges: data.edges.map(e => ({...e, kind:'relation'})),
   }), [data]);
+  const colors = useMemo(() => buildCategoryColorMap(data?.nodes.map(n => n.category) ?? []), [data]);
   if (!data || !view) return <p className="p-4" role="status">{response?.error || '正在读取业务域实例…'}</p>;
   const categories = [...new Set(data.nodes.map(n => n.category))];
   const links = data.edges.filter(e => e.source === selected || e.target === selected);
   return <div className="domain-overview">
     <aside><h2>{data.domain}</h2><p>按主体各取最多 {data.per_subject} 条真实记录，连线表示这些记录间已配置的关系。</p>
       <h3>图中主体 · {categories.length}</h3>
-      <div className="domain-legend">{categories.map(c => <span key={c}><i style={{background:getNodeColor(c)}} />{c}</span>)}</div>
+      <div className="domain-legend">{categories.map(c => <span key={c}><i style={{background:colors.get(c)}} />{c}</span>)}</div>
       <h3>{node ? node.category : '查看记录'}</h3>
       {node ? <><strong>{node.label}</strong><p>{node.data.key} · 图中有 {links.length} 条关联</p>
         <button onClick={() => onExplore(node.data.subject)}>按此主体分组 →</button></> : <p>点击图上的记录查看所属主体与关联数量。拖动节点调整位置，滚轮缩放。</p>}
     </aside><main><div className="domain-caption">{view.total} 个实例 · {view.edges.length} 条关系</div>
-      <ExplorerCanvas selectedId={selected} onClear={() => select('')} view={view} contextId={domain} onSelect={n => select(n.id)} onToggle={() => {}} /></main></div>;
+      <ExplorerCanvas categoryColors={colors} selectedId={selected} onClear={() => select('')} view={view} contextId={domain} onSelect={n => select(n.id)} onToggle={() => {}} /></main></div>;
 }
 
 export function LiveExplorer() {

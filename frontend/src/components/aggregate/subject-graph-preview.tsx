@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ExplorerCanvas } from './aggregation-explorer';
+import { ExplorerCanvas } from '../graph/explorer-canvas';
 import { subjectDemo } from '@/lib/aggregation/subject-demo';
 import { localGraph, mergeFragments } from '@/lib/aggregation/subject-graph';
-import type { Projection, ViewNode } from '@/lib/aggregation/explorer';
+import type { Projection, ViewNode } from '@/types/graph-view';
 import { Button } from '@/components/ui/button';
 
 export function SubjectGraphPreview() {
